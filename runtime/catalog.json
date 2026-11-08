@@ -358,12 +358,12 @@
     "lateral": 0,
     "voicing": 1,
     "rhotic": 0,
-    "tongueX": 0.998,
-    "tongueY": 0.881,
-    "jaw": 0.726,
+    "tongueX": 1,
+    "tongueY": 0.901,
+    "jaw": 0.43,
     "lipOpen": 1,
     "lipRound": 0,
-    "throat": 0.34
+    "throat": 0.208
    }
   },
   {
@@ -379,11 +379,11 @@
     "voicing": 1,
     "rhotic": 0,
     "tongueX": 1,
-    "tongueY": 0.552,
-    "jaw": 0.407,
-    "lipOpen": 0.942,
+    "tongueY": 0.641,
+    "jaw": 0.39,
+    "lipOpen": 0.866,
     "lipRound": 0,
-    "throat": 0.379
+    "throat": 0.222
    }
   },
   {
@@ -398,12 +398,12 @@
     "lateral": 0,
     "voicing": 1,
     "rhotic": 0,
-    "tongueX": 1,
-    "tongueY": 0.73,
-    "jaw": 0.777,
+    "tongueX": 0.999,
+    "tongueY": 0.72,
+    "jaw": 0.566,
     "lipOpen": 1,
     "lipRound": 0,
-    "throat": 0.018
+    "throat": 0
    }
   },
   {
@@ -418,9 +418,9 @@
     "lateral": 0,
     "voicing": 1,
     "rhotic": 0,
-    "tongueX": 1,
-    "tongueY": 0.209,
-    "jaw": 1,
+    "tongueX": 0.999,
+    "tongueY": 0.207,
+    "jaw": 0.797,
     "lipOpen": 1,
     "lipRound": 0,
     "throat": 0
@@ -439,8 +439,8 @@
     "voicing": 1,
     "rhotic": 0,
     "tongueX": 0.999,
-    "tongueY": 0.453,
-    "jaw": 1,
+    "tongueY": 0.479,
+    "jaw": 0.997,
     "lipOpen": 1,
     "lipRound": 0,
     "throat": 0
@@ -458,8 +458,8 @@
     "lateral": 0,
     "voicing": 1,
     "rhotic": 0,
-    "tongueX": 0.004,
-    "tongueY": 0,
+    "tongueX": 0.045,
+    "tongueY": 0.006,
     "jaw": 1,
     "lipOpen": 1,
     "lipRound": 0,
@@ -478,11 +478,11 @@
     "lateral": 0,
     "voicing": 1,
     "rhotic": 0,
-    "tongueX": 0.035,
-    "tongueY": 0.089,
-    "jaw": 0.996,
-    "lipOpen": 0.634,
-    "lipRound": 0.311,
+    "tongueX": 0,
+    "tongueY": 0.101,
+    "jaw": 0.839,
+    "lipOpen": 0.636,
+    "lipRound": 0.332,
     "throat": 0
    }
   },
@@ -498,12 +498,12 @@
     "lateral": 0,
     "voicing": 1,
     "rhotic": 0,
-    "tongueX": 0.239,
-    "tongueY": 0.137,
-    "jaw": 0.497,
-    "lipOpen": 0.524,
-    "lipRound": 0.689,
-    "throat": 0.403
+    "tongueX": 0.157,
+    "tongueY": 0.204,
+    "jaw": 0.494,
+    "lipOpen": 0.462,
+    "lipRound": 0.738,
+    "throat": 0.447
    }
   },
   {
@@ -518,12 +518,12 @@
     "lateral": 0,
     "voicing": 1,
     "rhotic": 0,
-    "tongueX": 0.055,
-    "tongueY": 0.787,
-    "jaw": 0.363,
-    "lipOpen": 0.434,
-    "lipRound": 0.54,
-    "throat": 0.14
+    "tongueX": 0.051,
+    "tongueY": 0.778,
+    "jaw": 0.364,
+    "lipOpen": 0.359,
+    "lipRound": 0.577,
+    "throat": 0.153
    }
   },
   {
@@ -538,12 +538,12 @@
     "lateral": 0,
     "voicing": 1,
     "rhotic": 0,
-    "tongueX": 0.001,
-    "tongueY": 0.811,
-    "jaw": 0.269,
-    "lipOpen": 0.432,
-    "lipRound": 0.839,
-    "throat": 0.16
+    "tongueX": 0,
+    "tongueY": 0.801,
+    "jaw": 0.268,
+    "lipOpen": 0.347,
+    "lipRound": 0.909,
+    "throat": 0.183
    }
   },
   {
@@ -558,12 +558,12 @@
     "lateral": 0,
     "voicing": 1,
     "rhotic": 0,
-    "tongueX": 0.698,
+    "tongueX": 0.274,
     "tongueY": 0,
-    "jaw": 1,
-    "lipOpen": 0.981,
-    "lipRound": 0.62,
-    "throat": 0
+    "jaw": 0.65,
+    "lipOpen": 0.914,
+    "lipRound": 0,
+    "throat": 0.375
    }
   },
   {
@@ -577,12 +577,12 @@
     "velum": 0,
     "lateral": 0,
     "voicing": 1,
-    "rhotic": 0.903,
-    "tongueX": 0,
-    "tongueY": 1,
-    "jaw": 0.959,
-    "lipOpen": 0.867,
-    "lipRound": 0.798,
+    "rhotic": 1,
+    "tongueX": 1,
+    "tongueY": 0.058,
+    "jaw": 0.386,
+    "lipOpen": 0.578,
+    "lipRound": 0.517,
     "throat": 0
    }
   },
@@ -724,6 +724,11 @@
    "example": "day"
   },
   {
+   "symbol": "DX",
+   "ipa": "ɾ",
+   "example": "butter"
+  },
+  {
    "symbol": "K",
    "ipa": "k",
    "example": "cat"
@@ -855,8 +860,8 @@
    "lateral": 0,
    "voicing": 1,
    "rhotic": 0,
-   "tongueX": 0.004,
-   "tongueY": 0,
+   "tongueX": 0.045,
+   "tongueY": 0.006,
    "jaw": 1,
    "lipOpen": 1,
    "lipRound": 0,

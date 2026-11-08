@@ -70,7 +70,8 @@ const TIP_SPAN: f32 = 8.0;
 
 /// Closure parameters aim past the point of contact, as real articulators
 /// do: tissue meets the opposing surface at 92% of the gesture, so a closing
-/// movement completes in finite time instead of creeping toward zero area.
+/// movement reaches zero area at a definite moment rather than only
+/// approaching it asymptotically.
 pub const CONTACT: f32 = 0.92;
 /// Lip opening at or below which the lips are sealed.
 pub const LIP_CONTACT: f32 = 0.04;

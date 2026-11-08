@@ -18,8 +18,6 @@ const MASTER: f32 = 15.0;
 const BURST_LEVEL: f32 = 0.1;
 /// Minimum transglottal pressure (fraction of full lung pressure) for voicing.
 const PHONATION_THRESHOLD: f32 = 0.1;
-/// Low-frequency sound radiated by the yielding walls of throat and cheeks
-/// (the "voice bar" heard during voiced closures).
 /// Per-tick sound absorption by a fully developed jet (at full lung pressure).
 const JET_LOSS: f32 = 0.12;
 const WALL_LEVEL: f32 = 0.025;
@@ -442,10 +440,10 @@ impl Voice {
         let flow = mouth + nose;
         let radiated = flow - self.radiation_prev;
         self.radiation_prev = flow;
-        // Wall radiation: the yielding throat and cheek walls are driven by
-        // the glottal pulses and, being massive, radiate only low
-        // frequencies. Masked while the mouth is open, it is the voice bar
-        // heard through voiced closures.
+        // Soft tissue of the neck and cheeks is set vibrating by the glottal
+        // pulses and passes on only low frequencies. Inaudible under an open
+        // vowel, it is the low murmur that keeps b, d and g voiced while the
+        // mouth is sealed.
         self.wall_lp1 += self.wall_coeff * (self.wall_drive - self.wall_lp1);
         self.wall_lp2 += self.wall_coeff * (self.wall_lp1 - self.wall_lp2);
         radiated + WALL_LEVEL * self.wall_lp2

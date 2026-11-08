@@ -301,7 +301,7 @@ export function planWords(words: Word[], opts: SpeechOptions = {}): Plan {
       const crossWord = pi === w.phones.length - 1;
       const next = !crossWord ? w.phones[pi + 1] : w.boundary === 'word' ? words[wi + 1]?.phones[0] : undefined;
       // American English flapping: T/D between a vowel and an unstressed vowel
-      // ("water"), or word-finally before a vowel-initial word ("meet at").
+      // ("city", "ladder"), or at a word end before a vowel ("put it").
       if ((p.symbol === 'T' || p.symbol === 'D') && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
         p = {symbol: 'DX', stress: 0};
       }
