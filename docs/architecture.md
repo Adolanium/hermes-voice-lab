@@ -38,6 +38,8 @@ One engine (Rust → `runtime/voice_lab_engine.wasm`) and one planner (TypeScrip
 
 **Output stage.** The glottal source is scaled by 210/f0 so effort, not pitch, sets loudness. A slow leveler (−22 dBFS, 3:1) and a 2 ms look-ahead limiter (ceiling 0.8) follow, then the soft clipper. Junction coefficients glide every tick between control updates, so fast closures don't click.
 
+**Display telemetry.** At control rate the engine also keeps the smoothed wave amplitude in every oral and nasal section (`engine_energy`), the mean airflow, the share of air leaving through the nose, and whether the tract is sealed. The cutaway's lit airway, flow particles, seal marker and sound readout use only these values and the area function; nothing there is a canned animation, except the fold view, which runs the modeled pulse slowed 100× and says so.
+
 **Real-time safety.** Render work is bounded per sample. Buffers and score storage (65,536 events) are allocated at construction. Any non-finite sample resets the filters and is counted in telemetry; the tests assert it never happens.
 
 **ABI.** Plain `extern "C"` functions over linear memory: `engine_init/set/jump/render`, output, parameter, area and state pointers, score staging/load/play/stop, `analyze` and `shape_from_params`. `src/core/engine.ts` wraps them and checks parameter-table parity at load.

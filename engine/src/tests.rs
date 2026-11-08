@@ -218,3 +218,28 @@ fn closure_builds_pressure_and_releases_a_burst() {
     }
     assert!(max_burst > 0.1, "burst {max_burst}");
 }
+
+#[test]
+fn closure_stops_airflow_and_sound_in_front_and_nose_takes_over() {
+    use crate::voice::{STATE_AIRFLOW, STATE_CLOSED, STATE_NASAL_SHARE};
+    let mut v = Voice::new(48_000.0, 4);
+    for (id, val) in [(GATE, 1.0), (TONGUE_X, 0.0), (TONGUE_Y, 0.0), (JAW, 1.0), (LIP_OPEN, 1.0), (SPACE, 0.0)] {
+        v.jump(id, val);
+    }
+    render(&mut v, 0.4);
+    let open_flow = v.state[STATE_AIRFLOW];
+    let open_lips = v.energy[N - 1];
+    assert!(open_flow > 0.05 && open_lips > 0.0 && v.state[STATE_CLOSED] == 0.0);
+    // Seal the tongue tip: no air leaves, and the lips fall silent.
+    v.set(TIP_CLOSE, 1.0, 8.0);
+    render(&mut v, 0.3);
+    assert_eq!(v.state[STATE_CLOSED], 1.0);
+    assert!(v.state[STATE_AIRFLOW] < 0.01, "airflow {}", v.state[STATE_AIRFLOW]);
+    assert!(v.energy[N - 1] < open_lips * 0.05, "lips {} vs {}", v.energy[N - 1], open_lips);
+    // Lower the velum: air and sound leave through the nose (an /n/).
+    v.set(VELUM, 1.0, 10.0);
+    render(&mut v, 0.3);
+    assert_eq!(v.state[STATE_CLOSED], 0.0);
+    assert!(v.state[STATE_NASAL_SHARE] > 0.99);
+    assert!(v.energy[N + crate::tract::NASAL_N - 1] > 0.0);
+}

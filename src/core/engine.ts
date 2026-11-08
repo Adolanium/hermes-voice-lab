@@ -10,9 +10,11 @@ export const RESPONSE_MAX_HZ = 8000;
 export const STATE = {
   internalRate: 0, length: 1, minArea: 2, minIndex: 3, nasalArea: 4, oralPressure: 5, frication: 6,
   voicing: 7, f0: 8, rms: 9, peak: 10, rd: 11, flow: 12, playing: 13, position: 14, resets: 15,
-  aspiration: 16, burst: 17, scoreLength: 18, noiseIndex: 19,
+  aspiration: 16, burst: 17, scoreLength: 18, noiseIndex: 19, airflow: 20, nasalShare: 21, closed: 22,
 } as const;
-export const STATE_LEN = 20;
+export const STATE_LEN = 23;
+export const NASAL_SECTIONS = 30;
+export const ENERGY_LEN = N_SECTIONS + NASAL_SECTIONS;
 
 interface Exports {
   memory: WebAssembly.Memory;
@@ -27,6 +29,7 @@ interface Exports {
   engine_params(): number;
   engine_areas(): number;
   engine_state(): number;
+  engine_energy(): number;
   engine_glottal_shape(points: number): number;
   score_staging(): number;
   score_capacity(): number;
@@ -106,6 +109,10 @@ export class Engine {
   }
   state(): Float32Array {
     return this.f32(this.e.engine_state(), STATE_LEN).slice();
+  }
+  /** Smoothed sound-wave amplitude per section (oral 0..43, then nasal), for display. */
+  energy(): Float32Array {
+    return this.f32(this.e.engine_energy(), ENERGY_LEN).slice();
   }
   glottalShape(points = 96): Float32Array {
     return this.f32(this.e.engine_glottal_shape(points), points).slice();

@@ -89,7 +89,7 @@ class VoiceProcessor extends AudioWorkletProcessor {
       this.sent = this.frames;
       const state = this.engine.state();
       const glottal = (this.frames / this.every) % 6 < 1 ? this.engine.glottalShape(96) : undefined;
-      this.port.postMessage({type: 'telemetry', params: this.engine.params(), areas: this.engine.areas(), state, glottal, time: currentTime});
+      this.port.postMessage({type: 'telemetry', params: this.engine.params(), areas: this.engine.areas(), energy: this.engine.energy(), state, glottal, time: currentTime});
     }
     return true;
   }

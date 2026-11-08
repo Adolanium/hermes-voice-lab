@@ -16,6 +16,7 @@ import {PlaySpeakSingTabs} from './tabs';
 import {Portrait, type Pose} from './Portrait';
 import {Airway, Glottal, Spectrum, Waveform} from './scopes';
 import {CSS} from './styles';
+import {nameSound} from './soundName';
 
 const USER_PRESETS = 'voicePresets';
 
@@ -218,6 +219,17 @@ export default function VoiceLab({bridge}: Props) {
       setModel(null);
     }
   }, [areas, nasal, length, running]);
+  const airway = {
+    running,
+    areas,
+    energy: running && telemetry ? telemetry.energy : null,
+    airflow: running && telemetry ? telemetry.state[STATE.airflow] : 0,
+    nasalShare: running && telemetry ? telemetry.state[STATE.nasalShare] : 0,
+    closed: running && !!telemetry && telemetry.state[STATE.closed] > 0.5,
+    minIndex: running && telemetry ? telemetry.state[STATE.minIndex] : 0,
+    minArea: running && telemetry ? telemetry.state[STATE.minArea] : 1,
+    gate: params?.gate ?? 0,
+  };
   const minIndex = useMemo(() => {
     let k = 7;
     for (let i = 7; i < areas.length; i++) if (areas[i] < areas[k]) k = i;
@@ -352,6 +364,16 @@ export default function VoiceLab({bridge}: Props) {
     }
   };
 
+  const nowSound = nameSound({
+    params: (params ?? {...project.voice, ...project.shape}) as Record<string, number>,
+    formants: model?.formants ?? [],
+    frication: running && telemetry ? telemetry.state[STATE.frication] : 0,
+    closed: airway.closed || (!running && areas[minIndex] < 0.004 && nasal < 0.01),
+    nasalShare: running ? airway.nasalShare : nasal > 0.01 ? (areas[minIndex] < 0.004 ? 1 : 0.3) : 0,
+    minIndex,
+    minArea: areas[minIndex],
+    sounding: running ? airway.gate > 0.05 : true,
+  });
   const statusText = status === 'running' ? `${(audio.sampleRate / 1000).toFixed(1)} kHz · live` : status === 'starting' ? 'starting…' : status === 'error' ? 'audio error' : 'audio off';
   const formants = model?.formants.slice(0, 3) ?? [];
 
@@ -404,12 +426,19 @@ export default function VoiceLab({bridge}: Props) {
               </span>
             </div>
             <div className="hvl-portrait-wrap">
-              <Portrait pose={pose} cutaway={cutaway} labels={labels} speaking={scorePlaying} onDrag={onPortraitDrag} />
-              <dl className="hvl-readouts" aria-label="Current values">
-                <dt>F0</dt><dd>{Math.round(f0)} Hz · {noteName(hzToMidi(Math.max(30, f0)))}</dd>
-                {formants.map((fm, k) => <React.Fragment key={k}><dt>F{k + 1}</dt><dd>{Math.round(fm.frequency)} Hz</dd></React.Fragment>)}
-                <dt>Tract</dt><dd>{length.toFixed(1)} cm</dd>
-              </dl>
+              <Portrait pose={pose} airway={airway} cutaway={cutaway} labels={labels} speaking={scorePlaying} onDrag={onPortraitDrag} />
+              <div className={`hvl-now is-${nowSound.kind}`} aria-live="polite">
+                <div className="hvl-now-symbol" title="Sound the model is making now">{nowSound.symbol}</div>
+                <div className="hvl-now-label">{running ? nowSound.label : `shape · ${nowSound.label}`}</div>
+                <dl aria-label="Current values">
+                  <dt>Pitch</dt><dd>{Math.round(f0)} Hz · {noteName(hzToMidi(Math.max(30, f0)))}</dd>
+                  <dt>F1 · F2</dt><dd>{formants[0] ? Math.round(formants[0].frequency) : '–'} · {formants[1] ? Math.round(formants[1].frequency) : '–'} Hz</dd>
+                  <dt>Lips</dt><dd>{areas[areas.length - 1] < 0.004 ? 'sealed' : `${areas[areas.length - 1].toFixed(2)} cm²`}</dd>
+                  <dt>Narrowest</dt><dd>{areas[minIndex] < 0.004 ? 'sealed' : `${areas[minIndex].toFixed(2)} cm²`}</dd>
+                  <dt>Nasal port</dt><dd>{nasal < 0.01 ? 'shut' : `${nasal.toFixed(2)} cm²`}</dd>
+                  <dt>Tract</dt><dd>{length.toFixed(1)} cm</dd>
+                </dl>
+              </div>
             </div>
             <div className="hvl-stage-foot">
               <span>Drag the handles: lips, jaw, tongue, tip, velum.</span>
@@ -447,7 +476,7 @@ export default function VoiceLab({bridge}: Props) {
           <Airway areas={areas} length={length} nasal={nasal} minIndex={minIndex} />
           <Spectrum audio={audio} running={running} model={model} f0={running ? f0 : 0} />
           <Waveform audio={audio} running={running} />
-          <Glottal shape={audio.glottal ?? null} rd={rd} f0={running ? f0 : 0} />
+          <Glottal shape={audio.glottal ?? null} rd={rd} f0={running ? f0 : 0} voicing={params?.voicing ?? 1} sounding={running && airway.gate > 0.05 && !airway.closed} />
         </section>
 
         <Keyboard base={base} onBaseChange={b => { setBase(b); bridge.storage.set('keyboardBase', b); }} onNoteOn={m => void onNoteOn(m)} onNoteOff={onNoteOff} enabled={!typing} />

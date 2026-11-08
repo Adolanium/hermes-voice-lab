@@ -3,7 +3,7 @@
  * AnalyserNode. "Model" panels show quantities computed by the engine model
  * (area function, transfer function, LF pulse), not measurements.
  */
-import React, {useMemo, useRef} from 'react';
+import React, {useEffect, useMemo, useRef} from 'react';
 import type {TractResponse} from '../core/engine';
 import {noteName, hzToMidi} from '../core/params';
 import {cssVar, useCanvas} from './controls';
@@ -240,8 +240,11 @@ export function Waveform({audio, running}: {audio: VoiceAudio; running: boolean}
   );
 }
 
-export function Glottal({shape, rd, f0}: {shape: Float32Array | null; rd: number; f0: number}) {
+export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array | null; rd: number; f0: number; voicing: number; sounding: boolean}) {
   const pts = useMemo(() => (shape ? Array.from(shape) : null), [shape]);
+  const live = useRef({pts, f0, voicing, sounding});
+  live.current = {pts, f0, voicing, sounding};
+  const phase = useRef(0);
   const ref = useCanvas((ctx, w, h) => {
     const c = colors(ref.current);
     ctx.fillStyle = c.line;
@@ -266,11 +269,61 @@ export function Glottal({shape, rd, f0}: {shape: Float32Array | null; rd: number
     ctx.fillStyle = c.accent;
     ctx.fill();
     ctx.globalAlpha = 1;
-  }, [pts]);
-  const note = f0 > 0 ? `${Math.round(f0)} Hz · ${noteName(hzToMidi(f0))} · Rd ${rd.toFixed(2)}` : `Rd ${rd.toFixed(2)}`;
+    if (sounding && voicing > 0.4) {
+      // Playhead, in step with the slowed fold view.
+      const k = Math.floor(phase.current * pts.length) % pts.length;
+      const px = (phase.current / periods) * w;
+      const py = h - 10 - pts[k] * (h - 22);
+      ctx.fillStyle = c.accent;
+      ctx.beginPath();
+      ctx.arc(px, py, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, [pts, sounding, voicing], sounding);
+  // Top-down fold view, slowed 100×, driven by the modeled pulse shape and F0.
+  const folds = useRef<SVGSVGElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    let last = performance.now();
+    const frame = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const {pts, f0, voicing, sounding} = live.current;
+      phase.current = (phase.current + dt * Math.max(0, f0) / 100) % 1;
+      let open = 0.02;
+      if (sounding && voicing < 0.4) open = 0.9;
+      else if (sounding && pts) open = 0.04 + 0.6 * Math.max(0, pts[Math.floor(phase.current * pts.length) % pts.length]);
+      const el = folds.current;
+      if (el) {
+        // Seen from above: folds meet at the front (top) and part toward the
+        // back, leaving a V-shaped glottis whose width follows the flow.
+        const gap = 0.6 + 13 * open;
+        const inner = (side: number) => `M 34 9 Q ${34 + side * gap * 0.5} 36 ${34 + side * gap} 59`;
+        el.querySelector('.hvl-fold-l')?.setAttribute('d', `${inner(-1)} L 21 59 C 12 50 12 22 31 9 Z`);
+        el.querySelector('.hvl-fold-r')?.setAttribute('d', `${inner(1)} L 47 59 C 56 50 56 22 37 9 Z`);
+        el.querySelector('.hvl-glottis')?.setAttribute('d', `${inner(-1)} L ${34 + gap} 59 Q ${34 + gap * 0.5} 36 34 9 Z`);
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const state = !sounding ? 'at rest' : voicing < 0.4 ? 'held open (voiceless)' : 'vibrating';
+  const note = f0 > 0 && sounding ? `${Math.round(f0)} Hz · ${noteName(hzToMidi(f0))} · Rd ${rd.toFixed(2)}` : `Rd ${rd.toFixed(2)}`;
   return (
     <Scope title="Glottal flow" badge="model" note={note}>
-      <canvas ref={ref} aria-label="Modeled glottal flow pulse" />
+      <div className="hvl-glottal">
+        <figure className="hvl-folds" title="Top-down view of the vocal folds, slowed 100×">
+          <svg ref={folds} viewBox="0 0 68 68" aria-label={`Vocal folds ${state}, slowed 100 times`}>
+            <circle cx="34" cy="34" r="31" className="hvl-folds-ring" />
+            <path className="hvl-glottis" />
+            <path className="hvl-fold-l" />
+            <path className="hvl-fold-r" />
+          </svg>
+          <figcaption>folds · slowed 100×</figcaption>
+        </figure>
+        <canvas ref={ref} aria-label="Modeled glottal flow pulse" />
+      </div>
     </Scope>
   );
 }

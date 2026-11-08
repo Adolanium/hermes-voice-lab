@@ -36,6 +36,16 @@ What the tests establish:
 - **Read-aloud provider**: Hermes' TTS registry returned `voice-lab`. `synthesize()` asked for `.mp3` and correctly produced WAV; `stream()` returned 24 kHz PCM.
 - **Layout**: verified at 1440 px and 520 px wide (stacked layout), and in light and dark themes (the dark theme was checked in the standalone preview; native used the default light theme).
 
+### Living cutaway (native, `research/validation/airway-alive.mjs`)
+
+| Step | Readout | Lit beads in front of the airway (sum) | Moving particles |
+|---|---|---|---|
+| Hold /ɑ/ | ɑ, as in "father" | 28.0 | 28 |
+| Drag the tongue tip up to seal | d, sealed behind the ridge, no air out | 6.2 | 7 (stopped at the seal) |
+| Drag the velum down | n, air through the nose, nasal port 1.50 cm² | 26.2 (nasal path lit) | 28 |
+
+Engine test `closure_stops_airflow_and_sound_in_front_and_nose_takes_over` pins the same behavior. Measured with `bin/probe.rs`, an open /ɑ/ is −19 dB; a tip, lip or dorsum seal with the nose shut is digital silence once voicing stops; the same tip seal with the velum open is −24 dB (nasal).
+
 ## Not verified
 
 - The native WAV export save dialog (`captureGatewayFileDownload`) was not clicked through. The backend render behind it is the same code the tools exercise.

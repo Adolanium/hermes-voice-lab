@@ -88,6 +88,12 @@ pub extern "C" fn engine_areas() -> *const f32 {
     voice().map(|v| v.areas.as_ptr()).unwrap_or(std::ptr::null())
 }
 
+/// Smoothed sound-wave amplitude per section: N oral then nasal sections.
+#[no_mangle]
+pub extern "C" fn engine_energy() -> *const f32 {
+    voice().map(|v| v.energy.as_ptr()).unwrap_or(std::ptr::null())
+}
+
 #[no_mangle]
 pub extern "C" fn engine_state() -> *const f32 {
     voice().map(|v| v.state.as_ptr()).unwrap_or(std::ptr::null())

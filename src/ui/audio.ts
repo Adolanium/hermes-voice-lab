@@ -11,6 +11,7 @@ import {engineBytes, engineModule, workletSource} from './assets';
 export interface Telemetry {
   params: Float32Array;
   areas: Float32Array;
+  energy: Float32Array;
   state: Float32Array;
   glottal?: Float32Array;
   time: number;

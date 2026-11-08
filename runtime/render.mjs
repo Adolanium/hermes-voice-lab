@@ -130,7 +130,9 @@ var midiToHz = (m) => 440 * 2 ** ((m - 69) / 12);
 // src/core/engine.ts
 var N_SECTIONS = 44;
 var RESPONSE_BINS = 256;
-var STATE_LEN = 20;
+var STATE_LEN = 23;
+var NASAL_SECTIONS = 30;
+var ENERGY_LEN = N_SECTIONS + NASAL_SECTIONS;
 function compileScore(events, length) {
   const out = new Float32Array(events.length * 4);
   let end = 0;
@@ -182,6 +184,10 @@ var Engine = class {
   }
   state() {
     return this.f32(this.e.engine_state(), STATE_LEN).slice();
+  }
+  /** Smoothed sound-wave amplitude per section (oral 0..43, then nasal), for display. */
+  energy() {
+    return this.f32(this.e.engine_energy(), ENERGY_LEN).slice();
   }
   glottalShape(points = 96) {
     return this.f32(this.e.engine_glottal_shape(points), points).slice();

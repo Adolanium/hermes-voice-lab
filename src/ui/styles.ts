@@ -71,6 +71,16 @@ export const CSS = `
 .hvl-kicker { font: 600 10px var(--hvl-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--hvl-fg3); }
 .hvl-portrait-wrap { display: flex; align-items: center; justify-content: center; padding: 0 8px; position: relative; }
 .hvl-portrait { width: 100%; height: auto; aspect-ratio: 1; max-height: min(70vh, 640px); touch-action: none; user-select: none; display: block; }
+.hvl-now { position: absolute; left: 12px; top: 2px; width: 196px; padding: 10px 12px 9px; border-radius: 10px; border: 1px solid var(--hvl-line2);
+  background: color-mix(in oklab, var(--hvl-skin) 86%, transparent); backdrop-filter: blur(6px); }
+.hvl-now-symbol { font: 500 40px/1 var(--hvl-sans); color: var(--hvl-accent); letter-spacing: -.01em; min-height: 40px; }
+.hvl-now.is-stop .hvl-now-symbol, .hvl-now.is-fricative .hvl-now-symbol { color: var(--hvl-warm); }
+.hvl-now.is-nasal .hvl-now-symbol { color: var(--ui-purple, #9b59d0); }
+.hvl-now.is-silent .hvl-now-symbol { color: var(--hvl-fg4); }
+.hvl-now-label { font-size: 10.5px; color: var(--hvl-fg3); margin: 3px 0 8px; min-height: 13px; line-height: 1.3; }
+.hvl-now dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font: 500 10.5px var(--hvl-mono); font-variant-numeric: tabular-nums; }
+.hvl-now dt { color: var(--hvl-fg4); }
+.hvl-now dd { margin: 0; text-align: right; color: var(--hvl-fg2); }
 .hvl-readouts { position: absolute; right: 12px; top: 2px; margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 12px; font: 500 11px var(--hvl-mono);
   color: var(--hvl-fg2); background: color-mix(in oklab, var(--hvl-skin) 82%, transparent); border: 1px solid var(--hvl-line2); border-radius: 8px; padding: 8px 10px;
   backdrop-filter: blur(6px); font-variant-numeric: tabular-nums; }
@@ -87,16 +97,22 @@ export const CSS = `
 .hvl-handle:hover .hvl-handle-ring { fill: color-mix(in oklab, var(--hvl-accent) 30%, transparent); }
 .hvl-handle-dot { fill: var(--hvl-accent); }
 .hvl-label path { stroke-width: .9; }
+.hvl-labels { pointer-events: none; }
 .hvl-label text { font: 600 8.5px var(--hvl-mono); fill: var(--hvl-fg2); letter-spacing: .08em; text-transform: uppercase; }
 .hvl-label rect { fill: var(--hvl-skin); stroke: color-mix(in oklab, var(--hvl-accent) 45%, transparent); stroke-width: .8; }
 .hvl-label path { stroke: var(--hvl-accent); stroke-opacity: .65; }
 .hvl-label-dot { fill: var(--hvl-accent); }
 .hvl-blink { transform-box: fill-box; transform-origin: 50% 40%; animation: hvl-blink 5.2s infinite; }
 @keyframes hvl-blink { 0%, 93%, 100% { transform: scaleY(1); } 95.5% { transform: scaleY(0.08); } }
+.hvl-bead { fill: var(--hvl-accent); transition: opacity .08s linear; }
+.hvl-bead.is-shut { fill: var(--hvl-warm); }
+.hvl-particles circle { fill: var(--hvl-skin); stroke: var(--hvl-accent); stroke-width: .9; }
+.hvl-seal circle { fill: color-mix(in oklab, var(--hvl-warm) 22%, transparent); stroke: var(--hvl-warm); stroke-width: 1.4; }
+.hvl-seal path { stroke: var(--hvl-warm); stroke-width: 1.8; stroke-linecap: round; }
 .hvl-air path { animation: hvl-flow 1.1s linear infinite; }
 .hvl-air.is-fast path { animation-duration: .6s; }
 @keyframes hvl-flow { to { stroke-dashoffset: -22; } }
-@media (prefers-reduced-motion: reduce) { .hvl-air path, .hvl-blink { animation: none; } .hvl-cutaway { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .hvl-air path, .hvl-blink { animation: none; } .hvl-particles { display: none; } .hvl-cutaway { transition: none; } }
 
 /* Console */
 .hvl-console { display: flex; flex-direction: column; min-width: 0; }
@@ -176,11 +192,19 @@ export const CSS = `
 .hvl-roll canvas { display: block; }
 
 /* Scopes */
-.hvl-scopes { display: grid; grid-template-columns: 1.35fr 1.35fr 1fr 0.8fr; gap: 14px; }
+.hvl-scopes { display: grid; grid-template-columns: 1.3fr 1.3fr 0.95fr 1.05fr; gap: 14px; }
 .hvl-scope { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .hvl-scope header { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
 .hvl-scope header small { font: 500 10px var(--hvl-mono); color: var(--hvl-fg4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hvl-scope canvas { width: 100%; height: 112px; display: block; }
+.hvl-glottal { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.hvl-glottal canvas { flex: 1; min-width: 0; }
+.hvl-folds { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; flex: none; }
+.hvl-folds svg { width: 72px; height: 72px; }
+.hvl-folds figcaption { font: 500 8.5px var(--hvl-mono); color: var(--hvl-fg4); letter-spacing: .04em; white-space: nowrap; }
+.hvl-folds-ring { fill: color-mix(in oklab, var(--hvl-accent) 6%, transparent); stroke: var(--hvl-line); }
+.hvl-glottis { fill: var(--hvl-ink); opacity: .85; }
+.hvl-fold-l, .hvl-fold-r { fill: var(--hvl-flesh); stroke: var(--hvl-accent); stroke-width: 1; }
 .hvl-badge { font: 600 8.5px var(--hvl-mono); letter-spacing: .1em; text-transform: uppercase; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--hvl-line);
   color: var(--hvl-fg3); white-space: nowrap; }
 .hvl-badge.is-measured { border-color: color-mix(in oklab, var(--hvl-good) 50%, transparent); color: var(--hvl-good); }
@@ -218,8 +242,7 @@ export const CSS = `
   .hvl-scopes { grid-template-columns: 1fr; }
   .hvl-actions { width: 100%; }
   .hvl-keys { height: 76px; }
-  .hvl-readouts { position: static; grid-template-columns: repeat(5, auto); margin: 0 12px 8px; justify-content: space-between; }
-  .hvl-readouts dd { text-align: left; }
+  .hvl-now { position: static; width: auto; margin: 0 12px 8px; }
   .hvl-portrait-wrap { flex-direction: column; }
 }
 `;

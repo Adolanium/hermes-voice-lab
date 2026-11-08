@@ -32,7 +32,7 @@ pub struct Event {
 }
 
 /// Telemetry slots exposed to hosts (see `STATE_*`).
-pub const STATE_LEN: usize = 20;
+pub const STATE_LEN: usize = 23;
 pub const STATE_INTERNAL_RATE: usize = 0;
 pub const STATE_LENGTH: usize = 1;
 pub const STATE_MIN_AREA: usize = 2;
@@ -53,6 +53,14 @@ pub const STATE_ASPIRATION: usize = 16;
 pub const STATE_BURST: usize = 17;
 pub const STATE_SCORE_LENGTH: usize = 18;
 pub const STATE_NOISE_INDEX: usize = 19;
+/// Mean airflow through the tract, normalized (≈0.15 for a voiced vowel, ≈1 for /h/).
+pub const STATE_AIRFLOW: usize = 20;
+/// Share of the airflow leaving through the nose (0..1).
+pub const STATE_NASAL_SHARE: usize = 21;
+/// 1 when no air can leave the body (tract sealed, nose shut).
+pub const STATE_CLOSED: usize = 22;
+/// Sections reported by `energy` (oral, then nasal).
+pub const ENERGY_LEN: usize = N + crate::tract::NASAL_N;
 
 pub struct Voice {
     pub out_rate: f32,
@@ -103,6 +111,10 @@ pub struct Voice {
     pub out_l: Vec<f32>,
     pub out_r: Vec<f32>,
     pub state: [f32; STATE_LEN],
+    /// Smoothed sound-wave amplitude per section, for display.
+    pub energy: [f32; ENERGY_LEN],
+    airflow: f32,
+    nasal_share: f32,
     flow_now: f32,
     radiation_prev: f32,
     asp_lp: f32,
@@ -189,6 +201,9 @@ impl Voice {
             out_l: vec![0.0; MAX_BLOCK],
             out_r: vec![0.0; MAX_BLOCK],
             state: [0.0; STATE_LEN],
+            energy: [0.0; ENERGY_LEN],
+            airflow: 0.0,
+            nasal_share: 0.0,
             flow_now: 0.0,
             radiation_prev: 0.0,
             asp_lp: 0.0,
@@ -273,6 +288,29 @@ impl Voice {
         let tau = if target > self.oral_pressure { 0.004 + 0.0035 / glottal_area } else { 0.005 };
         self.oral_pressure += (target - self.oral_pressure) * (1.0 - (-dt / tau).exp());
         let po = self.oral_pressure.max(0.0);
+
+        // Display telemetry: mean airflow, how much leaves through the nose,
+        // and the sound-wave amplitude in each section (smoothed ~15 ms).
+        let flow = lung.max(0.0).sqrt() / (inv_g + inv_p).sqrt();
+        self.airflow = (flow / 0.3).min(1.5);
+        let an = self.shape.nasal_area;
+        self.nasal_share = if an < 1e-3 {
+            0.0
+        } else if self.shape.min_index > tract::PORT && self.shape.min_area < 0.004 {
+            1.0
+        } else {
+            let oral = self.areas[tract::PORT + 1..].iter().copied().fold(f32::MAX, f32::min).max(0.0);
+            an / (an + oral)
+        };
+        let k = 1.0 - (-dt / 0.015).exp();
+        for i in 0..N {
+            let e = (self.wg.right[i] * self.wg.right[i] + self.wg.left[i] * self.wg.left[i]).sqrt();
+            self.energy[i] += (e - self.energy[i]) * k;
+        }
+        for i in 0..tract::NASAL_N {
+            let e = (self.wg.nasal_right[i] * self.wg.nasal_right[i] + self.wg.nasal_left[i] * self.wg.nasal_left[i]).sqrt();
+            self.energy[N + i] += (e - self.energy[N + i]) * k;
+        }
 
         // Stop release: an abrupt opening after pressure has built up.
         let closed = self.shape.path_area < 0.004;
@@ -535,6 +573,9 @@ impl Voice {
         s[STATE_BURST] = self.burst;
         s[STATE_SCORE_LENGTH] = self.end_frame as f32 / self.out_rate;
         s[STATE_NOISE_INDEX] = self.noise_index as f32;
+        s[STATE_AIRFLOW] = self.airflow;
+        s[STATE_NASAL_SHARE] = self.nasal_share;
+        s[STATE_CLOSED] = if self.closed { 1.0 } else { 0.0 };
     }
 
     // ---- Score -----------------------------------------------------------

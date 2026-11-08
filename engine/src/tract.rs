@@ -221,7 +221,7 @@ pub struct Waveguide {
     pub jet_loss: f32,
     pub areas: [f32; N],
     pub nasal_right: [f32; NASAL_N],
-    nasal_left: [f32; NASAL_N],
+    pub nasal_left: [f32; NASAL_N],
     nasal_reflection: [f32; NASAL_N],
     nasal_transmission: [f32; NASAL_N],
     nasal_areas: [f32; NASAL_N],

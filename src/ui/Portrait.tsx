@@ -10,6 +10,7 @@
  */
 import React, {useCallback, useRef} from 'react';
 import type {ParamName} from '../core/params';
+import {AirwayLife, type AirwayState} from './AirwayLife';
 
 export interface Pose {
   tongueX: number;
@@ -31,6 +32,8 @@ export interface Pose {
 
 interface Props {
   pose: Pose;
+  /** Live airway telemetry for the cutaway (areas always; energy/flow while sounding). */
+  airway: AirwayState;
   cutaway: boolean;
   labels: boolean;
   speaking: boolean;
@@ -160,7 +163,7 @@ const NECK = 'M 350 384 C 346 412 346 446 352 494 L 250 498 C 256 452 258 418 25
 
 const WINDOW = 'M 270 292 C 300 282 350 280 384 286 C 404 292 414 312 404 330 C 398 346 404 372 392 394 C 380 410 362 414 354 420 C 350 438 350 456 352 474 L 262 478 C 262 440 262 400 262 360 C 262 330 262 304 270 292 Z';
 
-export function Portrait({pose, cutaway, labels, speaking, onDrag, onDragEnd}: Props) {
+export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDragEnd}: Props) {
   const g = rig(pose);
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<null | {kind: string; start: Pt; startPose: Pose}>(null);
@@ -256,7 +259,6 @@ export function Portrait({pose, cutaway, labels, speaking, onDrag, onDragEnd}: P
   const tipAt = rotate(g.tip, g.tongueDeg);
   const chin = rotate([384, 398], g.jawDeg);
   const mouthOpen = g.lipGap > 1;
-  const airflow = pose.level > 0.02;
 
   return (
     <svg ref={svg} viewBox="36 52 470 470" className="hvl-portrait" onPointerMove={move} onPointerUp={end} onPointerCancel={end}
@@ -315,13 +317,7 @@ export function Portrait({pose, cutaway, labels, speaking, onDrag, onDragEnd}: P
             <path d="M 284 440 L 312 440 L 311 482 L 287 482 Z" fill={S.cavity} opacity="0.55" />
             <path d={`M 285 452 L ${298 - g.fold} 456 L 285 460 Z`} fill={S.flesh} stroke={S.ink} strokeWidth="0.9" />
             <path d={`M 311 452 L ${298 + g.fold} 456 L 311 460 Z`} fill={S.flesh} stroke={S.ink} strokeWidth="0.9" />
-            {airflow && (
-              <g className={`hvl-air ${speaking ? 'is-fast' : ''}`} stroke={S.air} strokeWidth="1.5" fill="none" strokeLinecap="round">
-                <path d="M 298 480 L 298 410" strokeDasharray="3 8" />
-                <path d={`M 292 336 C 318 ${g.dorsum[1] - 7} 352 ${g.dorsum[1] - 5} ${ul[0] + 8} ${ul[1] + g.lipGap / 2 + 2}`} strokeDasharray="3 8" opacity={0.35 + 0.65 * clamp01(pose.lipOpen)} />
-                {pose.velum > 0.2 && <path d="M 286 312 C 310 294 360 290 410 306" strokeDasharray="3 8" />}
-              </g>
-            )}
+            <AirwayLife state={airway} geometry={{pivot: PIVOT, tongueDeg: g.tongueDeg, exit: [ul[0] - 2, ul[1] + g.lipGap / 2 + 2]}} />
           </g>
         </g>
       </g>
