@@ -1,6 +1,19 @@
 # Notices and sources
 
-Hermes Voice Lab's code, engine, calibration results, presets, melodies, example phrases and portrait drawing were written for this project and are released under the MIT license in `LICENSE`. This file lists third-party material that ships with the plugin and the published research the design draws on.
+Hermes Voice Lab's code, engine, calibration results, presets, melodies, example phrases and portrait drawing were written for this project and are released under the MIT license in `LICENSE`. This file lists third-party material that ships with the plugin, the project that inspired the engine's design, and the published research the design draws on.
+
+## Inspiration: chimera-vocal-synth
+
+The voice engine's approach and the demo act's format were inspired by Jameson Hodge's [chimera-vocal-synth](https://github.com/jamesondh/chimera-vocal-synth) (MIT license; studied at commit `5ab44de`). After reading its voice code, we rebuilt our engine on the same ideas, in our own code and structure:
+- a time-domain transmission-line airway that carries the airflow and the sound together;
+- a glottis driven by its opening area;
+- turbulence noise sized by the Reynolds number;
+- opening speed limits on the articulators;
+- several speech-timing rules.
+
+The lounge-singer format of the demo videos also comes from its demo: spoken asides, scat, a beatbox break and a closing joke. The lines, melodies and jokes are ours.
+
+No code was copied. A few published physical constants in `engine/src/airway.rs` and `engine/src/voice.rs` have the same values as in that project. They are the air density, sound speed and viscosity, the soft-wall mass, resistance and stiffness, and the critical Reynolds number, and come from the literature cited below (Flanagan 1972; Ishizaka, French and Flanagan 1975).
 
 ## CMU Pronouncing Dictionary
 
@@ -35,14 +48,15 @@ The hermes-agent MIT notice, for the character reference:
 
 ## Scientific background
 
-The engine implements published models in our own code. No code, figures, recordings or data tables from these works are redistributed, except the vowel formant means used as calibration targets (factual measurements, cited below).
+The engine implements published models in our own code. No code, figures, recordings or data tables from these works are redistributed, except a few published values: the vowel formant means used as calibration targets and the physical constants noted above (factual measurements, cited below).
 
 - J. L. Kelly and C. C. Lochbaum, "Speech synthesis," Proc. 4th Int. Congress on Acoustics, 1962 — scattering-junction tube model.
 - J. O. Smith III, *Physical Audio Signal Processing*, CCRMA — digital waveguides, normalized scattering junctions. https://ccrma.stanford.edu/~jos/pasp/
 - G. Fant, J. Liljencrants and Q. Lin, "A four-parameter model of glottal flow," STL-QPSR 26(4), 1985 — LF glottal model.
 - G. Fant, "The LF-model revisited. Transformations and frequency domain analysis," STL-QPSR 36(2–3), 1995 — Rd parameterization.
 - D. H. Klatt and L. C. Klatt, "Analysis, synthesis, and perception of voice quality variations among female and male talkers," JASA 87(2), 1990 — breathiness and aspiration.
-- J. L. Flanagan, *Speech Analysis, Synthesis and Perception*, 1972 — turbulence noise and aerodynamics.
+- J. L. Flanagan, *Speech Analysis, Synthesis and Perception*, 1972 — turbulence noise, aerodynamics, radiation load, and the air constants.
+- K. Ishizaka, J. C. French and J. L. Flanagan, "Direct determination of vocal tract wall impedance," IEEE Trans. ASSP 23(4), 1975 — soft-wall mass, resistance and stiffness.
 - J. Hillenbrand, L. A. Getty, M. J. Clark and K. Wheeler, "Acoustic characteristics of American English vowels," JASA 97(5), 1995 — adult-female mean F1–F3 used as calibration targets (`engine/src/bin/calibrate.rs`).
 - S. E. G. Öhman, "Coarticulation in VCV utterances," JASA 39(1), 1966 — vowel-to-vowel trajectory with superimposed consonant gestures.
 - E. L. Saltzman and K. G. Munhall, "A dynamical approach to gestural patterning in speech production," Ecological Psychology 1(4), 1989 — critically damped articulator dynamics.

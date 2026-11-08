@@ -21,4 +21,6 @@ The media are not committed (see `.gitignore`).
 5. Mix the soundtrack: `cd demo && python build_audio.py` (needs numpy, scipy, ffmpeg).
 6. Render: `cd demo/film && npx hyperframes render -q delivery -o ../../docs/media/hermes-demo.mp4`.
 
+The act's lounge-singer format was inspired by the demo of Jameson Hodge's [chimera-vocal-synth](https://github.com/jamesondh/chimera-vocal-synth); see [NOTICE.md](../NOTICE.md).
+
 The agent turn in the recording used a scripted stand-in model on a local mock server, so the reply is fixed. The tool calls are real: the agent's Voice Lab tools, the plugin and its engine.

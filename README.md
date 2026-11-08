@@ -91,4 +91,6 @@ The airway is simulated as a lossy acoustic transmission line in the time domain
 - The area-function geometry is a compact original parametric model, not measured anatomy. The cutaway is a stylized view of the modeled articulators.
 - Not yet implemented: MIDI input, other species, duets and 3D views. Beatbox sounds exist only as hits inside songs.
 
-See [NOTICE.md](NOTICE.md) for the dictionary license, character attribution and scientific sources.
+## Credits
+
+The voice engine's approach and the demo act's format were inspired by Jameson Hodge's [chimera-vocal-synth](https://github.com/jamesondh/chimera-vocal-synth) (MIT). No code was copied; [NOTICE.md](NOTICE.md) says exactly what came from it. It also covers the dictionary license, character attribution and scientific sources.
