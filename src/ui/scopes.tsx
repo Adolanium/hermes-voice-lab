@@ -109,7 +109,7 @@ export function Airway({areas, length, nasal, minIndex}: {areas: Float32Array | 
     ctx.fillStyle = c.fg3;
     ctx.fillText('GLOTTIS', padL, padT - 6);
     ctx.textAlign = 'right';
-    ctx.fillText(`LIPS · ${length.toFixed(1)} CM`, w - padR, h - padB + 3 - (h - padT - padB) * 0.04);
+    ctx.fillText(`LIPS · ${length.toFixed(1)} CM`, w - padR, padT - 6);
     ctx.textAlign = 'left';
   }, [areas, length, nasal, minIndex]);
   return (
