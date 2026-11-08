@@ -79,6 +79,26 @@ Engine test `closure_stops_airflow_and_sound_in_front_and_nose_takes_over` pins 
 - No real LLM was used. Tool discovery and argument quality with a real model are untested.
 - Windows and Linux hosts, remote gateways, and multiple simultaneous Desktop windows (the cross-window silence uses `BroadcastChannel` and is untested natively).
 
+## Real voices
+
+Since 2026-11-08 the voice has been tuned toward real voices, one measured change at a time. Both judges are our own code, after the reference project's method. The datasets are used for research only and nothing derived from them ships.
+- **Speech** (`research/tools/judge/speech.py`): 48 Harvard sentences, 4 from each of the 12 adult female speakers in the TSP speech database (Kabal 2018). The judge measures mel-cepstral distance (MCD) along a DTW path, counting each real frame once, plus length, spectral balance, H1−H2, pitch range and consonant levels.
+- **Singing** (`research/tools/judge/singer.py`): 20 English songs (2,469 notes) of the Children's Song Dataset (Choi et al. 2020), sung with the singer's own phonemes, times and pitches. Each note's steady part is compared with her recording.
+
+| | Speech MCD (lower is better) | Length vs real | Pitch range vs real | Singing note MCD | Whisper WER |
+|---|---|---|---|---|---|
+| Before | 32.90 dB | ×1.23 | −5.1 st | 36.62 dB | 38.9% |
+| Now | **32.64 dB** | **×1.04** | **+0.5 st** | **35.08 dB** | **31.4%** |
+| Reference synthesizer | 32.46 dB | ×1.02 | −3.3 st | 38.87 dB | 43.4% (earlier run) |
+
+Kept changes:
+- intonation scaled to real speakers' pitch range;
+- a firmer, less breathy default voice;
+- a natural speaking rate with faster speech gestures;
+- no extra firmness for singing.
+
+Rejected changes and their numbers are in `research/hill-climb/log.md`. The owner listened at two checkpoints and preferred the new version both times. Still open: formants wider than real, the 1–4 kHz presence region about 3 dB low, and shallow sung vibrato.
+
 ## Listening and intelligibility
 
 The author could not listen to audio in this environment. Speech quality was judged from spectrograms, level and spectrum measurements, and an automatic proxy: research tooling renders fixed sentences with `plugin/runtime/render.mjs`, transcribes them with a local Whisper model (greedy decoding), and computes the word error rate (WER). A sentence's errors are capped at its word count, so one hallucinated run-on can't dominate. This measures machine intelligibility, not naturalness or human perception. Run to run, it varies by about ±2 points.

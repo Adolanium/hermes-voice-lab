@@ -20,7 +20,8 @@ Version 0.3's feature set also follows that project's feature list and architect
 - trills, ejectives and clicks;
 - IPA input, Web MIDI, live singing from the keyboard and a consonant chart;
 - a recording chain;
-- golden tests.
+- golden tests;
+- tuning against real voices: a real-speaker judge (the TSP speech database) and a real-singer judge (the Children's Song Dataset), with one measured change at a time and an owner's listening checkpoints.
 
 The mechanisms for ejectives (a sealed glottis and a rising larynx) and clicks (two oral seals and a lowering tongue body), and the sung-phrase details (onset consonants at the new note's pitch, phrase breaths, a firmer singing voice), follow the approach its documentation describes. The songbird (van der Pol labia rather than its normal-form model) and the elephant (driven lips into a delay-line trunk) are different models of our own.
 
