@@ -184,7 +184,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       // behind a narrowing tip would hiss); fricatives slightly before the
       // constriction is reached.
       const closing = ph.manner === 'stop' || ph.manner === 'affricate';
-      at(closing ? s.start : s.start - 0.012, 'voicing', 0, 7, i);
+      at(phraseInitial ? onset : closing ? s.start : s.start - 0.012, 'voicing', 0, 7, i);
       const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === 'S';
       const aspirated = ph.manner === 'stop' && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === 'SIL' || ['R', 'L', 'W', 'Y'].includes(next.symbol));
       // Voice onset time after release; adduction takes ~12 ms to reach the

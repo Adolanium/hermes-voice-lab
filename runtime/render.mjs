@@ -739,7 +739,7 @@ function articulate(segments, voice) {
     }
     if (!ph.voiced) {
       const closing = ph.manner === "stop" || ph.manner === "affricate";
-      at(closing ? s.start : s.start - 0.012, "voicing", 0, 7, i);
+      at(phraseInitial ? onset : closing ? s.start : s.start - 0.012, "voicing", 0, 7, i);
       const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === "S";
       const aspirated = ph.manner === "stop" && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === "SIL" || ["R", "L", "W", "Y"].includes(next.symbol));
       const vot = ph.manner === "stop" ? aspirated ? 0.055 : 0.015 : ph.manner === "affricate" ? 0.02 : 0;

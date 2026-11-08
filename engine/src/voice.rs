@@ -280,6 +280,9 @@ impl Voice {
         let closed = self.shape.path_area < 0.004;
         if self.closed && !closed && po > 0.12 {
             self.burst = (po * 1.6).min(2.0);
+            // Fresh filter state: the response type changes with place.
+            self.burst_filter.reset();
+            self.burst_lp = 0.0;
             // The transient is shaped by the cavity in front of the release:
             // none for the lips (weak, flat), a short one for the tongue tip
             // (high, rising), a longer one for the dorsum (compact, mid).
@@ -297,7 +300,7 @@ impl Voice {
                 // vowels (dorsum far back), high before front vowels.
                 self.burst_filter.bandpass(1200.0 + 1800.0 * p[TONGUE_X], 1.4, self.int_rate);
                 self.burst_index = (self.shape.min_index + 1).min(N - 1);
-                (3.0, 9.0)
+                (6.0, 9.0)
             };
             self.burst_gain = kind;
             self.burst_decay = (-1.0 / (decay_ms * 1e-3 * self.int_rate)).exp();
