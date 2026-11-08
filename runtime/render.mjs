@@ -61,8 +61,8 @@ var RANGES = {
   pitch: [50, 1100, 210],
   loudness: [0, 1, 0.72],
   gate: [0, 1, 0],
-  tenseness: [0, 1, 0.52],
-  breath: [0, 1, 0.22],
+  tenseness: [0, 1, 0.28],
+  breath: [0, 1, 0.25],
   voicing: [0, 1, 1],
   vibratoDepth: [0, 1, 0.18],
   vibratoRate: [3, 9, 5.4],
@@ -1008,8 +1008,8 @@ function planSustain(shape, voice, seconds) {
 var SIGNATURE = {
   pitch: 212,
   loudness: 0.72,
-  tenseness: 0.52,
-  breath: 0.22,
+  tenseness: 0.28,
+  breath: 0.25,
   vibratoDepth: 0.18,
   vibratoRate: 5.4,
   tractLength: 14.2,
@@ -1020,11 +1020,11 @@ var SIGNATURE = {
 };
 var VOICE_PRESETS = [
   { id: "signature", name: "Signature", description: "Clear, warm, gently breathy \u2014 the default character voice.", voice: SIGNATURE },
-  { id: "warm", name: "Warm", description: "Lower, rounder and softer, with a wider throat.", voice: { ...SIGNATURE, pitch: 194, tenseness: 0.44, breath: 0.28, tractLength: 14.8, throat: 0.72, space: 0.22 } },
-  { id: "bright", name: "Bright", description: "Higher and firmer with a shorter tract.", voice: { ...SIGNATURE, pitch: 238, tenseness: 0.68, breath: 0.12, tractLength: 13.6, throat: 0.34 } },
-  { id: "airy", name: "Airy", description: "Soft and breathy, close to the microphone.", voice: { ...SIGNATURE, pitch: 222, tenseness: 0.28, breath: 0.62, humanize: 0.5, space: 0.12 } },
-  { id: "lyric", name: "Lyric", description: "Singing voice with fuller vibrato and a little hall.", voice: { ...SIGNATURE, pitch: 330, tenseness: 0.6, breath: 0.16, vibratoDepth: 0.34, vibratoRate: 5.6, space: 0.38, loudness: 0.8 } },
-  { id: "alto", name: "Alto", description: "Darker, lower feminine voice.", voice: { ...SIGNATURE, pitch: 176, tenseness: 0.5, breath: 0.2, tractLength: 15.2, throat: 0.62 } }
+  { id: "warm", name: "Warm", description: "Lower, rounder and softer, with a wider throat.", voice: { ...SIGNATURE, pitch: 194, tenseness: 0.2, breath: 0.3, tractLength: 14.8, throat: 0.72, space: 0.22 } },
+  { id: "bright", name: "Bright", description: "Higher and firmer with a shorter tract.", voice: { ...SIGNATURE, pitch: 238, tenseness: 0.5, breath: 0.14, tractLength: 13.6, throat: 0.34 } },
+  { id: "airy", name: "Airy", description: "Soft and breathy, close to the microphone.", voice: { ...SIGNATURE, pitch: 222, tenseness: 0.1, breath: 0.62, humanize: 0.5, space: 0.12 } },
+  { id: "lyric", name: "Lyric", description: "Singing voice with fuller vibrato and a little hall.", voice: { ...SIGNATURE, pitch: 330, tenseness: 0.42, breath: 0.18, vibratoDepth: 0.34, vibratoRate: 5.6, space: 0.38, loudness: 0.8 } },
+  { id: "alto", name: "Alto", description: "Darker, lower feminine voice.", voice: { ...SIGNATURE, pitch: 176, tenseness: 0.3, breath: 0.22, tractLength: 15.2, throat: 0.62 } }
 ];
 var closed = { tipClose: 0, dorsumClose: 0, velum: 0, lateral: 0, voicing: 1 };
 var VOWEL_PRESETS = [

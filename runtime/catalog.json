@@ -22,7 +22,7 @@
    "name": "tenseness",
    "min": 0,
    "max": 1,
-   "default": 0.52,
+   "default": 0.28,
    "label": "Tension",
    "unit": "",
    "help": "Glottal pulse shape (LF Rd). Low is lax and soft, high is pressed and bright."
@@ -31,7 +31,7 @@
    "name": "breath",
    "min": 0,
    "max": 1,
-   "default": 0.22,
+   "default": 0.25,
    "label": "Breath",
    "unit": "",
    "help": "Glottal leak and aspiration noise."
@@ -243,8 +243,8 @@
    "voice": {
     "pitch": 212,
     "loudness": 0.72,
-    "tenseness": 0.52,
-    "breath": 0.22,
+    "tenseness": 0.28,
+    "breath": 0.25,
     "vibratoDepth": 0.18,
     "vibratoRate": 5.4,
     "tractLength": 14.2,
@@ -261,8 +261,8 @@
    "voice": {
     "pitch": 194,
     "loudness": 0.72,
-    "tenseness": 0.44,
-    "breath": 0.28,
+    "tenseness": 0.2,
+    "breath": 0.3,
     "vibratoDepth": 0.18,
     "vibratoRate": 5.4,
     "tractLength": 14.8,
@@ -279,8 +279,8 @@
    "voice": {
     "pitch": 238,
     "loudness": 0.72,
-    "tenseness": 0.68,
-    "breath": 0.12,
+    "tenseness": 0.5,
+    "breath": 0.14,
     "vibratoDepth": 0.18,
     "vibratoRate": 5.4,
     "tractLength": 13.6,
@@ -297,7 +297,7 @@
    "voice": {
     "pitch": 222,
     "loudness": 0.72,
-    "tenseness": 0.28,
+    "tenseness": 0.1,
     "breath": 0.62,
     "vibratoDepth": 0.18,
     "vibratoRate": 5.4,
@@ -315,8 +315,8 @@
    "voice": {
     "pitch": 330,
     "loudness": 0.8,
-    "tenseness": 0.6,
-    "breath": 0.16,
+    "tenseness": 0.42,
+    "breath": 0.18,
     "vibratoDepth": 0.34,
     "vibratoRate": 5.6,
     "tractLength": 14.2,
@@ -333,8 +333,8 @@
    "voice": {
     "pitch": 176,
     "loudness": 0.72,
-    "tenseness": 0.5,
-    "breath": 0.2,
+    "tenseness": 0.3,
+    "breath": 0.22,
     "vibratoDepth": 0.18,
     "vibratoRate": 5.4,
     "tractLength": 15.2,
@@ -843,8 +843,8 @@
   "voice": {
    "pitch": 212,
    "loudness": 0.72,
-   "tenseness": 0.52,
-   "breath": 0.22,
+   "tenseness": 0.28,
+   "breath": 0.25,
    "vibratoDepth": 0.18,
    "vibratoRate": 5.4,
    "tractLength": 14.2,

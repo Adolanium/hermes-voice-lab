@@ -47,8 +47,8 @@ pub const SPECS: [Spec; COUNT] = [
     s(50.0, 1100.0, 210.0, 25.0), // pitch, Hz
     s(0.0, 1.0, 0.72, 20.0),      // loudness (lung pressure / effort)
     s(0.0, 1.0, 0.0, 12.0),       // gate
-    s(0.0, 1.0, 0.52, 30.0),      // tenseness (lax/breathy .. pressed)
-    s(0.0, 1.0, 0.22, 30.0),      // breath (aspiration + glottal leak)
+    s(0.0, 1.0, 0.28, 30.0),      // tenseness (lax/breathy .. pressed)
+    s(0.0, 1.0, 0.25, 30.0),      // breath (aspiration + glottal leak)
     s(0.0, 1.0, 1.0, 12.0),       // voicing (adducted .. abducted)
     s(0.0, 1.0, 0.18, 80.0),      // vibrato depth
     s(3.0, 9.0, 5.4, 80.0),       // vibrato rate, Hz

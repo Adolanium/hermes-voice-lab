@@ -52,7 +52,7 @@ const META: Record<ParamName, [string, string, ParamSpec['group'], string]> = {
 
 /** Fallback ranges matching the Rust table; replaced by the engine's own values. */
 const RANGES: Record<ParamName, [number, number, number]> = {
-  pitch: [50, 1100, 210], loudness: [0, 1, 0.72], gate: [0, 1, 0], tenseness: [0, 1, 0.52], breath: [0, 1, 0.22],
+  pitch: [50, 1100, 210], loudness: [0, 1, 0.72], gate: [0, 1, 0], tenseness: [0, 1, 0.28], breath: [0, 1, 0.25],
   voicing: [0, 1, 1], vibratoDepth: [0, 1, 0.18], vibratoRate: [3, 9, 5.4], tongueX: [0, 1, 0.36], tongueY: [0, 1, 0.3],
   tipPlace: [0, 1, 0.35], tipClose: [0, 1, 0], dorsumClose: [0, 1, 0], jaw: [0, 1, 0.62], lipOpen: [0, 1, 0.62],
   lipRound: [0, 1, 0.12], velum: [0, 1, 0], tractLength: [11, 19, 14.2], throat: [0, 1, 0.5], gain: [0, 1, 0.7],
