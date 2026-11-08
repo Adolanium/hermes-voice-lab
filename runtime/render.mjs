@@ -292,8 +292,8 @@ var PHONEMES = Object.fromEntries([
   P("ZH", "\u0292", "fricative", true, 90, { tipPlace: 0.85, tipClose: 0.76, lipRound: 0.55, jaw: 0.3 }, "vision"),
   P("CH", "t\u0283", "affricate", false, 115, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "chair"),
   P("JH", "d\u0292", "affricate", true, 95, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "joy"),
-  P("L", "l", "approximant", true, 70, { tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3 }, "love"),
-  P("R", "\u0279", "approximant", true, 70, { rhotic: 1, lipRound: 0.55, tongueX: 0.15, tongueY: 0.85, lipOpen: 0.6 }, "red"),
+  P("L", "l", "approximant", true, 70, { tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3, tongueY: 0.5 }, "love"),
+  P("R", "\u0279", "approximant", true, 70, { rhotic: 1, lipRound: 0.7, tongueX: 0.15, tongueY: 0.85, lipOpen: 0.6 }, "red"),
   P("W", "w", "approximant", true, 65, { lipOpen: 0.194, lipRound: 0.95, tongueX: 0, tongueY: 0.9 }, "we"),
   P("Y", "j", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35 }, "yes"),
   P("HH", "h", "aspirate", false, 65, { voicing: 0 }, "hat")
@@ -674,14 +674,14 @@ function articulate(segments, voice) {
     for (const k of ["tongueX", "tongueY", "rhotic", "jaw"]) if (t[k] !== void 0) body[k] = t[k];
     if (Object.keys(body).length) {
       if (s.symbol === "R") body.jaw = 0.55;
-      anchors.push({ time: s.start + 0.5 * dur, target: body, tau: 22, seg: i });
+      anchors.push({ time: s.start + 0.5 * dur, target: body, tau: 18, lead: 4, seg: i });
     }
   });
   anchors.sort((a, b) => a.time - b.time);
   anchors.forEach((a, k) => {
     const gap = k ? a.time - anchors[k - 1].time : 0.15;
     const tau = a.tau ?? Math.min(48, Math.max(14, gap * 1e3 * 0.3));
-    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - LEAD_SCALE * tau / 1e3);
+    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - (a.lead ?? LEAD_SCALE) * tau / 1e3);
     for (const [name, value] of Object.entries(a.target)) {
       if (["tongueX", "tongueY", "jaw", "throat", "rhotic", "lipOpen", "lipRound"].includes(name)) at(start, name, value, tau, a.seg);
     }

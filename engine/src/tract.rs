@@ -53,6 +53,9 @@ fn neutral(u: f32, throat: f32, jaw: f32) -> f32 {
     lerp(a, oral, smoothstep(0.56, 0.68, u))
 }
 
+/// Rhotic constriction depths, widths and positions (pharyngeal, palatal).
+const RHO: [f32; 6] = [0.75, 0.92, 0.08, 0.07, 0.22, 0.63];
+
 /// Closure parameters aim past the point of contact, as real articulators
 /// do: tissue meets the opposing surface at 92% of the gesture, so a closing
 /// movement completes in finite time instead of creeping toward zero area.
@@ -118,9 +121,9 @@ pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
         // Rhotic bunching narrows the tract near the third resonance's
         // velocity maxima in the pharynx and under the velum.
         if rhotic > 0.0 {
-            let ph = (-((u - 0.22) / 0.07).powi(2)).exp();
-            let pal = (-((u - 0.63) / 0.06).powi(2)).exp();
-            a *= 1.0 - rhotic * (0.6 * ph + 0.82 * pal);
+            let ph = (-((u - RHO[4]) / RHO[2]).powi(2)).exp();
+            let pal = (-((u - RHO[5]) / RHO[3]).powi(2)).exp();
+            a *= 1.0 - rhotic * (RHO[0] * ph + RHO[1] * pal);
         }
         if i >= TEETH - 1 && i < N - 2 {
             a *= 0.7 + 0.35 * jaw;
@@ -134,7 +137,7 @@ pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
         let td = (i as i32 - tip_center) as f32;
         // Flat-topped profile: a tip constriction spans about three sections (1 cm).
         let tg = (-(td / 1.6).powi(4)).exp();
-        let lateral = p[LATERAL] * 0.42 * tg;
+        let lateral = p[LATERAL] * 0.25 * tg;
         a = (a * (1.0 - tip_close * tg)).max(lateral.min(a));
         if tg > 0.5 {
             tip_min = tip_min.min(a);

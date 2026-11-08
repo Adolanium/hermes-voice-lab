@@ -69,7 +69,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
   });
 
   // Tongue-body anchors: vowels plus consonants that need the dorsum.
-  type Anchor = {time: number; target: Patch; tau?: number; seg: number};
+  type Anchor = {time: number; target: Patch; tau?: number; lead?: number; seg: number};
   const anchors: Anchor[] = [];
   segments.forEach((s, i) => {
     if (s.symbol === 'SIL') return;
@@ -96,14 +96,16 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     for (const k of ['tongueX', 'tongueY', 'rhotic', 'jaw'] as ParamName[]) if (t[k] !== undefined) body[k] = t[k];
     if (Object.keys(body).length) {
       if (s.symbol === 'R') body.jaw = 0.55;
-      anchors.push({time: s.start + 0.5 * dur, target: body, tau: 22, seg: i});
+      // Consonantal tongue-body targets are extreme and brief: move early
+      // enough (4 time constants) to get close to them.
+      anchors.push({time: s.start + 0.5 * dur, target: body, tau: 18, lead: 4, seg: i});
     }
   });
   anchors.sort((a, b) => a.time - b.time);
   anchors.forEach((a, k) => {
     const gap = k ? a.time - anchors[k - 1].time : 0.15;
     const tau = a.tau ?? Math.min(48, Math.max(14, gap * 1000 * 0.3));
-    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - (LEAD_SCALE * tau) / 1000);
+    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - ((a.lead ?? LEAD_SCALE) * tau) / 1000);
     for (const [name, value] of Object.entries(a.target)) {
       if (['tongueX', 'tongueY', 'jaw', 'throat', 'rhotic', 'lipOpen', 'lipRound'].includes(name)) at(start, name as ParamName, value!, tau, a.seg);
     }
