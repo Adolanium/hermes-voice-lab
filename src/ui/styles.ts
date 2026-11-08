@@ -193,9 +193,9 @@ export const CSS = `
 .hvl-input { height: 30px; border-radius: 8px; border: 1px solid var(--hvl-line); background: transparent; color: inherit; font: 13px var(--hvl-sans); padding: 0 10px; }
 .hvl-phones { display: flex; flex-wrap: wrap; gap: 8px 10px; }
 .hvl-chart { display: grid; gap: 2px; overflow-x: auto; }
-.hvl-chart-row { display: grid; grid-template-columns: 92px repeat(9, minmax(52px, 1fr)); gap: 2px; }
-.hvl-chart-head { font-size: 11px; color: var(--hvl-fg3); padding: 4px 4px; align-self: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hvl-chart-cell { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; min-height: 30px; border-radius: 6px; background: var(--hvl-bg2, rgba(127,127,127,.06)); }
+.hvl-chart-row { display: grid; grid-template-columns: 74px repeat(9, minmax(40px, 1fr)); gap: 2px; }
+.hvl-chart-head { font-size: 10.5px; color: var(--hvl-fg3); padding: 4px 4px; align-self: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hvl-chart-cell { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; min-height: 30px; border-radius: 6px; background: var(--hvl-bg2, rgba(127,127,127,.06)); }
 .hvl-chart-cell .hvl-ph { cursor: pointer; border-top: 0; border-left: 0; border-right: 0; }
 .hvl-word { display: flex; flex-direction: column; gap: 3px; }
 .hvl-word > span { font-size: 10.5px; color: var(--hvl-fg3); }

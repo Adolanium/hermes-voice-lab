@@ -145,10 +145,12 @@ interface SpeakProps {
   position: number;
   ready: boolean;
   onTry: (symbol: string) => void;
+  /** The consonant being tried from the chart (its score is playing, not the phrase). */
+  trying: string | null;
 }
 
 /** Consonants by place (columns) and manner (rows); each cell lists its phoneme symbols. */
-const PLACES = ['Bilabial', 'Labiodental', 'Dental', 'Alveolar', 'Postalveolar', 'Palatal', 'Velar', 'Uvular', 'Glottal'];
+const PLACES = ['Bilabial', 'Labio-dental', 'Dental', 'Alveolar', 'Post-alveolar', 'Palatal', 'Velar', 'Uvular', 'Glottal'];
 const CHART: Array<[string, Array<string[]>]> = [
   ['Stop', [['P', 'B'], [], [], ['T', 'D'], [], [], ['K', 'G'], [], ['Q']]],
   ['Nasal', [['M'], [], [], ['N'], [], [], ['NG'], [], []]],
@@ -191,9 +193,9 @@ function ConsonantChart({current, onTry}: {current: string | null; onTry: (symbo
   );
 }
 
-export function SpeakPanel({project, plan, onChange, onSpeak, onStop, playing, position, ready, onTry}: SpeakProps) {
+export function SpeakPanel({project, plan, onChange, onSpeak, onStop, playing, position, ready, onTry, trying}: SpeakProps) {
   const sp = project.speech;
-  const current = playing ? plan?.segments.findIndex(s => position >= s.start && position < s.end) ?? -1 : -1;
+  const current = playing && !trying ? plan?.segments.findIndex(s => position >= s.start && position < s.end) ?? -1 : -1;
   const byWord = useMemo(() => {
     if (!plan) return [];
     const groups: Array<{word: string; guess: boolean; items: Array<{seg: Plan['segments'][number]; index: number}>}> = [];
@@ -259,7 +261,7 @@ export function SpeakPanel({project, plan, onChange, onSpeak, onStop, playing, p
         {plan?.warnings.map(w => <div key={w} className="hvl-warning">{w}</div>)}
       </div>
       {plan && <GestureTimeline plan={plan} position={playing ? position : -1} />}
-      <ConsonantChart current={current >= 0 && plan ? plan.segments[current].symbol : null} onTry={onTry} />
+      <ConsonantChart current={trying && playing ? trying : current >= 0 && plan ? plan.segments[current].symbol : null} onTry={onTry} />
       <p className="hvl-note" style={{margin: 0}}>
         English only: CMU dictionary words plus rule-based guesses for unknown words; ARPABET input for exact control. Speech is synthesized by the articulatory model and can sound robotic — intelligibility is still being improved.
       </p>

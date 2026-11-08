@@ -33,6 +33,7 @@ interface Props {
   nextSyllable: string;
   onLiveRestart: () => void;
   onTry: (symbol: string) => void;
+  trying: string | null;
 }
 
 const TABS: Array<[Mode, string, string]> = [['play', 'Play', 'Hold a shape and play notes'], ['speak', 'Speak', 'Phrases and phonemes'], ['sing', 'Sing', 'Lyrics on a melody']];
@@ -53,7 +54,7 @@ export function PlaySpeakSingTabs(p: Props) {
       )}
       {p.mode === 'speak' && (
         <SpeakPanel project={p.project} plan={p.speechPlan} onChange={p.onSpeech} onSpeak={() => p.onPlay('speak')} onStop={p.onStop}
-          playing={p.scorePlaying} position={p.position} ready={p.ready} onTry={p.onTry} />
+          playing={p.scorePlaying} position={p.position} ready={p.ready} onTry={p.onTry} trying={p.trying} />
       )}
       {p.mode === 'sing' && (
         <SingPanel project={p.project} plan={p.songPlan} onChange={p.onSong} onSing={() => p.onPlay('sing')} onStop={p.onStop}
