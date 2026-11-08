@@ -523,6 +523,30 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
     }
     const phones = unit && unit.phones.length ? unit.phones : hum;
     assignments.push({note: n.index, syllable: unit ? syl - 1 : -1, text: unit?.text ?? 'ah'});
+    if (unit && unit.phones.length && !unit.phones.some(p => isVowel(p.symbol))) {
+      // A syllable with no vowel is performed as written: beatbox hits ("tss",
+      // "pff", "kh") put a stop's release on the beat and its hiss after it; a
+      // nasal ("hmm") is hummed for the note.
+      const stop = (p: Phone) => ['stop', 'affricate'].includes(PHONEMES[p.symbol].manner);
+      const length = Math.max(0.05, Math.min(end, nextStart - 0.01) - start);
+      const durs = unit.phones.map((p, i) =>
+        i === 0 && stop(p) ? 0.045 : PHONEMES[p.symbol].manner === 'nasal' ? length * 0.9 : stop(p) ? 0.04 : Math.min(0.11, length * 0.7));
+      const lead = stop(unit.phones[0]) ? durs[0] : 0;
+      // The closure may start inside a preceding silence so the release lands on the beat.
+      const last = segments[segments.length - 1];
+      const floor = last && last.symbol === 'SIL' && last.end >= cursor - 1e-6 ? last.start + 0.02 : cursor;
+      let t = Math.max(floor, start - lead);
+      if (t - cursor > 0.06) segments.push({symbol: 'SIL', stress: 0, start: cursor, end: t, word: -1});
+      else if (segments.length) segments[segments.length - 1].end = t;
+      cues.push({text: unit.text, start: t, vowel: start, end: t + durs.reduce((a, b) => a + b, 0), midi: n.midi});
+      unit.phones.forEach((p, i) => {
+        segments.push({symbol: p.symbol, stress: 0, start: t, end: t + durs[i], word: k});
+        t += durs[i];
+      });
+      cursor = t;
+      pitchEvents.push([start - 0.04, 'pitch', midiToHz(n.midi), 20]);
+      return;
+    }
     const v = phones.findIndex(p => isVowel(p.symbol));
     const onset = v > 0 ? phones.slice(0, v) : [];
     const nucleus = v >= 0 ? phones[v] : hum[0];

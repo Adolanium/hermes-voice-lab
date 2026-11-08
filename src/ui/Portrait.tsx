@@ -152,6 +152,13 @@ const WINDOW = 'M 270 292 C 300 282 350 280 384 286 C 404 292 414 312 404 330 C 
 const RIG_TO_ART = {a: 2.66, d: 2.645, e: 2, f: -216};
 const rigToArt = ([x, y]: Pt): Pt => [RIG_TO_ART.a * x + RIG_TO_ART.e, RIG_TO_ART.d * y + RIG_TO_ART.f];
 
+const DEFAULT_VIEWBOX = '40 20 1290 1230';
+/** Right edge of the visible frame (art units), with a small margin. */
+const frameRight = (viewBox = DEFAULT_VIEWBOX) => {
+  const [x, , w] = viewBox.split(/\s+/).map(Number);
+  return x + w - 24;
+};
+
 /** Neck pivot for head motion and the mouth exit for floating words (art space). */
 const NECK: Pt = [780, 1080];
 
@@ -253,7 +260,7 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   const m = warped.mouth;
 
   return (
-    <svg ref={svg} viewBox={viewBox ?? '40 20 1290 1230'} className={`hvl-portrait ${stage ? 'is-stage' : ''}`} onPointerMove={move} onPointerUp={end} onPointerCancel={end}
+    <svg ref={svg} viewBox={viewBox ?? DEFAULT_VIEWBOX} className={`hvl-portrait ${stage ? 'is-stage' : ''}`} onPointerMove={move} onPointerUp={end} onPointerCancel={end}
       role="img" aria-label="Side-profile portrait whose mouth, jaw, tongue and throat follow the synthesizer">
       <defs>
         <radialGradient id="hvl-glow" cx="0.5" cy="0.5" r="0.5">
@@ -341,7 +348,7 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
         )}
       </g>
       </g>
-      {stage && <FloatingWords stage={stage} mouth={mouthOut} />}
+      {stage && <FloatingWords stage={stage} mouth={mouthOut} right={frameRight(viewBox)} />}
     </svg>
   );
 }

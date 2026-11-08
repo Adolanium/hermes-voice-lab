@@ -32,7 +32,8 @@ const COLORS = ['var(--hvl-accent)', 'var(--hvl-warm)', 'var(--hvl-ink)', 'var(-
 export function headMotion(s: StageState | undefined): {deg: number; dy: number} {
   if (!s) return {deg: 0, dy: 0};
   const t = s.time;
-  if (!s.singing) return {deg: 0.5 * Math.sin(t * 1.3), dy: 0};
+  // Talking: small nods that follow the voice. Idle: a slow sway.
+  if (!s.singing) return {deg: 0.5 * Math.sin(t * 1.3) + 2.2 * s.level * Math.sin(t * 6.5), dy: -8 * s.level * Math.abs(Math.sin(t * 6.5))};
   const phase = (t / s.beat) * Math.PI;
   const lift = s.f0 > 0 ? clamp01((Math.log2(s.f0 / 260) + 0.4) / 1.3) : 0.3;
   const groove = 3.4 * Math.sin(phase); // sway one way per beat, back on the next
@@ -40,7 +41,7 @@ export function headMotion(s: StageState | undefined): {deg: number; dy: number}
 }
 
 /** Syllables currently in flight, with position, scale, angle and opacity. */
-export function flyingWords(s: StageState, mouth: Pt) {
+export function flyingWords(s: StageState, mouth: Pt, right = Infinity) {
   const out: Array<{key: number; text: string; x: number; y: number; scale: number; deg: number; opacity: number; color: string; size: number}> = [];
   s.cues.forEach((c, i) => {
     const age = s.time - c.vowel;
@@ -54,21 +55,26 @@ export function flyingWords(s: StageState, mouth: Pt) {
     // Fan out of the mouth, each word on its own heading, easing out and floating up.
     const lane = ((i * 3) % 5) - 2;
     const heading = ((-14 + lane * 15) * Math.PI) / 180;
-    const dist = 380 * (1 - Math.exp(-a * 2.8)) + 110 * Math.max(0, a - held);
+    // Long words are drawn smaller and travel less, so they stay in frame.
+    const fit = Math.min(1, 6 / Math.max(1, c.text.length));
+    const dist = (380 * (1 - Math.exp(-a * 2.8)) + 110 * Math.max(0, a - held)) * (0.55 + 0.45 * fit);
     const wobble = 12 * Math.sin(a * 7 + i);
     const fwd = dist * Math.cos(heading);
     const rise = -dist * Math.sin(heading) + 70 * a * a;
     const loud = /!$/.test(c.text) || held > 0.5;
+    const size = (loud ? 92 : 62) * (0.65 + 0.35 * fit);
+    // Bold capitals are about 0.68 em wide: keep the whole word in frame.
+    const width = 0.68 * size * pop * swell * c.text.length;
     if (a <= life) out.push({
       key: i,
       text: c.text.toUpperCase(),
-      x: mouth[0] + 30 + fwd + wobble,
+      x: Math.min(mouth[0] + 30 + fwd + wobble, right - width),
       y: mouth[1] - 10 - rise,
       scale: pop * swell,
       deg: lane * 5 + 6 * Math.sin(a * 5 + i * 1.7),
       opacity: a < life - 0.25 ? 1 : clamp01((life - a) / 0.25),
       color: COLORS[i % COLORS.length],
-      size: loud ? 92 : 62,
+      size,
     });
     // Held syllables puff out little music notes.
     if (held > 0.55) {
@@ -94,8 +100,8 @@ export function flyingWords(s: StageState, mouth: Pt) {
 }
 
 /** Floating sung syllables, drawn in art coordinates. */
-export function FloatingWords({stage, mouth}: {stage: StageState; mouth: Pt}) {
-  const words = flyingWords(stage, mouth);
+export function FloatingWords({stage, mouth, right}: {stage: StageState; mouth: Pt; right?: number}) {
+  const words = flyingWords(stage, mouth, right);
   return (
     <g className="hvl-words" aria-hidden>
       {words.map(w => (

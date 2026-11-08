@@ -6,7 +6,7 @@ A vocal synthesizer for Hermes Desktop built on a physical model of the voice. A
 
 Everything is synthesized locally by a Rust engine compiled to WebAssembly: a glottal source drives a simulated vocal tract. There are no recordings, no neural or cloud TTS and no network calls. The default voice is an original adult feminine character voice, clear, warm and slightly breathy. It is a fictional voice for the character and not an official Nous voice.
 
-**Watch:** [The Boop Bop Song](docs/media/boop-bop-song.mp4) (17 s, 1080p). She sings an original novelty scat song in the cartoon style. Sound and picture come from one offline engine run, frame by frame, so the mouth, the cutaway and the floating words are in exact sync with the audio.
+**Watch:** [Boop Bop, Live!](docs/media/boop-bop-song.mp4) (41 s, 1080p). She does a short lounge set: patter ("Hello, hello! Is this thing on?"), scat, a verse about her own tongue, lips, nose and jaw with the inside view open, a brag ("No samples. No auto tune. Just physics!"), a beatbox break and a bow. Sound and picture come from one offline engine run, frame by frame, so the mouth, the inside view and the floating words are in exact sync with the audio.
 
 **Listen** (rendered by the shipped engine, 48 kHz mono): [phrase, Signature voice](docs/media/speech-signature.wav) · [song with lyrics](docs/media/song-signature.wav) · [Warm voice](docs/media/speech-warm.wav) · [Airy voice](docs/media/speech-airy.wav) · [vowel glide /ɑ i u o æ ɝ/](docs/media/vowels.wav)
 
@@ -66,7 +66,7 @@ node scripts/package.mjs                   # release/hermes-voice-lab-<ver>.tar.
 HERMES_HOME=/path/to/test-home node scripts/install-dev.mjs
 ```
 
-`node scripts/render-video.mjs --out song.mp4` renders a 1920×1080 performance video of the silly song (needs ffmpeg and a Playwright Chromium; development tool, not shipped). `npm run dev` starts a standalone browser preview of the instrument. It is a development aid only and does not prove Hermes compatibility. `npm run calibrate` refits the vowel targets (see `docs/architecture.md`). Offline render example:
+`node scripts/render-video.mjs --out show.mp4` renders a 1920×1080 performance video of the lounge set (`src/core/show.ts`) (needs ffmpeg and a Playwright Chromium; development tool, not shipped). `npm run dev` starts a standalone browser preview of the instrument. It is a development aid only and does not prove Hermes compatibility. `npm run calibrate` refits the vowel targets (see `docs/architecture.md`). Offline render example:
 
 ```bash
 node runtime/render.mjs --text "Good morning." --voice warm --output /tmp/hello.wav

@@ -11,7 +11,7 @@ import {PARAMS, PARAM_NAMES, validatePatch, parseNoteName, midiToHz} from '../sr
 import {planSong, planSpeech, planSustain} from '../src/core/planner';
 import {decodeLexicon, letterToSound, parsePhonemeInput, syllabify, tokenize} from '../src/core/text';
 import {newProject, projectScore, SILLY_SONG, validateProject} from '../src/core/project';
-import {VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
+import {SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
 import {VOWEL_CALIBRATION} from '../src/core/phonemes';
 import {encodeWav, measure} from '../src/core/wav';
 
@@ -246,5 +246,25 @@ test('cartoon singing: lyric cues, scoops, bigger mouth, and the silly song rend
     assert.ok(Number.isFinite(v));
     peak = Math.max(peak, Math.abs(v));
   }
+  assert.ok(peak > 0.2 && peak <= 0.81, `peak ${peak}`);
+});
+
+test('beatbox syllables and a show of speech and song', async () => {
+  const {planShow, LOUNGE_SET} = await import('../src/core/show');
+  // A vowel-less syllable is performed as written: no hummed vowel is added.
+  const beat = planSong([{start: 0, length: 0.25, midi: 60}, {start: 0.5, length: 0.25, midi: 60}, {start: 1, length: 1, midi: 60}], 'tss pff hmm', lexicon, {bpm: 120});
+  const symbols = beat.segments.filter(s => s.symbol !== 'SIL').map(s => s.symbol);
+  assert.deepEqual(symbols, ['T', 'S', 'P', 'F', 'HH', 'M']);
+  assert.equal(beat.cues.length, 3);
+  // The stop's release lands on the beat (0.25 s lead-in).
+  const t = beat.segments.find(s => s.symbol === 'T')!;
+  assert.ok(Math.abs(t.end - 0.25) < 0.002, `release at ${t.end}`);
+  const show = planShow(LOUNGE_SET, lexicon, SIGNATURE);
+  assert.equal(show.sections.length, LOUNGE_SET.length);
+  assert.ok(show.sections.every((s, i) => i === 0 || s.start >= show.sections[i - 1].end));
+  assert.ok(show.cues.some(c => c.text === 'physicist!') && show.cues.some(c => c.text === 'tss'));
+  const [left] = renderScore(engine(), show.score, SIGNATURE);
+  let peak = 0;
+  for (const v of left) peak = Math.max(peak, Math.abs(v));
   assert.ok(peak > 0.2 && peak <= 0.81, `peak ${peak}`);
 });

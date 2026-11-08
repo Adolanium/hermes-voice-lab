@@ -1024,6 +1024,25 @@ function planSong(notes, lyrics, lexicon2, opts) {
     }
     const phones = unit && unit.phones.length ? unit.phones : hum;
     assignments.push({ note: n.index, syllable: unit ? syl - 1 : -1, text: unit?.text ?? "ah" });
+    if (unit && unit.phones.length && !unit.phones.some((p) => isVowel(p.symbol))) {
+      const stop2 = (p) => ["stop", "affricate"].includes(PHONEMES[p.symbol].manner);
+      const length = Math.max(0.05, Math.min(end, nextStart - 0.01) - start);
+      const durs = unit.phones.map((p, i) => i === 0 && stop2(p) ? 0.045 : PHONEMES[p.symbol].manner === "nasal" ? length * 0.9 : stop2(p) ? 0.04 : Math.min(0.11, length * 0.7));
+      const lead2 = stop2(unit.phones[0]) ? durs[0] : 0;
+      const last = segments[segments.length - 1];
+      const floor = last && last.symbol === "SIL" && last.end >= cursor - 1e-6 ? last.start + 0.02 : cursor;
+      let t2 = Math.max(floor, start - lead2);
+      if (t2 - cursor > 0.06) segments.push({ symbol: "SIL", stress: 0, start: cursor, end: t2, word: -1 });
+      else if (segments.length) segments[segments.length - 1].end = t2;
+      cues.push({ text: unit.text, start: t2, vowel: start, end: t2 + durs.reduce((a, b) => a + b, 0), midi: n.midi });
+      unit.phones.forEach((p, i) => {
+        segments.push({ symbol: p.symbol, stress: 0, start: t2, end: t2 + durs[i], word: k });
+        t2 += durs[i];
+      });
+      cursor = t2;
+      pitchEvents.push([start - 0.04, "pitch", midiToHz(n.midi), 20]);
+      return;
+    }
     const v = phones.findIndex((p) => isVowel(p.symbol));
     const onset = v > 0 ? phones.slice(0, v) : [];
     const nucleus = v >= 0 ? phones[v] : hum[0];

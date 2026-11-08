@@ -11,9 +11,9 @@ import React, {useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Engine, STATE} from '../core/engine';
 import {PARAM_NAMES, hzToMidi, noteName} from '../core/params';
-import {planSong, type SongPlan} from '../core/planner';
+import {planShow, LOUNGE_SET, type ShowItem, type ShowPlan} from '../core/show';
 import {SIGNATURE} from '../core/presets';
-import {SILLY_SONG, type Project} from '../core/project';
+import type {Project} from '../core/project';
 import {encodeWav} from '../core/wav';
 import {engineModule, loadLexicon} from '../ui/assets';
 import {analysis} from '../ui/audio';
@@ -36,38 +36,36 @@ const H = 1080;
 
 interface Setup {
   title: string;
-  song: Project['song'];
+  show: ShowItem[];
   voice: Project['voice'];
   fps: number;
   preroll: number;
   tail: number;
-  /** Song time (s) at which the cutaway fades in; undefined = always on. */
-  revealAt?: number;
-  /** Song time (s) at which it fades out again for the finale. */
-  hideAt?: number;
+  /** Show sections (by index) during which the cutaway is open. */
+  reveal?: [number, number];
 }
 
 const DEFAULT: Setup = {
-  title: 'The Boop Bop Song',
-  song: SILLY_SONG,
-  voice: {...SIGNATURE, tenseness: 0.42, breath: 0.17, humanize: 0.4, space: 0.26, loudness: 0.78},
+  title: 'Boop Bop, Live!',
+  show: LOUNGE_SET,
+  voice: {...SIGNATURE, tenseness: 0.42, breath: 0.2, humanize: 0.4, space: 0.22, loudness: 0.78},
   fps: 30,
   preroll: 0.5,
   tail: 1.2,
-  revealAt: 0.25 + 7.6 * (60 / 132),
-  hideAt: 0.25 + 19.6 * (60 / 132),
+  // Look inside for the verse about her mouth and the beatbox break.
+  reveal: [3, 5],
 };
 
 let frames: Frame[] = [];
-let plan: SongPlan | null = null;
+let plan: ShowPlan | null = null;
 let setup = DEFAULT;
 let setFrame: (i: number) => void = () => {};
 
 async function prepare(options: Partial<Setup> = {}) {
   setup = {...DEFAULT, ...options};
   const lexicon = await loadLexicon();
-  const {song, voice, fps} = setup;
-  plan = planSong(song.notes, song.lyrics, lexicon, {bpm: song.bpm, voice, style: song.style});
+  const {voice, fps} = setup;
+  plan = planShow(setup.show, lexicon, voice);
   const engine = new Engine(engineModule(), RATE, 7);
   engine.jumpAll(voice);
   const pre = Math.round(setup.preroll * RATE);
@@ -93,7 +91,7 @@ async function prepare(options: Partial<Setup> = {}) {
   let started = false;
   for (let i = 0; at < total; i++) {
     const end = Math.min(total, Math.round((i + 1) * perFrame));
-    const mid = Math.round((i + 0.5) * perFrame);
+    const mid = Math.min(total, Math.round((i + 0.5) * perFrame));
     if (!started && mid >= pre) {
       run(pre - at);
       engine.loadScore(plan.score);
@@ -134,10 +132,11 @@ function View() {
     running: true, areas: fr.areas, energy: fr.energy, airflow: st[STATE.airflow], nasalShare: st[STATE.nasalShare],
     closed: st[STATE.closed] > 0.5, minIndex: st[STATE.minIndex], minArea: st[STATE.minArea], gate: p.gate, clock: fr.time,
   };
-  const singing = fr.time >= 0 && fr.time <= plan.score.length;
+  const section = plan.sections.find(s => fr.time >= s.start && fr.time < s.end);
+  const singing = section?.kind === 'sing';
   const f0 = st[STATE.f0];
   const stage: StageState = {
-    time: fr.time, cues: plan.cues, beat: 60 / setup.song.bpm, level, f0: p.gate > 0.05 ? f0 : 0, singing,
+    time: fr.time, cues: plan.cues, beat: section?.beat || 0.45, level, f0: p.gate > 0.05 ? f0 : 0, singing,
   };
   const model = analysis().analyze(fr.areas, st[STATE.nasalArea], st[STATE.length]);
   const now = nameSound({
@@ -145,10 +144,10 @@ function View() {
     minIndex: airway.minIndex, minArea: airway.minArea, sounding: p.gate > 0.05,
   });
   const line = lyricLine(stage);
-  // Plain face for the scat intro, then look inside for tongue, lips and nose...
-  // ...and back to her face for the big finish.
+  // Plain face for the patter and scat; look inside for the verse and the beat; out again for the finale.
   const fade = (at: number | undefined) => (at === undefined ? 0 : Math.min(1, Math.max(0, (fr.time - at) / 0.35)));
-  const reveal = setup.revealAt === undefined ? 1 : fade(setup.revealAt) * (1 - fade(setup.hideAt));
+  const [ra, rb] = setup.reveal ?? [0, plan.sections.length - 1];
+  const reveal = fade(plan.sections[ra]?.start) * (1 - fade(plan.sections[rb]?.end));
   return (
     <div className="hvl-root hvl-video">
       <style>{CSS + VIDEO_CSS}</style>
