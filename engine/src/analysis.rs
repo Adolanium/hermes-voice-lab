@@ -23,7 +23,7 @@ pub fn tract_response(areas: &[f32; N], nasal_area: f32, length_cm: f32) -> Resp
     let mut re = vec![0.0f32; FFT_SIZE];
     let mut im = vec![0.0f32; FFT_SIZE];
     for (i, slot) in re.iter_mut().enumerate().take(FFT_SIZE / 2) {
-        wg.tick(if i == 0 { 1.0 } else { 0.0 }, 0, 0.0);
+        wg.tick(if i == 0 { 1.0 } else { 0.0 }, 0, 0.0, 0, 0.0);
         // Volume velocity arriving at the lips and nostrils: the tract's
         // volume-velocity transfer function, without the radiation tilt.
         *slot = wg.outflow();

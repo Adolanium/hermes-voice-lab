@@ -193,6 +193,10 @@ pub struct Waveguide {
     d_root_area: [f32; N],
     d_coupling: f32,
     ramp_left: u32,
+    /// Section of a turbulent jet's exit and the extra per-tick loss it
+    /// adds just downstream (set before `set_areas_ramped`).
+    pub jet_at: usize,
+    pub jet_loss: f32,
     pub areas: [f32; N],
     pub nasal_right: [f32; NASAL_N],
     nasal_left: [f32; NASAL_N],
@@ -229,6 +233,8 @@ impl Waveguide {
             d_root_area: [0.0; N],
             d_coupling: 0.0,
             ramp_left: 0,
+            jet_at: N,
+            jet_loss: 0.0,
             areas: [3.0; N],
             nasal_right: [0.0; NASAL_N],
             nasal_left: [0.0; NASAL_N],
@@ -298,7 +304,13 @@ impl Waveguide {
             glide(&mut self.root_area[i], &mut self.d_root_area[i], areas[i].max(0.0).sqrt());
             // Wall and viscous losses grow as the section narrows.
             let loss = 0.00022 + 0.00034 / areas[i].max(0.05).sqrt();
-            glide(&mut self.damping[i], &mut self.d_damping[i], (1.0 - loss * 106_000.0 / rate).clamp(0.9, 0.99995));
+            let mut damp = (1.0 - loss * 106_000.0 / rate).clamp(0.9, 0.99995);
+            // A jet leaving a constriction dissipates sound in front of it,
+            // which keeps the small front cavity of a fricative from ringing.
+            if i > self.jet_at && i <= self.jet_at + 2 {
+                damp *= 1.0 - self.jet_loss.clamp(0.0, 0.5) * 106_000.0 / rate;
+            }
+            glide(&mut self.damping[i], &mut self.d_damping[i], damp);
         }
         self.ramp_left = ticks;
         // A piston of radius a radiates efficiently above roughly c/(2πa);
@@ -312,12 +324,12 @@ impl Waveguide {
         self.nose_coeff = coeff(cutoff(NOSTRIL_AREA));
     }
 
-    /// One tick. `source` is the glottal volume-flow input; `noise` is a
-    /// pressure source (index, value) injected as a series dipole.
+    /// One tick. `source` is the glottal volume-flow input; `noise` and
+    /// `noise2` are pressure sources (index, value) injected as series dipoles.
     /// Returns (lip volume velocity, nostril volume velocity); radiated
     /// pressure is their time derivative.
     #[inline]
-    pub fn tick(&mut self, source: f32, noise_at: usize, noise: f32) -> (f32, f32) {
+    pub fn tick(&mut self, source: f32, noise_at: usize, noise: f32, noise2_at: usize, noise2: f32) -> (f32, f32) {
         if self.ramp_left > 0 {
             self.ramp_left -= 1;
             for i in 0..N {
@@ -366,11 +378,15 @@ impl Waveguide {
         // Volume velocity leaving the lips: √A·(w⁺ − w⁻).
         let mouth = self.root_area[N - 1] * (incident - reflected);
 
-        if noise != 0.0 && noise_at < N {
-            // Jet turbulence radiates mostly downstream of the constriction.
-            let s = self.root_area[noise_at];
-            nr[noise_at] += 0.8 * noise * s;
-            nl[noise_at] -= 0.2 * noise * s;
+        for (at, value) in [(noise_at, noise), (noise2_at, noise2)] {
+            if value != 0.0 && at < N {
+                // Jet turbulence radiates mostly downstream of the constriction.
+                // A pressure source p enters as p·√A; capping A keeps the
+                // level from depending on how wide the cavity at the obstacle is.
+                let s = self.root_area[at].min(1.0);
+                nr[at] += 0.8 * value * s;
+                nl[at] -= 0.2 * value * s;
+            }
         }
         for i in 0..N {
             self.right[i] = (nr[i] * self.damping[i]).clamp(-60.0, 60.0);

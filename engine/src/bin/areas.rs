@@ -1,4 +1,5 @@
 //! Print the area function for a parameter set: cargo run --bin areas -- "tip=0.4,tipc=0.9"
+use voice_lab_engine::analysis::tract_response;
 use voice_lab_engine::params::*;
 use voice_lab_engine::tract::{area_function, N};
 
@@ -24,5 +25,7 @@ fn main() {
         let s = area_function(&p, &mut a);
         println!("{arg}: min {:.3} @{} coronal {} | {}", s.min_area, s.min_index, s.coronal,
             a[28..].iter().map(|v| format!("{v:.2}")).collect::<Vec<_>>().join(" "));
+        let r = tract_response(&a, s.nasal_area, s.length_cm);
+        println!("   formants {}", r.formants.iter().map(|(f, b)| format!("{f:.0}/{b:.0}")).collect::<Vec<_>>().join("  "));
     }
 }
