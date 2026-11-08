@@ -11,14 +11,14 @@ export interface VoicePreset {
 
 /** The default character voice: an original adult feminine voice, clear and warm. */
 export const SIGNATURE: Patch = {
-  pitch: 212, loudness: 0.72, tenseness: 0.28, breath: 0.25, vibratoDepth: 0.18, vibratoRate: 5.4,
+  pitch: 212, loudness: 0.72, tenseness: 0.4, breath: 0.15, vibratoDepth: 0.18, vibratoRate: 5.4,
   tractLength: 14.2, throat: 0.5, gain: 0.7, humanize: 0.45, space: 0.18,
   register: 0, fry: 0, growl: 0, twang: 0, pharynx: 1,
   mic: 0.4, eqLow: 0, eqMid: 0, eqHigh: 0, comp: 0, drive: 0,
 };
 
 export const VOICE_PRESETS: VoicePreset[] = [
-  {id: 'signature', name: 'Signature', description: 'Clear, warm, gently breathy — the default character voice.', voice: SIGNATURE},
+  {id: 'signature', name: 'Signature', description: 'Clear and warm, lightly breathy — the default character voice.', voice: SIGNATURE},
   {id: 'warm', name: 'Warm', description: 'Lower, rounder and softer, with a wider throat.', voice: {...SIGNATURE, pitch: 194, tenseness: 0.2, breath: 0.3, tractLength: 14.8, throat: 0.72, space: 0.22}},
   {id: 'bright', name: 'Bright', description: 'Higher and firmer with a shorter tract.', voice: {...SIGNATURE, pitch: 238, tenseness: 0.5, breath: 0.14, tractLength: 13.6, throat: 0.34}},
   {id: 'airy', name: 'Airy', description: 'Soft and breathy, close to the microphone.', voice: {...SIGNATURE, pitch: 222, tenseness: 0.1, breath: 0.62, humanize: 0.5, space: 0.12}},

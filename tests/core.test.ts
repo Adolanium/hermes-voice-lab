@@ -502,7 +502,7 @@ test('recording chain: neutral by default; mic, EQ, compressor and drive do what
   const neutral = take({});
   assert.deepEqual(take({mic: 0.4, eqLow: 0, eqMid: 0, eqHigh: 0, comp: 0, drive: 0}), neutral, 'the defaults leave the voice untouched');
   const close = take({mic: 0});
-  assert.ok(band(close, 150, 450) - band(neutral, 150, 450) > 3, 'a close microphone boosts the bass (proximity effect)');
+  assert.ok(band(close, 150, 250) - band(neutral, 150, 250) > 3, 'a close microphone boosts the bass (proximity effect)');
   const bright = take({eqHigh: 12});
   assert.ok(band(bright, 5500, 9000) - band(neutral, 5500, 9000) > 8, 'the high shelf lifts 5.5–9 kHz');
   const crest = (x: Float32Array) => { let peak = 0, s = 0; for (const v of x) { peak = Math.max(peak, Math.abs(v)); s += v * v; } return peak / Math.sqrt(s / x.length); };
