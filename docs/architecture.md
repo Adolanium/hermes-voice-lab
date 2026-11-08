@@ -27,6 +27,7 @@ One engine (Rust → `runtime/voice_lab_engine.wasm`) and one planner (TypeScrip
 | `tract.rs` | Parametric area function from the articulators, plus a power-normalized Kelly–Lochbaum waveguide (44 oral sections, 30 nasal sections, three-port velum junction, aperture-dependent lip and nostril radiation). |
 | `voice.rs` | Aerodynamics, noise sources, vibrato/jitter/shimmer/drift, resampling, room, output protection, and the score player. |
 | `analysis.rs` | The modeled transfer function: drive the same waveguide with an impulse and take the FFT. Peaks are the exact resonances of the synthesized system. |
+| `bin/trace.rs`, `bin/areas.rs`, `bin/probe.rs` | Development tools: per-millisecond engine readouts, area functions with formants, and parameter-script renders. |
 | `bin/calibrate.rs` | Nelder–Mead fit of vowel articulations to adult-female mean F1–F3 (Hillenbrand et al. 1995), with priors that keep the portrait plausible. Writes `src/core/vowels.generated.json`. |
 
 **Tract length.** Every tick a wave moves one section, so section length = c / f_internal. The internal clock is `f = N·c / L`, roughly 80–140 kHz. Changing L (size, lip protrusion) therefore changes the tract length continuously, without resizing arrays. An 8th-order Butterworth and cubic interpolation convert to the host rate.
@@ -35,6 +36,8 @@ One engine (Rust → `runtime/voice_lab_engine.wasm`) and one planner (TypeScrip
 
 **Aerodynamics.** The glottis and the narrowest supraglottal path (including the nose when the velum is open) act as two orifices in series. Intraoral pressure follows them with a short time constant. Turbulence ∝ max(0, A·ΔP − θ), saturating. It is injected just downstream of the constriction, or at the teeth for coronal sibilants with a band-limited spectrum. A release after built-up pressure produces a burst. Voicing amplitude follows the transglottal pressure drop, so voicing dies naturally during closures.
 
+**Output stage.** The glottal source is scaled by 210/f0 so effort, not pitch, sets loudness. A slow leveler (−22 dBFS, 3:1) and a 2 ms look-ahead limiter (ceiling 0.8) follow, then the soft clipper. Junction coefficients glide every tick between control updates, so fast closures don't click.
+
 **Real-time safety.** Render work is bounded per sample. Buffers and score storage (65,536 events) are allocated at construction. Any non-finite sample resets the filters and is counted in telemetry; the tests assert it never happens.
 
 **ABI.** Plain `extern "C"` functions over linear memory: `engine_init/set/jump/render`, output, parameter, area and state pointers, score staging/load/play/stop, `analyze` and `shape_from_params`. `src/core/engine.ts` wraps them and checks parameter-table parity at load.
@@ -42,7 +45,7 @@ One engine (Rust → `runtime/voice_lab_engine.wasm`) and one planner (TypeScrip
 ## Planner (`src/core`)
 
 - `text.ts`: normalization (numbers, punctuation → boundaries), a CMUdict-derived lexicon (front-coded, gzip, decoded lazily), original fallback letter-to-sound rules, ARPABET input and syllabification.
-- `phonemes.ts`: ARPABET inventory. Vowel targets come from calibration; consonants constrain only the articulators they use.
+- `phonemes.ts`: ARPABET inventory plus `DX` (flap, used for intervocalic T/D). Vowel targets come from calibration; consonants constrain only the articulators they use.
 - `planner.ts`: phones → timed segments (inherent durations with stress, cluster and phrase-final rules) → events on independent tiers. The tongue body follows a vowel-to-vowel trajectory with dorsal consonants superimposed; tip, lips, dorsum, velum and glottis gestures are local. Intonation has declination, accents on stressed syllables, a final fall or a question rise. Singing aligns vowel onsets to note starts, places codas before the next note, glides pitch for legato and delays vibrato on long notes.
 - `project.ts`: the project document (voice, held shape, phrase, song) with validation shared by the UI and the renderer. The Python backend mirrors the structural checks using `runtime/catalog.json`.
 
