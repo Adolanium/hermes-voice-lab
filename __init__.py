@@ -46,7 +46,7 @@ def _summary(project: dict) -> dict:
         "name": project["name"], "mode": project["mode"], "voice": project["voice"], "shape": project["shape"],
         "speech": project["speech"],
         "song": {"bpm": song["bpm"], "lyrics": song["lyrics"], "notes": len(song["notes"]), "loop": song["loop"],
-                 "beats": max([n["start"] + n["length"] for n in song["notes"]] or [0])},
+                 "style": song.get("style", "natural"), "beats": max([n["start"] + n["length"] for n in song["notes"]] or [0])},
     }
 
 
@@ -132,6 +132,10 @@ def tool_perform(args: dict, **_):
                 project["song"]["bpm"] = vb._number(args["bpm"], 30, 240, "bpm")
             if "loop" in args:
                 project["song"]["loop"] = bool(args["loop"])
+            if "style" in args:
+                if args["style"] not in ("natural", "cartoon"):
+                    raise ValueError("style must be natural or cartoon")
+                project["song"]["style"] = args["style"]
             if not project["song"]["notes"]:
                 raise ValueError("A song needs notes (or a melody string like 'C4:1 E4:1 G4:2')")
         project["mode"] = mode
@@ -200,6 +204,8 @@ TOOLS = [
       "lyrics": {"type": "string", "description": "Sing: lyrics, e.g. 'hel-lo my friend'."},
       "bpm": {"type": "number", "description": "Sing: tempo 30–240."},
       "loop": {"type": "boolean", "description": "Sing: loop in the live view."},
+      "style": {"type": "string", "enum": ["natural", "cartoon"],
+                "description": "Sing: 'cartoon' scoops into notes, slides, wobbles and exaggerates the mouth for funny songs; 'natural' (default) is plain."},
       "render": {"type": "boolean", "description": "Render a WAV attachment (default true)."}},
      ["mode"]),
     ("voice_lab_render",

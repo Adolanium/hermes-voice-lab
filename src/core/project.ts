@@ -3,7 +3,7 @@
  * song (Sing). Shared by the desktop UI, the Node renderer and agent tools.
  */
 import {defaultPatch, PARAM_NAMES, validatePatch, type Patch} from './params';
-import {planSong, planSpeech, planSustain, type Note} from './planner';
+import {planSong, planSpeech, planSustain, type Note, type SongStyle} from './planner';
 import {SIGNATURE, VOWEL_PRESETS} from './presets';
 import type {Score} from './engine';
 import type {Lexicon} from './text';
@@ -17,7 +17,7 @@ export interface Project {
   voice: Patch;
   shape: Patch;
   speech: {text: string; phonemes: boolean; rate: number; expression: number};
-  song: {bpm: number; lyrics: string; notes: Note[]; loop: boolean};
+  song: {bpm: number; lyrics: string; notes: Note[]; loop: boolean; style: SongStyle};
   /** Seconds rendered for Play mode exports. */
   sustain: number;
 }
@@ -34,6 +34,29 @@ export const DEMO_NOTES: Note[] = [
   [8.5, 0.5, 60], [9, 0.5, 62], [9.5, 0.5, 64], [10, 1, 67], [11, 0.5, 69], [11.5, 0.5, 71], [12, 3, 72],
 ].map(([start, length, midi]) => ({start, length, midi}));
 
+/**
+ * An original novelty scat song for showing off the articulators: every line
+ * works a different part of the mouth (tongue, lips, nose, jaw).
+ */
+const SILLY: Array<[string, number, number, number]> = [
+  // [syllable, start beat, length beats, MIDI]
+  ['doo', 0, 0.5, 67], ['bee', 0.5, 0.5, 69], ['doo', 1, 0.5, 67], ['bee', 1.5, 0.5, 64], ['wah', 2, 1, 72], ['-', 3, 1, 65],
+  ['shoo', 4, 0.5, 60], ['bop', 4.5, 0.5, 64], ['shoo', 5, 0.5, 62], ['bop', 5.5, 0.5, 65], ['bah!', 6, 1.5, 67],
+  ['my', 8, 0.5, 64], ['tongue', 8.5, 0.5, 65], ['goes', 9, 0.5, 67], ['la', 9.5, 0.5, 72], ['la', 10, 0.5, 74], ['la!', 10.5, 1, 76],
+  ['my', 12, 0.5, 64], ['lips', 12.5, 0.5, 65], ['go', 13, 0.5, 67], ['boop', 13.5, 0.5, 60], ['boop', 14, 0.5, 60], ['boop!', 14.5, 1, 55],
+  ['my', 16, 0.5, 64], ['nose', 16.5, 0.5, 65], ['goes', 17, 0.5, 67], ['hum', 17.5, 0.5, 71], ['hum!', 18, 1.5, 67],
+  ['my', 20, 0.5, 64], ['jaw', 20.5, 0.5, 65], ['goes', 21, 0.5, 67], ['wah', 21.5, 0.5, 72], ['wah', 22, 0.5, 70], ['woo', 22.5, 1, 67], ['-', 23.5, 0.5, 60],
+  ['bee', 24, 0.5, 72], ['bop', 24.5, 0.5, 67], ['bee', 25, 0.5, 74], ['boop', 25.5, 0.5, 67], ['hey!', 26, 0.75, 76], ['ho!', 27, 0.75, 64],
+  ['yay', 28, 1.5, 72], ['-', 29.5, 2.5, 76],
+];
+export const SILLY_SONG: Project['song'] = {
+  bpm: 132,
+  lyrics: SILLY.map(s => s[0]).join(' '),
+  notes: SILLY.map(([, start, length, midi]) => ({start, length, midi})),
+  loop: false,
+  style: 'cartoon',
+};
+
 export function newProject(name = 'Untitled voice'): Project {
   return {
     version: 2,
@@ -42,7 +65,7 @@ export function newProject(name = 'Untitled voice'): Project {
     voice: {...SIGNATURE},
     shape: {...VOWEL_PRESETS.find(v => v.id === 'aa')!.shape},
     speech: {text: DEMO_PHRASE, phonemes: false, rate: 1, expression: 0.6},
-    song: {bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map(n => ({...n})), loop: false},
+    song: {bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map(n => ({...n})), loop: false, style: 'natural'},
     sustain: 2,
   };
 }
@@ -73,6 +96,7 @@ export function validateProject(input: unknown): Project {
   num(song.bpm, 30, 240, 'song.bpm');
   if (typeof song.lyrics !== 'string' || song.lyrics.length > LIMITS.lyrics) throw new TypeError(`song.lyrics must be up to ${LIMITS.lyrics} characters`);
   if (typeof song.loop !== 'boolean') throw new TypeError('song.loop must be true or false');
+  if (song.style !== 'natural' && song.style !== 'cartoon') throw new TypeError('song.style must be natural or cartoon');
   if (!Array.isArray(song.notes) || song.notes.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
   const notes: Note[] = song.notes.map((n: any, i: number) => {
     if (!n || typeof n !== 'object') throw new TypeError(`note ${i} must be an object`);
@@ -87,7 +111,7 @@ export function validateProject(input: unknown): Project {
     voice: {...SIGNATURE, ...validatePatch(p.voice ?? base.voice, 'voice')},
     shape: {...validatePatch(p.shape ?? base.shape, 'shape')},
     speech,
-    song: {...song, notes},
+    song: {bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes},
     sustain: num(p.sustain ?? base.sustain, 0.2, 30, 'sustain'),
   };
 }
@@ -99,7 +123,7 @@ export function projectScore(project: Project, lexicon: Lexicon, mode: Mode = pr
     return {score: plan.score, warnings: plan.warnings};
   }
   if (mode === 'sing') {
-    const plan = planSong(project.song.notes, project.song.lyrics, lexicon, {bpm: project.song.bpm, voice: project.voice});
+    const plan = planSong(project.song.notes, project.song.lyrics, lexicon, {bpm: project.song.bpm, voice: project.voice, style: project.song.style});
     return {score: plan.score, warnings: plan.warnings};
   }
   return {score: planSustain(project.shape, project.voice, project.sustain), warnings: []};

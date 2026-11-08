@@ -5,7 +5,7 @@ import {simulateTracks} from '../core/planner';
 import {midiToHz, noteName, type ParamName, type Patch} from '../core/params';
 import {PHONEMES, isVowel} from '../core/phonemes';
 import {VOWEL_PRESETS} from '../core/presets';
-import type {Project} from '../core/project';
+import {SILLY_SONG, type Project} from '../core/project';
 import {cssVar, Icon, Range, Seg, Slider, useCanvas} from './controls';
 
 const SOURCE: ParamName[] = ['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize'];
@@ -425,6 +425,10 @@ export function SingPanel({project, plan, onChange, onSing, onStop, playing, pos
           {playing ? <button className="hvl-btn" onClick={onStop}>{Icon.stop} Stop</button>
             : <button className="hvl-btn is-primary" onClick={onSing} disabled={!ready || !notes.length}>{Icon.play} Sing</button>}
           <button className={`hvl-btn ${song.loop ? 'is-on' : ''}`} onClick={() => onChange({loop: !song.loop})} aria-pressed={song.loop}>{Icon.loop} Loop</button>
+          <button className={`hvl-btn ${song.style === 'cartoon' ? 'is-on' : ''}`} onClick={() => onChange({style: song.style === 'cartoon' ? 'natural' : 'cartoon'})} aria-pressed={song.style === 'cartoon'}
+            title="Cartoon singing: scoops, slides, wobbly vibrato and an oversized mouth">Cartoon</button>
+          <button className="hvl-btn is-ghost" onClick={() => { onChange({...SILLY_SONG, notes: SILLY_SONG.notes.map(n => ({...n}))}); setSelected(null); }}
+            title="Load the novelty demo song">Silly song</button>
         </div>
         <div className="hvl-row">
           <label className="hvl-note" htmlFor="hvl-bpm">Tempo</label>

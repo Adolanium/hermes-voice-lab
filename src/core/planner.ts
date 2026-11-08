@@ -409,7 +409,15 @@ export interface SongOptions {
   voice?: Patch;
   /** Fallback vowel when lyrics run out. */
   hum?: string;
+  /**
+   * 'cartoon' sings like an animated character: pitch scoops into every note,
+   * slides on held syllables, fall-offs at phrase ends, wide wobbly vibrato and
+   * a deliberately oversized jaw and lips. 'natural' (default) is plain.
+   */
+  style?: SongStyle;
 }
+
+export type SongStyle = 'natural' | 'cartoon';
 
 export interface SungSyllable {
   phones: Phone[];
@@ -434,13 +442,28 @@ export function lyricSyllables(lyrics: string, lexicon: Lexicon): SungSyllable[]
     const word = phonemize(spelled.join(''), lexicon)[0];
     if (!word) return;
     const syl = syllabify(word.phones);
-    syl.forEach((phones, k) => out.push({phones, text: spelled.length === syl.length ? spelled[k] : k === 0 ? spelled.join('') : '·', word: wi}));
+    // Keep closing punctuation ("hey!") on the last syllable's display text.
+    const trail = part.match(/[!?.,]+$/)?.[0] ?? '';
+    syl.forEach((phones, k) => {
+      const text = spelled.length === syl.length ? spelled[k] : k === 0 ? spelled.join('') : '·';
+      out.push({phones, text: k === syl.length - 1 && text !== '·' ? text + trail : text, word: wi});
+    });
   });
   return out;
 }
 
+/** A sung syllable on the timeline (seconds): consonant onset, vowel onset, release. */
+export interface LyricCue {
+  text: string;
+  start: number;
+  vowel: number;
+  end: number;
+  midi: number;
+}
+
 export interface SongPlan extends Plan {
   assignments: Array<{note: number; syllable: number; text: string}>;
+  cues: LyricCue[];
 }
 
 export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: SongOptions): SongPlan {
@@ -453,7 +476,9 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
   const segments: Segment[] = [{symbol: 'SIL', stress: 0, start: 0, end: lead, word: -1}];
   const pitchEvents: ScoreEvent[] = [];
   const assignments: SongPlan['assignments'] = [];
+  const cues: LyricCue[] = [];
   const hum: Phone[] = [{symbol: opts.hum ?? 'AA', stress: 1}];
+  const cartoon = opts.style === 'cartoon';
   let syl = 0;
   let cursor = lead;
   sorted.forEach((n, k) => {
@@ -476,8 +501,9 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
           s.end += shift;
         });
         cursor = Math.max(cursor, lastVowel.end);
+        if (cues.length) cues[cues.length - 1].end = lastVowel.end;
       }
-      pitchEvents.push([start - 0.01, 'pitch', midiToHz(n.midi), 40]);
+      pitchEvents.push([start - 0.01, 'pitch', midiToHz(n.midi), cartoon ? 110 : 40]);
       assignments.push({note: n.index, syllable: syl - 1, text: '–'});
       return;
     }
@@ -506,6 +532,7 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
     const codaDur = coda.map(p => Math.min(0.08, PHONEMES[p.symbol].duration / 1000 * 0.75));
     const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.4);
     const vowelEnd = stop - codaTotal;
+    if (unit) cues.push({text: unit.text, start: onset.length ? segments[segments.length - onset.length].start : t, vowel: t, end: stop, midi: n.midi});
     segments.push({symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text});
     let c = vowelEnd;
     coda.forEach((p, i) => {
@@ -514,21 +541,41 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
       c += d;
     });
     cursor = c;
-    pitchEvents.push([start - (legato ? 0.04 : 0.06), 'pitch', midiToHz(n.midi), legato ? 45 : 20]);
+    const hz = midiToHz(n.midi);
+    if (cartoon) {
+      // Scoop up into the note from below (further on long notes).
+      const scoop = end - start > 0.4 ? 4 : 2;
+      // (A fast glide, not a jump: an instant f0 step clicks.)
+      pitchEvents.push([start - 0.1, 'pitch', hz * 2 ** (-scoop / 12), 12]);
+      pitchEvents.push([start - 0.055, 'pitch', hz, 30]);
+      // Fall off the end of a held note before a rest.
+      if (end - start > 0.4 && nextStart - end > 0.15) pitchEvents.push([end - 0.17, 'pitch', hz * 0.72, 70]);
+    } else {
+      pitchEvents.push([start - (legato ? 0.04 : 0.06), 'pitch', hz, legato ? 45 : 20]);
+    }
     // Delayed vibrato on held notes.
     if (end - start > 0.45) {
       pitchEvents.push([start - 0.06, 'vibratoDepth', 0, 60]);
-      pitchEvents.push([start + 0.22, 'vibratoDepth', voice.vibratoDepth, 180]);
+      pitchEvents.push([start + (cartoon ? 0.12 : 0.22), 'vibratoDepth', cartoon ? 0.62 : voice.vibratoDepth, cartoon ? 120 : 180]);
+      if (cartoon) pitchEvents.push([start, 'vibratoRate', 6.6, 0]);
     }
-    pitchEvents.push([start - 0.02, 'loudness', clampParam('loudness', voice.loudness + 0.04), 25]);
+    pitchEvents.push([start - 0.02, 'loudness', clampParam('loudness', voice.loudness + (cartoon ? 0.12 : 0.04)), 25]);
     pitchEvents.push([start + 0.12, 'loudness', voice.loudness, 120]);
   });
   segments.push({symbol: 'SIL', stress: 0, start: cursor, end: cursor + 0.3, word: -1, boundary: 'period'});
   const events = articulate(segments, voice);
+  if (cartoon) {
+    // Oversized mouth: wider jaw drops, bigger lips, poutier rounding (closures stay closed).
+    for (const e of events) {
+      if (e[1] === 'jaw') e[2] = clampParam('jaw', 0.12 + e[2] * 1.35);
+      else if (e[1] === 'lipOpen' && e[2] > 0.05) e[2] = clampParam('lipOpen', e[2] * 1.2);
+      else if (e[1] === 'lipRound') e[2] = clampParam('lipRound', e[2] * 1.3);
+    }
+  }
   if (sorted.length) events.push([0, 'pitch', midiToHz(sorted[0].midi), 0]);
   events.push(...pitchEvents);
   events.sort((a, b) => a[0] - b[0]);
-  return {score: compileScore(events, cursor + 0.4), segments, words: [], warnings: [], assignments};
+  return {score: compileScore(events, cursor + 0.4), segments, words: [], warnings: [], assignments, cues};
 }
 
 /** A sustained vowel (or any shape) for a given time, e.g. for previews and renders of Play mode. */

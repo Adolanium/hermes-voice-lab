@@ -25,6 +25,8 @@ export interface AirwayState {
   minIndex: number;
   minArea: number;
   gate: number;
+  /** Fixed clock in seconds (frame rendering): particles step on it instead of real time. */
+  clock?: number;
 }
 
 interface Geometry {
@@ -111,27 +113,27 @@ export function AirwayLife({state, geometry}: {state: AirwayState; geometry: Geo
   );
 }
 
-/** Air particles animated on their own frame loop (no React re-render per frame). */
+/** Air particles animated on their own frame loop (no React re-render per frame), or on a fixed clock. */
 function Particles({oral, nasal, state}: {oral: Pt[]; nasal: Pt[]; state: AirwayState}) {
   const group = useRef<SVGGElement>(null);
   const live = useRef({oral, nasal, state});
   live.current = {oral, nasal, state};
+  const stepRef = useRef<((dt: number) => void) | null>(null);
+  const lastClock = useRef<number | null>(null);
   useEffect(() => {
     const g = group.current;
     if (!g) return;
     const dots = Array.from(g.children) as SVGCircleElement[];
     // s: position along the route in sections; nose: route choice.
     const ps = dots.map((_, i) => ({s: (i / dots.length) * N, nose: false, alpha: 0}));
-    let raf = 0;
-    let last = performance.now();
+    let seed = 12345;
+    const random = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 2 ** 32);
     const at = (route: Pt[], s: number): Pt => {
       const i = Math.max(0, Math.min(route.length - 2, Math.floor(s)));
       const t = Math.min(1, Math.max(0, s - i));
       return [route[i][0] + (route[i + 1][0] - route[i][0]) * t, route[i][1] + (route[i + 1][1] - route[i][1]) * t];
     };
-    const frame = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
+    const step = (dt: number) => {
       const {oral, nasal, state} = live.current;
       const flowing = state.running && state.gate > 0.05;
       // Mean airflow sets the drift speed (sections per second), with a floor so voicing reads.
@@ -147,8 +149,8 @@ function Particles({oral, nasal, state}: {oral: Pt[]; nasal: Pt[]; state: Airway
         const stuck = p.s >= limit && limit < end;
         p.alpha += ((flowing ? (stuck ? 0.25 : 0.9) : 0) - p.alpha) * Math.min(1, dt * 6);
         if (p.s >= end - 0.01 || (!flowing && p.alpha < 0.02)) {
-          p.s = Math.random() * 2;
-          p.nose = Math.random() < state.nasalShare;
+          p.s = random() * 2;
+          p.nose = random() < state.nasalShare;
         }
         if (p.nose && p.s >= PORT - 0.5 && state.nasalShare < 0.02) p.nose = false;
         const [x, y] = nasalRoute ? at(nasal, p.s - PORT) : at(oral, p.s);
@@ -157,11 +159,30 @@ function Particles({oral, nasal, state}: {oral: Pt[]; nasal: Pt[]; state: Airway
         dot.setAttribute('cy', y.toFixed(1));
         dot.style.opacity = p.alpha.toFixed(2);
       }
+    };
+    stepRef.current = step;
+    if (live.current.state.clock !== undefined) return () => void (stepRef.current = null);
+    let raf = 0;
+    let last = performance.now();
+    const frame = (now: number) => {
+      step(Math.min(0.05, (now - last) / 1000));
+      last = now;
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      stepRef.current = null;
+    };
   }, []);
+  // Fixed-clock mode: advance exactly by the clock difference on each render.
+  useEffect(() => {
+    const c = state.clock;
+    if (c === undefined) return;
+    const dt = lastClock.current === null ? 0 : Math.min(0.05, Math.max(0, c - lastClock.current));
+    lastClock.current = c;
+    stepRef.current?.(dt);
+  }, [state.clock]);
   return (
     <g ref={group} className="hvl-particles">
       {Array.from({length: PARTICLES}, (_, i) => <circle key={i} r={1.3} cx={298} cy={458} style={{opacity: 0}} />)}

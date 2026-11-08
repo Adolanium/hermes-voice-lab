@@ -10,7 +10,7 @@ import {compileScore, Engine, renderScore} from '../src/core/engine';
 import {PARAMS, PARAM_NAMES, validatePatch, parseNoteName, midiToHz} from '../src/core/params';
 import {planSong, planSpeech, planSustain} from '../src/core/planner';
 import {decodeLexicon, letterToSound, parsePhonemeInput, syllabify, tokenize} from '../src/core/text';
-import {newProject, projectScore, validateProject} from '../src/core/project';
+import {newProject, projectScore, SILLY_SONG, validateProject} from '../src/core/project';
 import {VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
 import {VOWEL_CALIBRATION} from '../src/core/phonemes';
 import {encodeWav, measure} from '../src/core/wav';
@@ -187,4 +187,37 @@ test('Node renderer CLI writes a WAV and reports metadata', () => {
   } finally {
     rmSync(dir, {recursive: true, force: true});
   }
+});
+
+test('cartoon singing: lyric cues, scoops, bigger mouth, and the silly song renders cleanly', () => {
+  const opts = {bpm: SILLY_SONG.bpm};
+  const natural = planSong(SILLY_SONG.notes, SILLY_SONG.lyrics, lexicon, {...opts, style: 'natural'});
+  const cartoon = planSong(SILLY_SONG.notes, SILLY_SONG.lyrics, lexicon, {...opts, style: 'cartoon'});
+  // One cue per sung syllable (holds "-" extend the previous one), punctuation kept for display.
+  const sung = SILLY_SONG.lyrics.split(' ').filter(w => w !== '-').length;
+  assert.equal(cartoon.cues.length, sung);
+  assert.equal(cartoon.cues[9].text, 'bah!');
+  assert.ok(cartoon.cues.every((c, i) => c.start <= c.vowel && c.vowel < c.end && (i === 0 || c.start >= cartoon.cues[i - 1].start)));
+  const wah = cartoon.cues[4];
+  assert.ok(wah.end - wah.vowel > 1.5 * (60 / SILLY_SONG.bpm), 'held "-" extends the cue');
+  const events = (p: typeof natural, id: number) => {
+    const out: number[] = [];
+    for (let i = 0; i < p.score.events.length; i += 4) if (p.score.events[i + 1] === id) out.push(p.score.events[i + 2]);
+    return out;
+  };
+  const pitchId = PARAM_NAMES.indexOf('pitch');
+  const jawId = PARAM_NAMES.indexOf('jaw');
+  assert.ok(events(cartoon, pitchId).length > events(natural, pitchId).length + 30, 'scoops add pitch events');
+  const meanJaw = (p: typeof natural) => events(p, jawId).reduce((a, b) => a + b, 0) / events(p, jawId).length;
+  assert.ok(meanJaw(cartoon) > meanJaw(natural) + 0.1, 'cartoon opens the jaw wider');
+  assert.throws(() => validateProject({song: {style: 'opera'}}), /style/);
+  const project = validateProject({...newProject(), mode: 'sing', song: SILLY_SONG});
+  assert.equal(project.song.style, 'cartoon');
+  const [left] = renderScore(engine(), projectScore(project, lexicon).score, project.voice);
+  let peak = 0;
+  for (const v of left) {
+    assert.ok(Number.isFinite(v));
+    peak = Math.max(peak, Math.abs(v));
+  }
+  assert.ok(peak > 0.2 && peak <= 0.81, `peak ${peak}`);
 });

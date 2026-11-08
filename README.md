@@ -6,6 +6,8 @@ A vocal synthesizer for Hermes Desktop built on a physical model of the voice. A
 
 Everything is synthesized locally by a Rust engine compiled to WebAssembly: a glottal source drives a simulated vocal tract. There are no recordings, no neural or cloud TTS and no network calls. The default voice is an original adult feminine character voice, clear, warm and slightly breathy. It is a fictional voice for the character and not an official Nous voice.
 
+**Watch:** [The Boop Bop Song](docs/media/boop-bop-song.mp4) (17 s, 1080p). She sings an original novelty scat song in the cartoon style. Sound and picture come from one offline engine run, frame by frame, so the mouth, the cutaway and the floating words are in exact sync with the audio.
+
 **Listen** (rendered by the shipped engine, 48 kHz mono): [phrase, Signature voice](docs/media/speech-signature.wav) · [song with lyrics](docs/media/song-signature.wav) · [Warm voice](docs/media/speech-warm.wav) · [Airy voice](docs/media/speech-airy.wav) · [vowel glide /ɑ i u o æ ɝ/](docs/media/vowels.wav)
 
 | Speak | Sing | Dark theme |
@@ -16,7 +18,7 @@ Everything is synthesized locally by a Rust engine compiled to WebAssembly: a gl
 
 - **Play.** Hold a vowel, shape it on the portrait or the vowel pad, and play notes from the on-screen or computer keyboard (A–; keys, Z/X for octaves). Pitch, effort, tension (glottal pulse shape), breath, vibrato and humanize are independent of the tract shape: jaw, lips, rounding, tongue tip and back, velum (nasal), rhotic bunching, throat width and tract length.
 - **Speak.** Type a short English phrase or ARPABET phonemes. The planner turns words into overlapping articulator gestures with stress, durations and intonation. A gesture score shows the planned trajectories, and the current phone is highlighted while it plays.
-- **Sing.** Write lyrics and draw notes on a piano roll. Each note takes the next syllable. Onset consonants are placed before the beat so vowels land on it, and a lone `-` holds the previous vowel across notes. Long notes get delayed vibrato.
+- **Sing.** Write lyrics and draw notes on a piano roll. Each note takes the next syllable. Onset consonants are placed before the beat so vowels land on it, and a lone `-` holds the previous vowel across notes. Long notes get delayed vibrato. **Cartoon** style makes her sing like an animated character: pitch scoops into every note, slides on held syllables, fall-offs at phrase ends, wide wobbly vibrato and an oversized jaw and lips. **Silly song** loads an original scat demo that works each part of the mouth in turn. With **Stage** on, sung syllables pop out of her mouth and float away, music notes puff out on held notes, her head bobs on the beat and lifts on high notes, and a karaoke line follows the song.
 - **Watch it work.** Inside the cutaway, the airway lights up with the sound energy the engine computes in each section, and air particles drift from the vocal folds to the lips at the modeled airflow. Seal the airway with the tongue tip, the back of the tongue or the lips and the air stops at the seal, the sound in front of it dies, and the voice falls silent. Lower the velum and the air and sound leave through the nose instead. A readout names the sound being made (nearest vowel, or the sealed or turbulent place for consonants) next to lip, narrowest and nasal-port areas in cm². A top-down view of the vocal folds, slowed 100×, opens and closes with the modeled glottal pulse.
 | Tongue tip sealed: the air stops at the seal | Velum lowered: air and sound leave through the nose |
   |---|---|
@@ -64,7 +66,7 @@ node scripts/package.mjs                   # release/hermes-voice-lab-<ver>.tar.
 HERMES_HOME=/path/to/test-home node scripts/install-dev.mjs
 ```
 
-`npm run dev` starts a standalone browser preview of the instrument. It is a development aid only and does not prove Hermes compatibility. `npm run calibrate` refits the vowel targets (see `docs/architecture.md`). Offline render example:
+`node scripts/render-video.mjs --out song.mp4` renders a 1920×1080 performance video of the silly song (needs ffmpeg and a Playwright Chromium; development tool, not shipped). `npm run dev` starts a standalone browser preview of the instrument. It is a development aid only and does not prove Hermes compatibility. `npm run calibrate` refits the vowel targets (see `docs/architecture.md`). Offline render example:
 
 ```bash
 node runtime/render.mjs --text "Good morning." --voice warm --output /tmp/hello.wav

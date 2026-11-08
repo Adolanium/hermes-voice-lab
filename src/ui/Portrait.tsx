@@ -11,6 +11,7 @@
 import React, {useCallback, useRef} from 'react';
 import type {ParamName} from '../core/params';
 import {AirwayLife, type AirwayState} from './AirwayLife';
+import {FloatingWords, headMotion, type StageState} from './stage';
 import {ART_FIGURE, ART_INK, ART_SIZE, ART_TONE} from './art/nousGirlArt';
 
 export interface Pose {
@@ -40,6 +41,12 @@ interface Props {
   speaking: boolean;
   onDrag?: (changes: Partial<Record<ParamName, number>>) => void;
   onDragEnd?: () => void;
+  /** Stage mode: floating sung words, head bob and a bigger mouth. */
+  stage?: StageState;
+  /** SVG viewBox override (e.g. a wider frame for video). */
+  viewBox?: string;
+  /** Explicit cutaway opacity 0..1 (frame rendering), overriding the toggle's fade. */
+  cutawayOpacity?: number;
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -147,7 +154,11 @@ const JAW_REGION = 'M 790 702 L 1034 685 L 1058 681 L 1140 681 L 1140 842 L 1040
 /** Mouth interior revealed between the lips as the jaw opens (art space). */
 const MOUTH = 'M 1026 686 L 1060 680 L 1082 688 L 1074 716 L 1030 704 Z';
 
-export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDragEnd}: Props) {
+/** Neck pivot for head motion and the mouth exit for floating words (art space). */
+const NECK: Pt = [780, 1080];
+const MOUTH_EXIT: Pt = [1084, 702];
+
+export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDragEnd, stage, viewBox, cutawayOpacity}: Props) {
   const g = rig(pose);
   const svg = useRef<SVGSVGElement>(null);
   const rigGroup = useRef<SVGGElement>(null);
@@ -206,7 +217,16 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   const tongueRot = `rotate(${g.tongueDeg.toFixed(2)} ${PIVOT[0]} ${PIVOT[1]})`;
   const ul = g.upperLip;
   // The visible mouth follows the lip gap (lips can close with the jaw open).
-  const mouthDeg = 0.1 + 3.4 * clamp01(g.lipGap / 16);
+  // On stage the lower face swings further, cartoon style.
+  // On stage the whole lower face follows the jaw (cartoon style); the lips still shut for b, p, m.
+  const mouthDeg = stage ? 0.1 + g.jawDeg * clamp01(g.lipGap / 9) : 0.1 + 3.4 * clamp01(g.lipGap / 16);
+  const head = headMotion(stage);
+  const headTransform = `translate(0 ${head.dy.toFixed(1)}) rotate(${head.deg.toFixed(2)} ${NECK[0]} ${NECK[1]})`;
+  const mouthOut = ((): Pt => {
+    const r = (head.deg * Math.PI) / 180;
+    const [x, y] = [MOUTH_EXIT[0] - NECK[0], MOUTH_EXIT[1] + mouthDeg * 3 - NECK[1]];
+    return [NECK[0] + x * Math.cos(r) - y * Math.sin(r), NECK[1] + x * Math.sin(r) + y * Math.cos(r) + head.dy];
+  })();
   const artJaw = `rotate(${mouthDeg.toFixed(2)} ${ART_PIVOT[0].toFixed(1)} ${ART_PIVOT[1].toFixed(1)})`;
   const handle = (kind: string, at: Pt, label: string, r = 8) => (
     <g className="hvl-handle" onPointerDown={begin(kind)} aria-label={label}>
@@ -230,7 +250,7 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   );
 
   return (
-    <svg ref={svg} viewBox="40 20 1290 1230" className="hvl-portrait" onPointerMove={move} onPointerUp={end} onPointerCancel={end}
+    <svg ref={svg} viewBox={viewBox ?? '40 20 1290 1230'} className={`hvl-portrait ${stage ? 'is-stage' : ''}`} onPointerMove={move} onPointerUp={end} onPointerCancel={end}
       role="img" aria-label="Side-profile portrait whose mouth, jaw, tongue and throat follow the synthesizer">
       <defs>
         <radialGradient id="hvl-glow" cx="0.5" cy="0.5" r="0.5">
@@ -252,6 +272,7 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
       <circle cx="860" cy="640" r="600" fill="url(#hvl-glow)" />
       <circle cx="860" cy="640" r="560" fill="none" stroke="var(--hvl-accent)" strokeOpacity="0.45" strokeWidth="2" strokeDasharray="2 16" />
 
+      <g transform={headTransform}>
       {/* Portrait: static art, then the lower face on the jaw */}
       <g mask="url(#hvl-static)">{art}</g>
       <g clipPath="url(#hvl-figure)">
@@ -262,7 +283,7 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
 
       <g ref={rigGroup} transform={`matrix(${RIG_TO_ART.a} 0 0 ${RIG_TO_ART.d} ${RIG_TO_ART.e} ${RIG_TO_ART.f})`}>
         {/* Cutaway: stylised midsagittal view of the modelled articulators */}
-        <g className={`hvl-cutaway ${cutaway ? 'is-on' : ''}`} aria-hidden={!cutaway}>
+        <g className={`hvl-cutaway ${cutaway ? 'is-on' : ''}`} aria-hidden={!cutaway} style={cutawayOpacity === undefined ? undefined : {opacity: cutawayOpacity}}>
           <g mask="url(#hvl-window)">
             <rect x="240" y="250" width="200" height="250" fill={S.paper} opacity="0.94" />
             <path d="M 282 300 C 300 286 340 282 372 288 C 390 292 402 302 408 314 L 402 320 C 390 310 370 304 346 304 C 318 304 300 308 290 316 Z" fill={S.cavity} opacity={0.3 + 0.55 * pose.velum} />
@@ -315,6 +336,8 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
           </g>
         )}
       </g>
+      </g>
+      {stage && <FloatingWords stage={stage} mouth={mouthOut} />}
     </svg>
   );
 }

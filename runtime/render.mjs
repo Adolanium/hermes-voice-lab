@@ -915,7 +915,11 @@ function lyricSyllables(lyrics, lexicon2) {
     const word = phonemize(spelled.join(""), lexicon2)[0];
     if (!word) return;
     const syl = syllabify(word.phones);
-    syl.forEach((phones, k) => out.push({ phones, text: spelled.length === syl.length ? spelled[k] : k === 0 ? spelled.join("") : "\xB7", word: wi }));
+    const trail = part.match(/[!?.,]+$/)?.[0] ?? "";
+    syl.forEach((phones, k) => {
+      const text = spelled.length === syl.length ? spelled[k] : k === 0 ? spelled.join("") : "\xB7";
+      out.push({ phones, text: k === syl.length - 1 && text !== "\xB7" ? text + trail : text, word: wi });
+    });
   });
   return out;
 }
@@ -929,7 +933,9 @@ function planSong(notes, lyrics, lexicon2, opts) {
   const segments = [{ symbol: "SIL", stress: 0, start: 0, end: lead, word: -1 }];
   const pitchEvents = [];
   const assignments = [];
+  const cues = [];
   const hum = [{ symbol: opts.hum ?? "AA", stress: 1 }];
+  const cartoon = opts.style === "cartoon";
   let syl = 0;
   let cursor = lead;
   sorted.forEach((n, k) => {
@@ -951,8 +957,9 @@ function planSong(notes, lyrics, lexicon2, opts) {
           s.end += shift;
         });
         cursor = Math.max(cursor, lastVowel.end);
+        if (cues.length) cues[cues.length - 1].end = lastVowel.end;
       }
-      pitchEvents.push([start - 0.01, "pitch", midiToHz(n.midi), 40]);
+      pitchEvents.push([start - 0.01, "pitch", midiToHz(n.midi), cartoon ? 110 : 40]);
       assignments.push({ note: n.index, syllable: syl - 1, text: "\u2013" });
       return;
     }
@@ -980,6 +987,7 @@ function planSong(notes, lyrics, lexicon2, opts) {
     const codaDur = coda.map((p) => Math.min(0.08, PHONEMES[p.symbol].duration / 1e3 * 0.75));
     const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.4);
     const vowelEnd = stop - codaTotal;
+    if (unit) cues.push({ text: unit.text, start: onset.length ? segments[segments.length - onset.length].start : t, vowel: t, end: stop, midi: n.midi });
     segments.push({ symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text });
     let c = vowelEnd;
     coda.forEach((p, i) => {
@@ -988,20 +996,36 @@ function planSong(notes, lyrics, lexicon2, opts) {
       c += d;
     });
     cursor = c;
-    pitchEvents.push([start - (legato ? 0.04 : 0.06), "pitch", midiToHz(n.midi), legato ? 45 : 20]);
+    const hz = midiToHz(n.midi);
+    if (cartoon) {
+      const scoop = end - start > 0.4 ? 4 : 2;
+      pitchEvents.push([start - 0.1, "pitch", hz * 2 ** (-scoop / 12), 12]);
+      pitchEvents.push([start - 0.055, "pitch", hz, 30]);
+      if (end - start > 0.4 && nextStart - end > 0.15) pitchEvents.push([end - 0.17, "pitch", hz * 0.72, 70]);
+    } else {
+      pitchEvents.push([start - (legato ? 0.04 : 0.06), "pitch", hz, legato ? 45 : 20]);
+    }
     if (end - start > 0.45) {
       pitchEvents.push([start - 0.06, "vibratoDepth", 0, 60]);
-      pitchEvents.push([start + 0.22, "vibratoDepth", voice.vibratoDepth, 180]);
+      pitchEvents.push([start + (cartoon ? 0.12 : 0.22), "vibratoDepth", cartoon ? 0.62 : voice.vibratoDepth, cartoon ? 120 : 180]);
+      if (cartoon) pitchEvents.push([start, "vibratoRate", 6.6, 0]);
     }
-    pitchEvents.push([start - 0.02, "loudness", clampParam("loudness", voice.loudness + 0.04), 25]);
+    pitchEvents.push([start - 0.02, "loudness", clampParam("loudness", voice.loudness + (cartoon ? 0.12 : 0.04)), 25]);
     pitchEvents.push([start + 0.12, "loudness", voice.loudness, 120]);
   });
   segments.push({ symbol: "SIL", stress: 0, start: cursor, end: cursor + 0.3, word: -1, boundary: "period" });
   const events = articulate(segments, voice);
+  if (cartoon) {
+    for (const e of events) {
+      if (e[1] === "jaw") e[2] = clampParam("jaw", 0.12 + e[2] * 1.35);
+      else if (e[1] === "lipOpen" && e[2] > 0.05) e[2] = clampParam("lipOpen", e[2] * 1.2);
+      else if (e[1] === "lipRound") e[2] = clampParam("lipRound", e[2] * 1.3);
+    }
+  }
   if (sorted.length) events.push([0, "pitch", midiToHz(sorted[0].midi), 0]);
   events.push(...pitchEvents);
   events.sort((a, b) => a[0] - b[0]);
-  return { score: compileScore(events, cursor + 0.4), segments, words: [], warnings: [], assignments };
+  return { score: compileScore(events, cursor + 0.4), segments, words: [], warnings: [], assignments, cues };
 }
 function planSustain(shape, voice, seconds) {
   const ev = preamble(voice);
@@ -1070,6 +1094,59 @@ var DEMO_NOTES = [
   [11.5, 0.5, 71],
   [12, 3, 72]
 ].map(([start, length, midi]) => ({ start, length, midi }));
+var SILLY = [
+  // [syllable, start beat, length beats, MIDI]
+  ["doo", 0, 0.5, 67],
+  ["bee", 0.5, 0.5, 69],
+  ["doo", 1, 0.5, 67],
+  ["bee", 1.5, 0.5, 64],
+  ["wah", 2, 1, 72],
+  ["-", 3, 1, 65],
+  ["shoo", 4, 0.5, 60],
+  ["bop", 4.5, 0.5, 64],
+  ["shoo", 5, 0.5, 62],
+  ["bop", 5.5, 0.5, 65],
+  ["bah!", 6, 1.5, 67],
+  ["my", 8, 0.5, 64],
+  ["tongue", 8.5, 0.5, 65],
+  ["goes", 9, 0.5, 67],
+  ["la", 9.5, 0.5, 72],
+  ["la", 10, 0.5, 74],
+  ["la!", 10.5, 1, 76],
+  ["my", 12, 0.5, 64],
+  ["lips", 12.5, 0.5, 65],
+  ["go", 13, 0.5, 67],
+  ["boop", 13.5, 0.5, 60],
+  ["boop", 14, 0.5, 60],
+  ["boop!", 14.5, 1, 55],
+  ["my", 16, 0.5, 64],
+  ["nose", 16.5, 0.5, 65],
+  ["goes", 17, 0.5, 67],
+  ["hum", 17.5, 0.5, 71],
+  ["hum!", 18, 1.5, 67],
+  ["my", 20, 0.5, 64],
+  ["jaw", 20.5, 0.5, 65],
+  ["goes", 21, 0.5, 67],
+  ["wah", 21.5, 0.5, 72],
+  ["wah", 22, 0.5, 70],
+  ["woo", 22.5, 1, 67],
+  ["-", 23.5, 0.5, 60],
+  ["bee", 24, 0.5, 72],
+  ["bop", 24.5, 0.5, 67],
+  ["bee", 25, 0.5, 74],
+  ["boop", 25.5, 0.5, 67],
+  ["hey!", 26, 0.75, 76],
+  ["ho!", 27, 0.75, 64],
+  ["yay", 28, 1.5, 72],
+  ["-", 29.5, 2.5, 76]
+];
+var SILLY_SONG = {
+  bpm: 132,
+  lyrics: SILLY.map((s) => s[0]).join(" "),
+  notes: SILLY.map(([, start, length, midi]) => ({ start, length, midi })),
+  loop: false,
+  style: "cartoon"
+};
 function newProject(name = "Untitled voice") {
   return {
     version: 2,
@@ -1078,7 +1155,7 @@ function newProject(name = "Untitled voice") {
     voice: { ...SIGNATURE },
     shape: { ...VOWEL_PRESETS.find((v) => v.id === "aa").shape },
     speech: { text: DEMO_PHRASE, phonemes: false, rate: 1, expression: 0.6 },
-    song: { bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map((n) => ({ ...n })), loop: false },
+    song: { bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map((n) => ({ ...n })), loop: false, style: "natural" },
     sustain: 2
   };
 }
@@ -1106,6 +1183,7 @@ function validateProject(input) {
   num(song.bpm, 30, 240, "song.bpm");
   if (typeof song.lyrics !== "string" || song.lyrics.length > LIMITS.lyrics) throw new TypeError(`song.lyrics must be up to ${LIMITS.lyrics} characters`);
   if (typeof song.loop !== "boolean") throw new TypeError("song.loop must be true or false");
+  if (song.style !== "natural" && song.style !== "cartoon") throw new TypeError("song.style must be natural or cartoon");
   if (!Array.isArray(song.notes) || song.notes.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
   const notes = song.notes.map((n, i) => {
     if (!n || typeof n !== "object") throw new TypeError(`note ${i} must be an object`);
@@ -1120,7 +1198,7 @@ function validateProject(input) {
     voice: { ...SIGNATURE, ...validatePatch(p.voice ?? base.voice, "voice") },
     shape: { ...validatePatch(p.shape ?? base.shape, "shape") },
     speech,
-    song: { ...song, notes },
+    song: { bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes },
     sustain: num(p.sustain ?? base.sustain, 0.2, 30, "sustain")
   };
 }
@@ -1130,7 +1208,7 @@ function projectScore(project2, lexicon2, mode2 = project2.mode) {
     return { score: plan.score, warnings: plan.warnings };
   }
   if (mode2 === "sing") {
-    const plan = planSong(project2.song.notes, project2.song.lyrics, lexicon2, { bpm: project2.song.bpm, voice: project2.voice });
+    const plan = planSong(project2.song.notes, project2.song.lyrics, lexicon2, { bpm: project2.song.bpm, voice: project2.voice, style: project2.song.style });
     return { score: plan.score, warnings: plan.warnings };
   }
   return { score: planSustain(project2.shape, project2.voice, project2.sustain), warnings: [] };

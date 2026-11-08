@@ -7,7 +7,7 @@ Tested on 2026-11-08 on macOS 27.2 (arm64). Hermes Desktop was the official app 
 | Suite | Command | Result |
 |---|---|---|
 | Rust engine (13 tests) | `npm run test:engine` | pass |
-| Node core (13 tests) | `npm test` | pass |
+| Node core (14 tests) | `npm test` | pass |
 | Types | `npm run typecheck` | pass |
 | Hermes manifest/security/desktop-surface lint | `hermes plugins validate <installed path>` | pass |
 
@@ -20,6 +20,7 @@ What the tests establish:
 - **Resonances**: a uniform tube resonates at odd quarter-wavelengths (within 3% for 15 cm). Calibrated vowels are within 10% (F1) and 13% (F2) of the Hillenbrand et al. (1995) adult-female means. Most are within 2–5%. Fitting with natural-looking articulations leaves F2 short for /ɑ/ (−12%), /æ/ (−9%) and /i/ (−7%). The nasal branch moves resonances. /i/ is high-front, /ɑ/ low-back and /u/ low-F2.
 - **Aerodynamics**: a lip closure builds intraoral pressure and its release produces a burst. Gate release decays to silence.
 - **Planner**: events are ordered and in range. Voiceless fricatives devoice. Sung vowels start on note onsets (±20 ms) and melismas extend the vowel.
+- **Cartoon singing**: one lyric cue per sung syllable (holds extend the previous cue, punctuation kept for display), cues in order with onset ≤ vowel < release, scoops add pitch events, the jaw opens wider on average, invalid styles are rejected, and the silly song renders finite with peak ≤ 0.81 (an earlier version jumped f0 instantly at each scoop and produced a 0.95 click; the test now guards it).
 - **I/O**: WAV headers and clipping are correct. The Node CLI renders, reports metadata and rejects unknown presets.
 
 ## Installed host (native Hermes Desktop)

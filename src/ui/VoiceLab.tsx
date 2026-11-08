@@ -17,6 +17,7 @@ import {Portrait, type Pose} from './Portrait';
 import {Airway, Glottal, Spectrum, Waveform} from './scopes';
 import {CSS} from './styles';
 import {nameSound} from './soundName';
+import {lyricLine, type StageState} from './stage';
 
 const USER_PRESETS = 'voicePresets';
 
@@ -36,6 +37,7 @@ export default function VoiceLab({bridge}: Props) {
   const [lexicon, setLexicon] = useState<Lexicon | null>(null);
   const [cutaway, setCutaway] = useState(() => bridge.storage.get('cutaway', true));
   const [labels, setLabels] = useState(() => bridge.storage.get('labels', true));
+  const [stageOn, setStageOn] = useState(() => bridge.storage.get('stage', true));
   const [holding, setHolding] = useState(false);
   const [latch, setLatch] = useState(false);
   const [base, setBase] = useState(() => bridge.storage.get('keyboardBase', 60));
@@ -175,7 +177,7 @@ export default function VoiceLab({bridge}: Props) {
   const songPlan: SongPlan | null = useMemo(() => {
     if (!lexicon) return null;
     try {
-      return planSong(project.song.notes, project.song.lyrics, lexicon, {bpm: project.song.bpm, voice: project.voice});
+      return planSong(project.song.notes, project.song.lyrics, lexicon, {bpm: project.song.bpm, voice: project.voice, style: project.song.style});
     } catch {
       return null;
     }
@@ -256,6 +258,17 @@ export default function VoiceLab({bridge}: Props) {
   };
   const f0 = running && telemetry ? telemetry.state[STATE.f0] : (project.voice.pitch ?? 210);
   const rd = telemetry?.state[STATE.rd] ?? 1.1;
+  // Stage dressing follows the song clock while a song plays.
+  const singing = scorePlaying && project.mode === 'sing' && !!songPlan;
+  const stage: StageState | undefined = stageOn ? {
+    time: singing ? position : performance.now() / 1000,
+    cues: singing ? songPlan!.cues : [],
+    beat: 60 / project.song.bpm,
+    level,
+    f0: singing && (params?.gate ?? 0) > 0.05 ? f0 : 0,
+    singing,
+  } : undefined;
+  const karaoke = stage && singing ? lyricLine(stage) : null;
 
   const onPortraitDrag = (c: Patch) => {
     update(prev => ({...prev, shape: {...prev.shape, ...c}, mode: 'play'}));
@@ -422,11 +435,12 @@ export default function VoiceLab({bridge}: Props) {
               <span className="hvl-kicker">Articulation</span>
               <span className="hvl-row" style={{gap: 10}}>
                 <label className="hvl-check"><input type="checkbox" checked={cutaway} onChange={e => { setCutaway(e.target.checked); bridge.storage.set('cutaway', e.target.checked); }} /> Cutaway</label>
+                <label className="hvl-check" title="Floating sung words and head motion while singing"><input type="checkbox" checked={stageOn} onChange={e => { setStageOn(e.target.checked); bridge.storage.set('stage', e.target.checked); }} /> Stage</label>
                 <label className="hvl-check"><input type="checkbox" checked={labels} onChange={e => { setLabels(e.target.checked); bridge.storage.set('labels', e.target.checked); }} /> Labels</label>
               </span>
             </div>
             <div className="hvl-portrait-wrap">
-              <Portrait pose={pose} airway={airway} cutaway={cutaway} labels={labels} speaking={scorePlaying} onDrag={onPortraitDrag} />
+              <Portrait pose={pose} airway={airway} cutaway={cutaway} labels={labels && !singing} speaking={scorePlaying} onDrag={onPortraitDrag} stage={stage} />
               <div className={`hvl-now is-${nowSound.kind}`} aria-live="polite">
                 <div className="hvl-now-symbol" title="Sound the model is making now">{nowSound.symbol}</div>
                 <div className="hvl-now-label">{running ? nowSound.label : `shape · ${nowSound.label}`}</div>
@@ -440,6 +454,11 @@ export default function VoiceLab({bridge}: Props) {
                 </dl>
               </div>
             </div>
+            {karaoke && (
+              <div className="hvl-karaoke" aria-live="off">
+                {karaoke.words.map((w, i) => <span key={i} className={`is-${w.state}`}>{w.text}</span>)}
+              </div>
+            )}
             <div className="hvl-stage-foot">
               <span>Drag the handles: lips, jaw, tongue, tip, velum.</span>
               <span style={{marginLeft: 'auto'}}>Stylised view of the modeled articulators — not medical anatomy.</span>

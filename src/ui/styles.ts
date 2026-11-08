@@ -98,6 +98,12 @@ export const CSS = `
   --hvl-bone: #8b8895; --hvl-fg2: #45434d; --hvl-fg3: #75727e;
 }
 .hvl-portrait-disc { fill: transparent; }
+.hvl-portrait.is-stage { overflow: visible; }
+.hvl-word { font: 900 1em var(--hvl-sans); letter-spacing: -.01em; paint-order: stroke; stroke: #fbfaf6; stroke-width: 10px; stroke-linejoin: round; dominant-baseline: middle; }
+.hvl-karaoke { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; padding: 2px 12px 10px; min-height: 30px; font: 750 17px var(--hvl-sans); }
+.hvl-karaoke span { color: var(--hvl-fg4); transition: color .08s, transform .08s; }
+.hvl-karaoke span.is-past { color: var(--hvl-fg2); }
+.hvl-karaoke span.is-now { color: var(--hvl-accent); transform: scale(1.12) translateY(-1px); }
 .hvl-root[data-dark] .hvl-portrait-disc { fill: #eceaf1; }
 .hvl-art-tone { fill: color-mix(in oklab, var(--hvl-ink) 38%, var(--hvl-skin)); }
 .hvl-xray { opacity: .5; pointer-events: none; }

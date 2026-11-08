@@ -968,7 +968,8 @@
      "midi": 72
     }
    ],
-   "loop": false
+   "loop": false,
+   "style": "natural"
   },
   "sustain": 2
  }
