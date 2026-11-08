@@ -23,13 +23,6 @@ export interface Segment {
   label?: string;
 }
 
-/**
- * Speech gestures move faster than sung ones (time constants ×0.75), so speech can run at a
- * natural rate (TEMPO 1.05) and its consonants still reach their targets. Against real speakers
- * this lowered the mel-cepstral distance by 0.26 dB and brought the duration to ×1.04 of theirs;
- * on songs it made transitions abrupt (+0.37 dB against a real singer), so singing keeps ×1.
- */
-const SPEECH_GESTURE_TAU = 0.75;
 const LEAD_SCALE = 2.4; // start a movement ~2.4 time constants before its target time
 
 function voiceDefaults(voice: Patch) {
@@ -48,12 +41,12 @@ function preamble(voice: Patch): ScoreEvent[] {
 }
 
 /** Articulatory events for a list of timed segments. */
-export function articulate(segments: Segment[], voice: Patch, withPreamble = true, gestureTau = 1): ScoreEvent[] {
+export function articulate(segments: Segment[], voice: Patch, withPreamble = true): ScoreEvent[] {
   // Every gesture event remembers the segment that produced it (-1: global).
   type Tagged = {t: number; name: ParamName; value: number; tau: number; seg: number; order: number};
   const tagged: Tagged[] = [];
   const at = (t: number, name: ParamName, value: number, tau: number, seg = -1) =>
-    tagged.push({t: Math.max(0, t), name, value: clampParam(name, value), tau: tau * gestureTau, seg, order: tagged.length});
+    tagged.push({t: Math.max(0, t), name, value: clampParam(name, value), tau, seg, order: tagged.length});
   // Intervals during which a consonant owns an articulator (closure onset to
   // release); later segments' movements of that articulator wait for the release.
   type Hold = {seg: number; name: ParamName; start: number; end: number; tau: number; value: number};
@@ -310,7 +303,9 @@ export interface Plan {
 }
 
 /** Inherent durations are scaled to a ~160 words/minute reading rate at rate 1. */
-const TEMPO = 1.05; // with faster speech gestures: natural duration (×1.04 of real speakers; was 1.25, ×1.23)
+// A careful reading pace (×1.23 the TSP speakers' duration). Faster speech with faster gestures
+// fit their spectra better but sounded choppy: predicted naturalness 2.18 vs 2.70 (UTMOS).
+const TEMPO = 1.25;
 
 function durationOf(seg: Phone, prev: Phone | undefined, next: Phone | undefined, final: boolean, rate: number): number {
   const ph = PHONEMES[seg.symbol];
@@ -365,7 +360,7 @@ export function planWords(words: Word[], opts: SpeechOptions = {}): Plan {
     segments.push({symbol: 'SIL', stress: 0, start: t, end: t + 0.25, word: -1});
     t += 0.25;
   }
-  const events = articulate(segments, voice, true, SPEECH_GESTURE_TAU);
+  const events = articulate(segments, voice, true);
   events.push(...intonation(segments, voice.pitch, expression), ...dynamics(segments, voice.loudness));
   events.sort((a, b) => a[0] - b[0]);
   return {score: compileScore(events, t + 0.1), segments, words, warnings: []};

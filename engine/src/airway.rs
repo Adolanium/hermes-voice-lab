@@ -46,12 +46,10 @@ const GLOTTIS_K: f64 = 1.37;
 const WALL_MASS: f64 = 1.5;
 const WALL_RESIST: f64 = 1600.0;
 const WALL_STIFF: f64 = 3.0e5;
-/// Viscous and heat-conduction losses at the walls grow with frequency; they
-/// are what gives real upper formants bandwidths of a few hundred Hz while
-/// F1 stays sharp. Modelled as an extra branch resistance acting only on the
-/// flow above HF_CORNER, sized to add about HF_BANDWIDTH Hz there.
-const HF_BANDWIDTH: f64 = 140.0;
-const HF_CORNER: f64 = 1500.0;
+// No extra high-frequency wall loss: the viscous branch resistance, soft walls and radiation
+// already give formant bandwidths like real speakers' (LPC median 164 Hz vs 158 Hz on TSP
+// sentences). An extra 140 Hz above 1.5 kHz (removed 2026-11-08) made the voice dull and
+// muffled (predicted naturalness 2.70 without it vs 2.50 with it).
 /// Opening speed limit of articulators: cm²/s, plus a rate proportional to area (1/s).
 const OPEN_SLEW: f64 = 40.0;
 const OPEN_GROWTH: f64 = 40.0;
@@ -95,8 +93,6 @@ pub struct Airway {
     pub p: [f64; N],
     /// Branch flows: u[0] glottis → node 0, u[i] node i−1 → node i, u[N] lips → outside.
     pub u: [f64; N + 1],
-    /// Low-passed branch flows (for the frequency-dependent loss).
-    u_low: [f64; N + 1],
     wall_y: [f64; N],
     wall_v: [f64; N],
     /// Volume change of each node from articulator motion (low-passed, cm³/s).
@@ -132,7 +128,6 @@ impl Airway {
             ramp_left: 0,
             p: [0.0; N],
             u: [0.0; N + 1],
-            u_low: [0.0; N + 1],
             wall_y: [0.0; N],
             wall_v: [0.0; N],
             dvdt: [0.0; N],
@@ -152,7 +147,6 @@ impl Airway {
     pub fn reset(&mut self) {
         self.p = [0.0; N];
         self.u = [0.0; N + 1];
-        self.u_low = [0.0; N + 1];
         self.wall_y = [0.0; N];
         self.wall_v = [0.0; N];
         self.dvdt = [0.0; N];
@@ -289,29 +283,24 @@ impl Airway {
     fn update_branches(&mut self) {
         let (dt, dx) = (self.dt, self.dx);
         let visc = 8.0 * std::f64::consts::PI * MU * 0.5 * dx;
-        let hf = 2.0 * std::f64::consts::PI * HF_BANDWIDTH;
-        let low = 1.0 - (-2.0 * std::f64::consts::PI * HF_CORNER * dt).exp();
         // Oral branches between nodes.
         for i in 1..N {
             let (al, ar) = (self.area[i - 1], self.area[i]);
             if al.min(ar) < SEAL {
                 self.u[i] = 0.0;
-                self.u_low[i] = 0.0;
                 continue;
             }
             let l = RHO * 0.5 * dx * (1.0 / al + 1.0 / ar);
             let r = visc * (1.0 / (al * al) + 1.0 / (ar * ar));
             let u0 = self.u[i];
-            let rh = hf * l;
-            let c = l / dt * u0 + self.p[i - 1] - self.p[i] + self.injected(i) + rh * self.u_low[i];
+            let c = l / dt * u0 + self.p[i - 1] - self.p[i] + self.injected(i);
             // Borda–Carnot: a jet leaving a narrowing into a wider section
             // loses its dynamic pressure. The new flow has the sign of `c`, so
             // that decides the direction (the old flow's sign would switch the
             // loss on and off when the flow reverses: a period-2 instability).
             let (from, to) = if c >= 0.0 { (al, ar) } else { (ar, al) };
             let k = if to > from { 0.5 * RHO * (1.0 / from - 1.0 / to).powi(2) } else { 0.0 };
-            let u = branch_flow(k, l / dt + r + rh, c);
-            self.u_low[i] += low * (u - self.u_low[i]);
+            let u = branch_flow(k, l / dt + r, c);
             self.u[i] = u;
         }
         // Lips: half a section, then the radiation load R‖L.

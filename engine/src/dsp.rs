@@ -248,6 +248,9 @@ pub struct Dynamics {
     lev_attack: f32,
     lev_release: f32,
     lim_gain: f32,
+    /// Lowest gain any sample still in the look-ahead needs, and how long it is held.
+    lim_hold: f32,
+    hold_left: usize,
     lim_attack: f32,
     lim_release: f32,
     delay_l: [f32; LOOKAHEAD_MAX],
@@ -275,7 +278,11 @@ impl Dynamics {
             lev_attack: c(0.3),
             lev_release: c(0.8),
             lim_gain: 1.0,
-            lim_attack: c(look as f32 / rate / 3.0),
+            lim_hold: 1.0,
+            hold_left: 0,
+            // Six time constants inside the look-ahead: the gain is 99.7% of the way down when the
+            // loud sample leaves the delay line (three let a sharp burst overshoot the ceiling by 5%).
+            lim_attack: c(look as f32 / rate / 6.0),
             lim_release: c(0.2),
             delay_l: [0.0; LOOKAHEAD_MAX],
             delay_r: [0.0; LOOKAHEAD_MAX],
@@ -288,6 +295,8 @@ impl Dynamics {
         self.ms = 0.0;
         self.gr_db = 0.0;
         self.lim_gain = 1.0;
+        self.lim_hold = 1.0;
+        self.hold_left = 0;
         self.delay_l = [0.0; LOOKAHEAD_MAX];
         self.delay_r = [0.0; LOOKAHEAD_MAX];
     }
@@ -304,9 +313,17 @@ impl Dynamics {
         let (l, r) = (l * g, r * g);
         // Limiter: the gain needed by the incoming sample is reached before
         // that sample leaves the delay line.
+        // The target is held for the look-ahead: quieter samples that follow a loud one must not
+        // stall the attack (they did, and peaks overshot the ceiling by about 10%).
         let need = (LIMIT / l.abs().max(r.abs()).max(1e-9)).min(1.0);
-        let k = if need < self.lim_gain { self.lim_attack } else { self.lim_release };
-        self.lim_gain += k * (need - self.lim_gain);
+        if need <= self.lim_hold || self.hold_left == 0 {
+            self.lim_hold = need;
+            self.hold_left = self.look;
+        } else {
+            self.hold_left -= 1;
+        }
+        let k = if self.lim_hold < self.lim_gain { self.lim_attack } else { self.lim_release };
+        self.lim_gain += k * (self.lim_hold - self.lim_gain);
         let i = self.pos;
         let (dl, dr) = (self.delay_l[i], self.delay_r[i]);
         self.delay_l[i] = l;
@@ -425,5 +442,20 @@ impl Strip {
             f.reset();
         }
         self.env = 0.0;
+    }
+}
+
+
+#[cfg(test)]
+mod limiter_tests {
+    #[test]
+    fn a_sudden_loud_sine_stays_under_the_ceiling() {
+        let mut d = super::Dynamics::new(48000.0);
+        let mut peak = 0.0f32;
+        for i in 0..48000 {
+            let x = if i > 24000 { 2.0 } else { 0.01 } * (i as f32 * 0.05).sin();
+            peak = peak.max(d.process(x, x).0.abs());
+        }
+        assert!(peak <= super::LIMIT * 1.005, "peak {peak}");
     }
 }

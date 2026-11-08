@@ -305,18 +305,18 @@ function renderScore(engine2, score2, patch = {}, tail = 0.6) {
 
 // src/core/vowels.generated.json
 var vowels_generated_default = {
-  IY: { params: { tongueX: 1, tongueY: 0.833, jaw: 0.132, lipOpen: 1, lipRound: 0, throat: 0.404 }, model: [419, 2553, 2941], target: [437, 2761, 3372] },
-  IH: { params: { tongueX: 1, tongueY: 0.7, jaw: 0.377, lipOpen: 0.935, lipRound: 0, throat: 0.293 }, model: [477, 2330, 2874], target: [483, 2365, 3053] },
-  EY: { params: { tongueX: 0.978, tongueY: 0.799, jaw: 0.549, lipOpen: 1, lipRound: 0, throat: 0.059 }, model: [509, 2371, 2791], target: [536, 2530, 3047] },
-  EH: { params: { tongueX: 1, tongueY: 0.278, jaw: 0.775, lipOpen: 1, lipRound: 0, throat: 0 }, model: [673, 1880, 2915], target: [731, 2058, 2979] },
-  AE: { params: { tongueX: 1, tongueY: 0.564, jaw: 0.951, lipOpen: 1, lipRound: 0, throat: 0 }, model: [604, 2097, 2785], target: [669, 2349, 2972] },
-  AA: { params: { tongueX: 0.756, tongueY: 0, jaw: 0.998, lipOpen: 1, lipRound: 0, throat: 0 }, model: [788, 1542, 3185], target: [936, 1551, 2815] },
-  AO: { params: { tongueX: 5e-3, tongueY: 0.126, jaw: 0.807, lipOpen: 0.756, lipRound: 0.299, throat: 0 }, model: [757, 1152, 2737], target: [781, 1136, 2824] },
-  OW: { params: { tongueX: 0, tongueY: 0.71, jaw: 0.533, lipOpen: 0.372, lipRound: 0.776, throat: 3e-3 }, model: [551, 1042, 2867], target: [555, 1035, 2828] },
-  UH: { params: { tongueX: 0.139, tongueY: 0.778, jaw: 0.359, lipOpen: 0.392, lipRound: 0.562, throat: 0.278 }, model: [518, 1226, 2839], target: [519, 1225, 2827] },
-  UW: { params: { tongueX: 0.043, tongueY: 0.824, jaw: 0.257, lipOpen: 0.352, lipRound: 0.896, throat: 0.399 }, model: [458, 1105, 2737], target: [459, 1105, 2735] },
-  AH: { params: { tongueX: 0.767, tongueY: 0, jaw: 0.762, lipOpen: 0.72, lipRound: 0.183, throat: 0 }, model: [736, 1437, 3108], target: [753, 1426, 2933] },
-  ER: { params: { tongueX: 8e-3, tongueY: 1, jaw: 0.423, lipOpen: 0.574, lipRound: 0.37, throat: 0, rhotic: 0.85 }, model: [519, 1584, 1941], target: [523, 1588, 1929] }
+  IY: { params: { tongueX: 1, tongueY: 0.907, jaw: 0.246, lipOpen: 0.983, lipRound: 0, throat: 0.411 }, model: [424, 2617, 3020], target: [437, 2761, 3372] },
+  IH: { params: { tongueX: 1, tongueY: 0.724, jaw: 0.371, lipOpen: 0.842, lipRound: 0, throat: 0.34 }, model: [478, 2341, 2916], target: [483, 2365, 3053] },
+  EY: { params: { tongueX: 1, tongueY: 0.828, jaw: 0.481, lipOpen: 1, lipRound: 0, throat: 0.026 }, model: [519, 2415, 2860], target: [536, 2530, 3047] },
+  EH: { params: { tongueX: 1, tongueY: 0.285, jaw: 0.715, lipOpen: 1, lipRound: 0, throat: 0 }, model: [689, 1921, 2948], target: [731, 2058, 2979] },
+  AE: { params: { tongueX: 1, tongueY: 0.584, jaw: 0.904, lipOpen: 1, lipRound: 0, throat: 0 }, model: [616, 2146, 2819], target: [669, 2349, 2972] },
+  AA: { params: { tongueX: 0.749, tongueY: 0, jaw: 1, lipOpen: 1, lipRound: 0, throat: 0 }, model: [813, 1571, 3221], target: [936, 1551, 2815] },
+  AO: { params: { tongueX: 0, tongueY: 0.138, jaw: 0.785, lipOpen: 0.706, lipRound: 0.363, throat: 0 }, model: [759, 1153, 2761], target: [781, 1136, 2824] },
+  OW: { params: { tongueX: 0.018, tongueY: 0.673, jaw: 0.52, lipOpen: 0.375, lipRound: 0.836, throat: 0 }, model: [553, 1041, 2834], target: [555, 1035, 2828] },
+  UH: { params: { tongueX: 0.217, tongueY: 0.683, jaw: 0.417, lipOpen: 0.466, lipRound: 0.6, throat: 0.484 }, model: [519, 1241, 2827], target: [519, 1225, 2827] },
+  UW: { params: { tongueX: 0.065, tongueY: 0.807, jaw: 0.355, lipOpen: 0.349, lipRound: 0.91, throat: 0.492 }, model: [459, 1105, 2716], target: [459, 1105, 2735] },
+  AH: { params: { tongueX: 0.783, tongueY: 0, jaw: 0.732, lipOpen: 0.66, lipRound: 0.255, throat: 0 }, model: [740, 1441, 3100], target: [753, 1426, 2933] },
+  ER: { params: { tongueX: 0.109, tongueY: 0.972, jaw: 0.404, lipOpen: 0.535, lipRound: 0.36, throat: 0.011, rhotic: 0.827 }, model: [522, 1583, 1932], target: [523, 1588, 1929] }
 };
 
 // src/core/phonemes.ts
@@ -870,7 +870,6 @@ function syllabify(phones) {
 }
 
 // src/core/planner.ts
-var SPEECH_GESTURE_TAU = 0.75;
 function voiceDefaults(voice) {
   const all = { ...defaultPatch(), ...voice };
   return all;
@@ -883,9 +882,9 @@ function preamble(voice) {
   for (const [k, v] of Object.entries(rest)) ev.push([0, k, v, 0]);
   return ev;
 }
-function articulate(segments, voice, withPreamble = true, gestureTau = 1) {
+function articulate(segments, voice, withPreamble = true) {
   const tagged = [];
-  const at = (t, name, value, tau, seg = -1) => tagged.push({ t: Math.max(0, t), name, value: clampParam(name, value), tau: tau * gestureTau, seg, order: tagged.length });
+  const at = (t, name, value, tau, seg = -1) => tagged.push({ t: Math.max(0, t), name, value: clampParam(name, value), tau, seg, order: tagged.length });
   const holds = [];
   const vowelIdx = segments.map((s, i) => isVowel(s.symbol) ? i : -1).filter((i) => i >= 0);
   const nextVowel = (i) => segments[vowelIdx.find((v) => v > i) ?? -1];
@@ -1052,7 +1051,7 @@ function resolveGestures(tagged, holds, ev) {
   ev.sort((a, b) => a[0] - b[0]);
   return ev;
 }
-var TEMPO = 1.05;
+var TEMPO = 1.25;
 function durationOf(seg, prev, next, final, rate2) {
   const ph = PHONEMES[seg.symbol];
   let d = ph.duration;
@@ -1102,7 +1101,7 @@ function planWords(words, opts = {}) {
     segments.push({ symbol: "SIL", stress: 0, start: t, end: t + 0.25, word: -1 });
     t += 0.25;
   }
-  const events = articulate(segments, voice, true, SPEECH_GESTURE_TAU);
+  const events = articulate(segments, voice, true);
   events.push(...intonation(segments, voice.pitch, expression), ...dynamics(segments, voice.loudness));
   events.sort((a, b) => a[0] - b[0]);
   return { score: compileScore(events, t + 0.1), segments, words, warnings: [] };

@@ -5,7 +5,9 @@
 use crate::airway::{internal_rate, Airway};
 use crate::tract::N;
 
-pub const FFT_SIZE: usize = 8192;
+/// Long enough (≈140 ms of response at the internal rate) for a lightly damped tract to ring out:
+/// a truncated response adds ripple that the peak picker would read as formants.
+pub const FFT_SIZE: usize = 32768;
 pub const RESPONSE_BINS: usize = 256;
 pub const RESPONSE_MAX_HZ: f32 = 8000.0;
 pub const MAX_FORMANTS: usize = 5;

@@ -145,6 +145,15 @@ fn fit(t: &Target) -> String {
             start.extend_from_slice(&[0.8]);
         }
         let (mut best, mut best_cost) = nelder_mead(&start, t);
+        // Also start from a previous calibration (CALIBRATE_FROM=<json>): after a change to the
+        // airway the old fit is usually near the new optimum, and the simplex can stall far away.
+        if let Some(prev) = previous(t.symbol, start.len()) {
+            let (x, c) = nelder_mead(&prev, t);
+            if c < best_cost {
+                best = x;
+                best_cost = c;
+            }
+        }
         // Restart from the result to escape shallow simplex collapse.
         for _ in 0..3 {
             let (x, c) = nelder_mead(&best, t);
@@ -179,4 +188,20 @@ fn fit(t: &Target) -> String {
             f[0], f[1], f[2], t.formants[0], t.formants[1], t.formants[2]
         );
     }
+}
+
+/// This vowel's parameters from the file named by CALIBRATE_FROM, in fit order.
+fn previous(symbol: &str, n: usize) -> Option<Vec<f32>> {
+    let text = std::fs::read_to_string(std::env::var("CALIBRATE_FROM").ok()?).ok()?;
+    let at = text.find(&format!("\"{}\"", symbol))?;
+    let rest = &text[at..];
+    let params = &rest[rest.find("\"params\"")?..];
+    let body = &params[params.find('{')? + 1..params.find('}')?];
+    let mut out = Vec::new();
+    for name in ["tongueX", "tongueY", "jaw", "lipOpen", "lipRound", "throat", "rhotic"].iter().take(n) {
+        let k = body.find(&format!("\"{}\":", name))? + name.len() + 3;
+        let end = body[k..].find(',').map(|e| k + e).unwrap_or(body.len());
+        out.push(body[k..end].trim().parse().ok()?);
+    }
+    Some(out)
 }
