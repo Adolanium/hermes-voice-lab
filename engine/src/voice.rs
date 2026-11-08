@@ -368,8 +368,9 @@ impl Voice {
         self.f0 = p[PITCH] * 2f32.powf(cents / 1200.0);
         // Radiated level grows with the rate of flow change, i.e. with f0 for a
         // fixed flow pulse. Stiffer, thinner folds at high pitch pass smaller
-        // pulses, so at constant effort the level rises only ~1.5 dB/octave.
-        self.f0_comp = (F0_REF / self.f0.max(1.0)).powf(0.75).clamp(0.35, 1.4);
+        // pulses: at constant effort the peak flow derivative (hence level)
+        // stays roughly constant with pitch.
+        self.f0_comp = (F0_REF / self.f0.max(1.0)).powf(1.0).clamp(0.35, 1.4);
     }
 
     #[inline]
