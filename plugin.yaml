@@ -1,0 +1,8 @@
+name: hermes-voice-lab
+version: "0.1.0"
+description: "A local vocal synthesizer with a shared Rust WebAssembly engine, editable patches, and WAV rendering."
+author: "Hermes Voice Lab contributors"
+license: MIT
+provides_tools:
+  - voice_lab_patch
+  - voice_lab_render

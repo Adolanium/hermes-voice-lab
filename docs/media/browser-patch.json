@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "name": "Hermes voice study",
+  "patch": {
+    "tongueX": 0.85,
+    "tongueY": 0.96,
+    "jaw": 0.13,
+    "lip": 0.65,
+    "pitch": 205,
+    "breath": 0.16,
+    "vibrato": 0.12,
+    "gain": 0.65,
+    "gate": 0,
+    "voicing": 1,
+    "frication": 0,
+    "nasal": 0
+  },
+  "sequence": [
+    {
+      "note": 48,
+      "vowel": "ah",
+      "enabled": true
+    },
+    {
+      "note": 50,
+      "vowel": "eh",
+      "enabled": true
+    },
+    {
+      "note": 52,
+      "vowel": "ee",
+      "enabled": true
+    },
+    {
+      "note": 53,
+      "vowel": "oh",
+      "enabled": true
+    },
+    {
+      "note": 55,
+      "vowel": "oo",
+      "enabled": true
+    },
+    {
+      "note": 57,
+      "vowel": "oh",
+      "enabled": true
+    },
+    {
+      "note": 59,
+      "vowel": "eh",
+      "enabled": true
+    },
+    {
+      "note": 60,
+      "vowel": "ah",
+      "enabled": true
+    }
+  ],
+  "bpm": 96,
+  "text": "hello hermes",
+  "events": [
+    {
+      "time": 0,
+      "duration": 0.55,
+      "params": {
+        "tongueX": 0.28,
+        "tongueY": 0.5,
+        "jaw": 0.95,
+        "lip": 0.85,
+        "pitch": 130.8127826502993,
+        "gate": 1
+      }
+    },
+    {
+      "time": 0.625,
+      "duration": 0.55,
+      "params": {
+        "tongueX": 0.73,
+        "tongueY": 0.65,
+        "jaw": 0.57,
+        "lip": 0.7,
+        "pitch": 146.8323839587038,
+        "gate": 1
+      }
+    },
+    {
+      "time": 1.25,
+      "duration": 0.55,
+      "params": {
+        "tongueX": 0.85,
+        "tongueY": 0.96,
+        "jaw": 0.13,
+        "lip": 0.65,
+        "pitch": 164.81377845643496,
+        "gate": 1
+      }
+    },
+    {
+      "time": 1.875,
+      "duration": 0.55,
+      "params": {
+        "tongueX": 0.31,
+        "tongueY": 0.61,
+        "jaw": 0.6,
+        "lip": 0.2,
+        "pitch": 174.61411571650194,
+        "gate": 1
+      }
+    },
+    {
+      "time": 2.5,
+      "duration": 0.55,
+      "params": {
+        "tongueX": 0.43,
+        "tongueY": 0.83,
+        "jaw": 0.18,
+        "lip": 0.06,
+        "pitch": 195.99771799087463,
+        "gate": 1
+      }
+    },
+    {
+      "time": 3.125,
+      "duration": 0.55,
+      "params": {
+        "tongueX": 0.31,
+        "tongueY": 0.61,
+        "jaw": 0.6,
+        "lip": 0.2,
+        "pitch": 220,
+        "gate": 1
+      }
+    },
+    {
+      "time": 3.75,
+      "duration": 0.55,
+      "params": {
+        "tongueX": 0.73,
+        "tongueY": 0.65,
+        "jaw": 0.57,
+        "lip": 0.7,
+        "pitch": 246.94165062806206,
+        "gate": 1
+      }
+    },
+    {
+      "time": 4.375,
+      "duration": 0.55,
+      "params": {
+        "tongueX": 0.28,
+        "tongueY": 0.5,
+        "jaw": 0.95,
+        "lip": 0.85,
+        "pitch": 261.6255653005986,
+        "gate": 1
+      }
+    }
+  ]
+}

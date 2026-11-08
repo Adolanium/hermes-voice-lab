@@ -1,0 +1,8 @@
+node_modules/
+engine/target/
+.preview/
+release/
+.DS_Store
+__pycache__/
+*.pyc
+src/embedded.ts
