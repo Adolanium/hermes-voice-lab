@@ -269,25 +269,36 @@ export default function VoiceLab({bridge}: Props) {
     setToast({text: `Saved preset “${name}”.`});
   };
 
+  const exportLocal = async (mode: Mode) => {
+    if (!lexicon) throw new Error('Dictionary still loading');
+    const {score} = projectScore(project, lexicon, mode);
+    const wav = await renderWav(score, project.voice, 48000);
+    const url = URL.createObjectURL(new Blob([wav.bytes as BlobPart], {type: 'audio/wav'}));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${project.name.replace(/[^\w-]+/g, '-') || 'voice'}-${mode}.wav`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return wav.seconds;
+  };
   const exportWav = async () => {
     const mode = project.mode;
     setBusy('Rendering…');
     try {
       if (bridge.exportWav) {
-        await bridge.exportWav(project, mode);
-        setToast({text: 'WAV rendered by the local engine.'});
-      } else {
-        if (!lexicon) throw new Error('Dictionary still loading');
-        const {score} = projectScore(project, lexicon, mode);
-        const wav = await renderWav(score, project.voice, 48000);
-        const url = URL.createObjectURL(new Blob([wav.bytes as BlobPart], {type: 'audio/wav'}));
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${project.name.replace(/[^\w-]+/g, '-') || 'voice'}-${mode}.wav`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-        setToast({text: `Exported ${wav.seconds.toFixed(1)} s WAV (48 kHz stereo).`});
+        try {
+          await bridge.exportWav(project, mode);
+          setToast({text: 'WAV rendered by the local engine.'});
+          return;
+        } catch (e) {
+          // Backend unavailable (e.g. no Node on a remote gateway): render here instead.
+          const seconds = await exportLocal(mode);
+          setToast({text: `Backend render failed (${(e as Error).message}); exported ${seconds.toFixed(1)} s from this window instead.`});
+          return;
+        }
       }
+      const seconds = await exportLocal(mode);
+      setToast({text: `Exported ${seconds.toFixed(1)} s WAV (48 kHz stereo).`});
     } catch (e) {
       setToast({text: `Export failed: ${(e as Error).message}`});
     } finally {
