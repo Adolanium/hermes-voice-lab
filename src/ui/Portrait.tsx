@@ -1,7 +1,7 @@
 /**
  * Side-profile portrait rig: an original, editable interpretation of the
- * Nous Girl character (blunt fringe, bob with flipped ends, white headband
- * with a hooked clasp, strong lashes, high collar), facing the controls.
+ * Nous Girl character (blunt pointed fringe, bob with flipped ends, white headphones
+ * with a slider yoke and earcup, strong lashes, sleeveless top), facing the controls.
  *
  * Every moving part is driven by synthesis parameters: jaw rotation, lip
  * aperture and rounding, tongue body/tip/back, velum and vocal folds. The
@@ -130,37 +130,33 @@ const S = {
 
 /** Silhouette paths, drawn for this product. */
 const HAIR_BACK =
-  'M 384 214 C 386 150 340 84 262 72 C 186 62 120 108 104 182 C 92 238 104 296 98 350 C 94 392 80 424 60 452 ' +
-  'C 50 468 56 486 74 486 C 90 486 98 474 104 464 C 104 482 114 496 132 496 C 148 496 152 482 150 472 ' +
-  'C 162 486 182 490 196 482 C 206 474 204 462 196 456 C 220 462 242 456 254 440 C 266 422 272 400 276 376 ' +
-  'C 282 340 286 300 296 262 C 304 238 330 226 360 222 Z';
+  'M 384 214 C 386 150 340 84 262 72 C 186 62 120 108 104 182 C 92 238 104 296 98 350 ' +
+  'C 94 396 84 436 66 468 C 60 480 64 490 78 488 C 136 482 204 474 254 450 ' +
+  'C 266 430 272 400 276 376 C 282 340 286 300 296 262 C 304 238 330 226 360 222 Z';
 
 const BANGS =
-  'M 262 72 C 330 74 376 112 388 168 C 392 190 393 214 396 238 L 386 236 L 382 222 L 376 238 L 368 228 L 362 240 ' +
-  'L 354 228 L 346 241 L 338 230 L 330 242 L 322 231 L 314 242 L 306 232 L 298 244 C 290 210 274 180 252 160 ' +
-  'C 232 142 212 134 196 132 C 208 100 232 78 262 72 Z';
+  'M 262 72 C 330 74 376 112 388 168 C 392 190 394 214 398 240 Q 396 231 393 229 Q 390 240 388 249 Q 386 240 382 229 Q 379 234 377 243 Q 375 234 372 232 Q 368 242 366 251 Q 364 242 360 230 Q 357 236 355 245 Q 353 236 350 228 Q 346 243 344 252 Q 342 243 338 231 Q 335 237 333 246 Q 331 237 328 229 Q 324 242 322 251 Q 320 242 316 232 Q 313 236 311 245 Q 309 236 306 230 Q 302 240 300 249 C 290 214 274 182 252 160 C 232 142 212 134 196 132 C 208 100 232 78 262 72 Z';
 
 const SIDE_LOCK =
-  'M 290 240 C 278 262 270 292 268 326 C 264 368 258 404 244 436 C 236 454 226 468 214 480 ' +
-  'C 240 478 258 460 268 438 C 280 410 282 372 284 340 C 286 306 292 276 304 250 Z ' +
-  'M 286 236 C 262 270 252 320 250 372 C 248 410 244 440 232 466 L 214 480 C 228 440 232 400 236 360 C 240 310 254 268 286 236 Z';
+  'M 300 240 C 290 266 284 296 282 330 C 279 372 274 408 262 440 C 256 456 248 468 238 478 ' +
+  'C 258 476 272 460 280 440 C 290 412 292 374 294 342 C 296 308 300 280 310 256 Z';
 
-/** Fine strands inside the hair mass (drawn in the skin colour). */
+/** Long tapered highlights cut into the hair (drawn in the skin colour). */
 const STRANDS = [
-  'M 250 92 C 196 112 152 170 140 250 C 132 312 128 372 104 440',
-  'M 290 96 C 236 120 196 190 184 270 C 176 330 172 390 150 462',
-  'M 214 104 C 164 132 128 196 122 262',
-  'M 330 110 C 290 140 262 196 252 260',
-  'M 232 300 C 230 360 222 420 196 470',
+  'M 196 140 C 160 182 140 240 136 312 C 146 246 168 188 204 146 Z',
+  'M 150 300 C 140 352 128 396 108 432 C 132 398 148 356 156 304 Z',
+  'M 248 250 C 246 320 236 380 218 424 C 242 384 254 322 254 252 Z',
 ];
 
 const SHEEN =
   'M 214 116 C 256 98 318 98 362 130 L 358 138 L 348 132 L 342 142 L 332 132 L 324 142 L 314 130 L 306 140 ' +
   'L 298 128 L 288 138 L 280 126 L 270 134 L 260 122 L 250 130 L 240 120 L 228 126 Z';
 
-const BAND = 'M 304 74 C 292 108 284 156 281 200 C 279 222 278 238 279 250';
+/** Headphone band over the crown, ending in the slider yoke above the earcup. */
+const BAND = 'M 330 90 C 306 90 288 114 278 152 C 270 182 263 206 259 222';
+const EAR = {cx: 252, cy: 284, rx: 27, ry: 35, tilt: -10};
 
-const NECK = 'M 350 384 C 346 412 346 440 350 470 L 250 478 C 256 448 258 418 254 380 Z';
+const NECK = 'M 350 384 C 346 412 346 446 352 494 L 250 498 C 256 452 258 418 254 380 Z';
 
 const WINDOW = 'M 270 292 C 300 282 350 280 384 286 C 404 292 414 312 404 330 C 398 346 404 372 392 394 C 380 410 362 414 354 420 C 350 438 350 456 352 474 L 262 478 C 262 440 262 400 262 360 C 262 330 262 304 270 292 Z';
 
@@ -284,13 +280,13 @@ export function Portrait({pose, cutaway, labels, speaking, onDrag, onDragEnd}: P
       <circle cx="300" cy="290" r="208" fill="none" stroke="var(--hvl-accent)" strokeOpacity="0.18" strokeWidth="1" />
       <circle cx="300" cy="290" r="208" fill="none" stroke="var(--hvl-accent)" strokeOpacity="0.5" strokeWidth="1" strokeDasharray="1 7" />
 
+      {/* Skin underlay: fills the gaps between face, jaw and neck pieces; hair covers the rest */}
+      <path d="M 288 236 L 372 236 L 372 300 L 384 326 L 372 344 L 370 372 L 356 398 L 350 500 L 248 500 L 248 236 Z" fill={S.skin} />
       <path d={HAIR_BACK} fill={S.ink} />
-      {STRANDS.map((d, i) => <path key={i} d={d} fill="none" stroke={S.skin} strokeWidth="1" opacity="0.22" />)}
+      {STRANDS.map((d, i) => <path key={i} d={d} fill={S.skin} opacity="0.92" />)}
       {/* Gloss on the back of the head and rim light on the flipped ends */}
       <path d="M 196 108 C 160 126 134 156 122 194 L 128 192 L 130 200 L 135 190 L 139 197 L 143 186 C 154 158 174 134 200 118 L 194 118 L 196 110 Z" fill={S.skin} opacity="0.8" />
-      <path d="M 70 478 C 80 482 92 478 100 468 M 124 492 C 134 494 144 488 148 478 M 176 484 C 186 486 194 480 198 472" fill="none" stroke={S.skin} strokeWidth="1.6" strokeLinecap="round" opacity="0.7" />
-      {/* Shoulders, neck and high collar */}
-      <path d="M 70 530 C 92 500 160 486 246 484 L 356 480 C 420 486 462 506 480 530 Z" fill={S.ink} />
+      {/* Neck under a sleeveless top */}
       <path d={NECK} fill={S.skin} />
       <g transform={jaw}><path d={lowerFace} fill={S.skin} /></g>
       <path d={face} fill={S.skin} />
@@ -332,8 +328,9 @@ export function Portrait({pose, cutaway, labels, speaking, onDrag, onDragEnd}: P
 
       {/* Outlines over the cutaway */}
       <path d="M 350 384 C 346 412 346 440 350 470" fill="none" stroke={S.ink} strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M 246 462 C 282 470 322 470 354 458 L 360 492 C 324 504 282 504 244 496 Z" fill={S.skin} stroke={S.ink} strokeWidth="2.4" strokeLinejoin="round" />
-      <path d="M 248 480 C 284 487 322 486 356 476" fill="none" stroke={S.ink} strokeWidth="1.1" opacity="0.5" />
+      <path d="M 56 534 C 82 508 160 492 240 488 C 268 508 322 514 362 496 C 420 500 466 516 486 534 Z" fill={S.ink} />
+      <path d="M 242 490 C 270 509 322 515 361 498" fill="none" stroke={S.skin} strokeWidth="3.2" strokeLinecap="round" />
+      <path d="M 132 506 C 158 518 196 522 226 514" fill="none" stroke={S.skin} strokeWidth="2.2" strokeLinecap="round" opacity="0.9" />
       <g transform={jaw}><path d={jawLine} fill="none" stroke={S.ink} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" /></g>
       <path d={faceLine} fill="none" stroke={S.ink} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
       <path d="M 393 314 C 396 318 401 319 404 317" fill="none" stroke={S.ink} strokeWidth="1.5" strokeLinecap="round" opacity="0.75" />
@@ -349,26 +346,40 @@ export function Portrait({pose, cutaway, labels, speaking, onDrag, onDragEnd}: P
       {/* Eye */}
       <g className="hvl-eye">
         <g className="hvl-blink">
-        <path d="M 333 247 C 342 242 354 242 362 246 C 365 248 366 252 365 255" fill="none" stroke={S.ink} strokeWidth="4" strokeLinecap="round" />
+        <path d="M 333 247 C 342 242 354 242 362 246 C 365 248 366 252 365 255" fill="none" stroke={S.ink} strokeWidth="4.8" strokeLinecap="round" />
+        <path d="M 337 238 C 346 234 356 235 363 240" fill="none" stroke={S.ink} strokeWidth="1.1" strokeLinecap="round" opacity="0.6" />
         <path d="M 333 247 C 328 245 325 241 323 236 M 336 245 C 333 241 332 237 332 232 M 340 244 C 339 240 339 236 340 232" fill="none" stroke={S.ink} strokeWidth="1.5" strokeLinecap="round" />
         <path d="M 349 248 C 344 253 344 266 350 273 C 355 276 360 270 362 263 C 363 257 361 251 358 248 Z" fill={S.ink} />
         <circle cx="356" cy="256" r="2.4" fill={S.skin} />
         <circle cx="351" cy="266" r="1.1" fill={S.skin} opacity="0.8" />
         </g>
-        <path d="M 343 277 C 349 280 356 279 361 275" fill="none" stroke={S.ink} strokeWidth="1.2" strokeLinecap="round" opacity="0.65" />
+        <path d="M 343 277 C 349 280 356 279 361 275 M 346 278 l -1 3 M 351 279 l 0 3 M 356 278 l 1 3" fill="none" stroke={S.ink} strokeWidth="1.2" strokeLinecap="round" opacity="0.65" />
       </g>
 
-      {/* Front hair, sheen and headband */}
-      <path d={SIDE_LOCK} fill={S.ink} />
+      {/* Front hair, sheen and headphones */}
       <path d={BANGS} fill={S.ink} />
       <path d={SHEEN} fill={S.skin} opacity="0.92" />
       <path d="M 298 244 C 292 222 282 200 266 180 M 346 238 C 344 214 338 190 328 170 M 374 232 C 374 210 370 188 362 168" fill="none" stroke={S.skin} strokeWidth="1" opacity="0.35" />
-      <g className="hvl-headband">
-        <path d={BAND} fill="none" stroke={S.ink} strokeWidth="16" strokeLinecap="butt" />
-        <path d={BAND} fill="none" stroke={S.skin} strokeWidth="10.5" strokeLinecap="butt" />
-        {/* Hooked clasp where the band tucks under the hair */}
-        <path d="M 272 246 C 270 256 276 262 284 260 C 290 258 290 250 286 246 L 282 252 C 280 254 277 252 278 249 Z" fill={S.skin} stroke={S.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      <g className="hvl-headphones">
+        <path d={BAND} fill="none" stroke={S.ink} strokeWidth="27" strokeLinecap="butt" />
+        <path d={BAND} fill="none" stroke={S.skin} strokeWidth="19" strokeLinecap="butt" />
+        {/* Padding seam along the band */}
+        <path d={BAND} fill="none" stroke={S.ink} strokeWidth="1.3" opacity="0.45" transform="translate(-4 1)" />
+        {/* Slider yoke */}
+        <path d="M 244 214 L 272 214 L 273 244 C 273 250 268 254 259 254 C 250 254 244 250 244 244 Z" fill={S.skin} stroke={S.ink} strokeWidth="2.8" strokeLinejoin="round" />
+        <path d="M 252 228 C 252 236 266 236 266 228" fill="none" stroke={S.ink} strokeWidth="2.4" strokeLinecap="round" />
+        {/* Earcup over the ear */}
+        <g transform={`rotate(${EAR.tilt} ${EAR.cx} ${EAR.cy})`}>
+          <ellipse cx={EAR.cx} cy={EAR.cy} rx={EAR.rx} ry={EAR.ry} fill={S.skin} stroke={S.ink} strokeWidth="2.6" />
+          <path d={`M ${EAR.cx - EAR.rx + 3} ${EAR.cy - 10} C ${EAR.cx - EAR.rx - 1} ${EAR.cy + 8} ${EAR.cx - 12} ${EAR.cy + EAR.ry - 2} ${EAR.cx + 2} ${EAR.cy + EAR.ry - 1} C ${EAR.cx - 10} ${EAR.cy + EAR.ry - 8} ${EAR.cx - EAR.rx + 6} ${EAR.cy + 6} ${EAR.cx - EAR.rx + 3} ${EAR.cy - 10} Z`} fill={S.ink} />
+          <ellipse cx={EAR.cx + 3} cy={EAR.cy - 1} rx={EAR.rx - 9} ry={EAR.ry - 11} fill="none" stroke={S.ink} strokeWidth="1.6" />
+          <circle cx={EAR.cx + 3} cy={EAR.cy - 1} r={3} fill={S.ink} />
+          <path d={`M ${EAR.cx + 8} ${EAR.cy - EAR.ry + 6} C ${EAR.cx + 15} ${EAR.cy - EAR.ry + 9} ${EAR.cx + 18} ${EAR.cy - EAR.ry + 15} ${EAR.cx + 19} ${EAR.cy - 8}`} fill="none" stroke={S.ink} strokeWidth="1.2" opacity="0.4" />
+        </g>
       </g>
+      <path d={SIDE_LOCK} fill={S.ink} />
+      {/* Front lock falls over the cup's front edge */}
+      <path d="M 274 262 C 272 286 276 306 286 320 C 280 300 280 280 284 262 Z" fill={S.ink} />
 
       {onDrag && (
         <g className="hvl-handles">

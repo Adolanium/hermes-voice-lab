@@ -10,7 +10,7 @@ import type {Lexicon} from '../core/text';
 import type {VoiceLabBridge} from '../bridge';
 import {loadLexicon} from './assets';
 import {analysis, renderWav, VoiceAudio} from './audio';
-import {Icon, Mark, useAudioStatus, useTelemetry} from './controls';
+import {Icon, Mark, useAudioStatus, useOpaqueInk, useTelemetry} from './controls';
 import {Keyboard} from './Keyboard';
 import {PlaySpeakSingTabs} from './tabs';
 import {Portrait, type Pose} from './Portrait';
@@ -48,6 +48,8 @@ export default function VoiceLab({bridge}: Props) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectRef = useRef(project);
   projectRef.current = project;
+  const rootRef = useRef<HTMLDivElement>(null);
+  useOpaqueInk(rootRef);
 
   // ---- Load, persist, and follow agent edits ----------------------------
   useEffect(() => {
@@ -354,7 +356,7 @@ export default function VoiceLab({bridge}: Props) {
   const formants = model?.formants.slice(0, 3) ?? [];
 
   return (
-    <div className="hvl-root" onFocusCapture={e => setTyping(['TEXTAREA', 'INPUT'].includes((e.target as HTMLElement).tagName) && (e.target as HTMLInputElement).type !== 'range')} onBlurCapture={() => setTyping(false)}>
+    <div className="hvl-root" ref={rootRef} onFocusCapture={e => setTyping(['TEXTAREA', 'INPUT'].includes((e.target as HTMLElement).tagName) && (e.target as HTMLInputElement).type !== 'range')} onBlurCapture={() => setTyping(false)}>
       <style>{CSS}</style>
       <div className="hvl-shell">
         <header className="hvl-top">

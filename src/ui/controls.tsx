@@ -154,3 +154,57 @@ export function Range({label, value, min, max, step = 0.01, format, onChange, he
     </div>
   );
 }
+
+function parseRgb(css: string): [number, number, number, number] | null {
+  const srgb = css.match(/color\(srgb\s+([^)]+)\)/);
+  if (srgb) {
+    const p = srgb[1].split(/[\s/]+/).filter(Boolean).map(Number);
+    return [p[0] * 255, p[1] * 255, p[2] * 255, p[3] ?? 1];
+  }
+  const m = css.match(/rgba?\(([^)]+)\)/);
+  if (!m) return null;
+  const parts = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+  return [parts[0], parts[1], parts[2], parts[3] ?? 1];
+}
+
+/**
+ * Theme ink colours can be translucent. Overlapping translucent shapes show
+ * seams in the portrait, so resolve opaque equivalents (composited over the
+ * page background) and keep them current when the theme changes.
+ */
+export function useOpaqueInk(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none';
+    root.appendChild(probe);
+    const resolve = (expr: string) => {
+      probe.style.color = expr;
+      return parseRgb(getComputedStyle(probe).color);
+    };
+    const update = () => {
+      const bg = resolve('var(--ui-bg-elevated, #fff)') ?? [255, 255, 255, 1];
+      const solid = (expr: string) => {
+        const c = resolve(expr);
+        if (!c) return null;
+        const a = c[3];
+        return `rgb(${[0, 1, 2].map(i => Math.round(c[i] * a + bg[i] * (1 - a))).join(' ')})`;
+      };
+      const ink = solid('var(--ui-text-primary, #16151a)');
+      const skin = solid('var(--ui-bg-elevated, #fff)');
+      if (ink) root.style.setProperty('--hvl-ink', ink);
+      if (skin) root.style.setProperty('--hvl-skin', skin);
+    };
+    update();
+    const mo = new MutationObserver(update);
+    mo.observe(document.documentElement, {attributes: true, attributeFilter: ['class', 'style', 'data-theme']});
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', update);
+    return () => {
+      mo.disconnect();
+      mq.removeEventListener('change', update);
+      probe.remove();
+    };
+  }, [ref]);
+}
