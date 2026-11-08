@@ -165,7 +165,10 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     }
     // Velum: anticipatory lowering, raise after.
     if (t.velum) {
-      at(s.start - 0.06, 'velum', 1, 22, i);
+      // Anticipatory lowering, but not into a preceding obstruent (it would
+      // vent its pressure through the nose).
+      const afterObstruent = prevSeg && ['stop', 'fricative', 'affricate'].includes(PHONEMES[prevSeg.symbol]?.manner);
+      at(afterObstruent ? s.start - 0.012 : s.start - 0.06, 'velum', 1, afterObstruent ? 12 : 22, i);
       if (!(next && PHONEMES[next.symbol]?.target.velum)) {
         // Before an obstruent the velopharyngeal port must be sealed when the
         // obstruent starts (or pressure leaks out of the nose and /g/ in

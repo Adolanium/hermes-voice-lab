@@ -293,7 +293,9 @@ impl Voice {
                 self.burst_index = TEETH;
                 (1.0, 4.5)
             } else {
-                self.burst_filter.bandpass(2600.0, 0.9, self.int_rate);
+                // Compact peak at the front-cavity resonance: low before back
+                // vowels (dorsum far back), high before front vowels.
+                self.burst_filter.bandpass(1200.0 + 1800.0 * p[TONGUE_X], 1.4, self.int_rate);
                 self.burst_index = (self.shape.min_index + 1).min(N - 1);
                 (3.0, 9.0)
             };

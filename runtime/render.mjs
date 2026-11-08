@@ -729,7 +729,8 @@ function articulate(segments, voice) {
       at(s.end, "lipRound", vowelLips.lipRound ?? 0.1, 30, i);
     }
     if (t.velum) {
-      at(s.start - 0.06, "velum", 1, 22, i);
+      const afterObstruent = prevSeg && ["stop", "fricative", "affricate"].includes(PHONEMES[prevSeg.symbol]?.manner);
+      at(afterObstruent ? s.start - 0.012 : s.start - 0.06, "velum", 1, afterObstruent ? 12 : 22, i);
       if (!(next && PHONEMES[next.symbol]?.target.velum)) {
         const obstruent = next && ["stop", "fricative", "affricate"].includes(PHONEMES[next.symbol]?.manner);
         if (obstruent) at(s.end - 0.035, "velum", 0, 9, i);
