@@ -639,7 +639,113 @@ function reduceFunctionWords(words) {
     return { ...w, phones: weak.split(" ").map((t) => parsePhone(t)) };
   });
 }
+var IPA = [
+  ["t\u0283", "CH"],
+  ["d\u0292", "JH"],
+  ["a\u026A", "AY"],
+  ["a\u028A", "AW"],
+  ["\u0254\u026A", "OY"],
+  ["e\u026A", "EY"],
+  ["o\u028A", "OW"],
+  ["p\u02BC", "PE"],
+  ["t\u02BC", "TE"],
+  ["k\u02BC", "KE"],
+  ["i", "IY"],
+  ["\u026A", "IH"],
+  ["e", "EY"],
+  ["\u025B", "EH"],
+  ["\xE6", "AE"],
+  ["\u0251", "AA"],
+  ["a", "AA"],
+  ["\u0252", "AA"],
+  ["\u0254", "AO"],
+  ["o", "OW"],
+  ["\u028A", "UH"],
+  ["u", "UW"],
+  ["\u028C", "AH"],
+  ["\u0259", "AH", 0],
+  ["\u025D", "ER"],
+  ["\u025C", "ER"],
+  ["\u025A", "ER", 0],
+  ["p", "P"],
+  ["b", "B"],
+  ["t", "T"],
+  ["d", "D"],
+  ["k", "K"],
+  ["g", "G"],
+  ["\u0261", "G"],
+  ["f", "F"],
+  ["v", "V"],
+  ["\u03B8", "TH"],
+  ["\xF0", "DH"],
+  ["s", "S"],
+  ["z", "Z"],
+  ["\u0283", "SH"],
+  ["\u0292", "ZH"],
+  ["h", "HH"],
+  ["m", "M"],
+  ["n", "N"],
+  ["\u014B", "NG"],
+  ["l", "L"],
+  ["\u0279", "R"],
+  ["r", "RR"],
+  ["\u027E", "DX"],
+  ["w", "W"],
+  ["j", "Y"],
+  ["\u0294", "Q"],
+  ["\u0299", "BR"],
+  ["\u0280", "RU"],
+  ["\u0298", "CB"],
+  ["\u01C0", "CD"],
+  ["\u01C3", "CA"]
+];
+var IPA_ONLY = /[ɪɛæɑɒɔʊʌəɝɜɚθðʃʒŋɹɾʔʙʀʘǀǃˈˌːɡ]/;
+function isIpa(text) {
+  return IPA_ONLY.test(text);
+}
+function parseIpaInput(text) {
+  const words = [];
+  const errors = [];
+  const clean = text.trim().replace(/^[/[]|[/\]]$/g, "").normalize("NFC");
+  for (const token of clean.split(/\s+/).filter(Boolean)) {
+    const trail = token.match(/[,?!.]+$/)?.[0] ?? "";
+    const body = token.slice(0, token.length - trail.length).replace(/[.ː‿]/g, "");
+    const phones = [];
+    const marked = /[ˈˌ]/.test(body);
+    let stress = null;
+    let firstFull = true;
+    for (let i = 0; i < body.length; ) {
+      if (body[i] === "\u02C8" || body[i] === "\u02CC") {
+        stress = body[i] === "\u02C8" ? 1 : 2;
+        i++;
+        continue;
+      }
+      const hit = IPA.find(([ipa2]) => body.startsWith(ipa2, i));
+      if (!hit) {
+        errors.push(body[i]);
+        i++;
+        continue;
+      }
+      const [ipa, symbol, fixed] = hit;
+      if (isVowel(symbol)) {
+        const s = fixed ?? (marked ? stress ?? 0 : firstFull ? 1 : 0);
+        if (fixed === void 0) firstFull = false;
+        phones.push({ symbol, stress: s });
+        stress = null;
+      } else {
+        phones.push({ symbol, stress: 0 });
+      }
+      i += ipa.length;
+    }
+    if (!phones.length) continue;
+    const boundary = trail.includes("?") ? "question" : trail.includes("!") ? "exclaim" : trail.includes(".") ? "period" : trail.includes(",") ? "comma" : "word";
+    words.push({ text: body, phones, source: "phonemes", boundary });
+  }
+  if (words.length && words[words.length - 1].boundary === "word") words[words.length - 1].boundary = "period";
+  return { words, errors };
+}
 function parsePhonemeInput(text) {
+  if (isIpa(text)) return parseIpaInput(text);
   const words = [];
   const errors = [];
   let current = [];
@@ -746,7 +852,7 @@ function preamble(voice) {
   for (const [k, v] of Object.entries(rest)) ev.push([0, k, v, 0]);
   return ev;
 }
-function articulate(segments, voice) {
+function articulate(segments, voice, withPreamble = true) {
   const tagged = [];
   const at = (t, name, value, tau, seg = -1) => tagged.push({ t: Math.max(0, t), name, value: clampParam(name, value), tau, seg, order: tagged.length });
   const holds = [];
@@ -888,7 +994,7 @@ function articulate(segments, voice) {
       at(s.end, "voicing", 1, 10, i);
     }
   });
-  return resolveGestures(tagged, holds, preamble(voice));
+  return resolveGestures(tagged, holds, withPreamble ? preamble(voice) : []);
 }
 function resolveGestures(tagged, holds, ev) {
   holds.sort((a, b) => a.start - b.start);

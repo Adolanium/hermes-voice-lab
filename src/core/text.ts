@@ -191,11 +191,77 @@ export function reduceFunctionWords(words: Word[]): Word[] {
   });
 }
 
+/** IPA → phoneme symbols, longest first (affricates, diphthongs, ejectives before single letters). */
+const IPA: Array<[string, string, number?]> = [
+  ['tʃ', 'CH'], ['dʒ', 'JH'], ['aɪ', 'AY'], ['aʊ', 'AW'], ['ɔɪ', 'OY'], ['eɪ', 'EY'], ['oʊ', 'OW'],
+  ['pʼ', 'PE'], ['tʼ', 'TE'], ['kʼ', 'KE'],
+  ['i', 'IY'], ['ɪ', 'IH'], ['e', 'EY'], ['ɛ', 'EH'], ['æ', 'AE'], ['ɑ', 'AA'], ['a', 'AA'], ['ɒ', 'AA'], ['ɔ', 'AO'], ['o', 'OW'],
+  ['ʊ', 'UH'], ['u', 'UW'], ['ʌ', 'AH'], ['ə', 'AH', 0], ['ɝ', 'ER'], ['ɜ', 'ER'], ['ɚ', 'ER', 0],
+  ['p', 'P'], ['b', 'B'], ['t', 'T'], ['d', 'D'], ['k', 'K'], ['g', 'G'], ['ɡ', 'G'], ['f', 'F'], ['v', 'V'], ['θ', 'TH'], ['ð', 'DH'],
+  ['s', 'S'], ['z', 'Z'], ['ʃ', 'SH'], ['ʒ', 'ZH'], ['h', 'HH'], ['m', 'M'], ['n', 'N'], ['ŋ', 'NG'], ['l', 'L'], ['ɹ', 'R'],
+  ['r', 'RR'], ['ɾ', 'DX'], ['w', 'W'], ['j', 'Y'], ['ʔ', 'Q'], ['ʙ', 'BR'], ['ʀ', 'RU'], ['ʘ', 'CB'], ['ǀ', 'CD'], ['ǃ', 'CA'],
+];
+const IPA_ONLY = /[ɪɛæɑɒɔʊʌəɝɜɚθðʃʒŋɹɾʔʙʀʘǀǃˈˌːɡ]/;
+
+/** True when phoneme input is IPA rather than ARPABET. */
+export function isIpa(text: string): boolean {
+  return IPA_ONLY.test(text);
+}
+
+/**
+ * IPA input: words separated by spaces, ˈ and ˌ mark the stress of the next
+ * vowel (a word without marks stresses its first full vowel; ə and ɚ are
+ * unstressed), ː and syllable dots are ignored, and , . ? ! mark boundaries.
+ */
+export function parseIpaInput(text: string): {words: Word[]; errors: string[]} {
+  const words: Word[] = [];
+  const errors: string[] = [];
+  const clean = text.trim().replace(/^[/[]|[/\]]$/g, '').normalize('NFC');
+  for (const token of clean.split(/\s+/).filter(Boolean)) {
+    const trail = token.match(/[,?!.]+$/)?.[0] ?? '';
+    const body = token.slice(0, token.length - trail.length).replace(/[.ː‿]/g, '');
+    const phones: Phone[] = [];
+    const marked = /[ˈˌ]/.test(body);
+    let stress: number | null = null;
+    let firstFull = true;
+    for (let i = 0; i < body.length;) {
+      if (body[i] === 'ˈ' || body[i] === 'ˌ') {
+        stress = body[i] === 'ˈ' ? 1 : 2;
+        i++;
+        continue;
+      }
+      const hit = IPA.find(([ipa]) => body.startsWith(ipa, i));
+      if (!hit) {
+        errors.push(body[i]);
+        i++;
+        continue;
+      }
+      const [ipa, symbol, fixed] = hit;
+      if (isVowel(symbol)) {
+        const s = fixed ?? (marked ? stress ?? 0 : firstFull ? 1 : 0);
+        if (fixed === undefined) firstFull = false;
+        phones.push({symbol, stress: s});
+        stress = null;
+      } else {
+        phones.push({symbol, stress: 0});
+      }
+      i += ipa.length;
+    }
+    if (!phones.length) continue;
+    const boundary: Boundary = trail.includes('?') ? 'question' : trail.includes('!') ? 'exclaim' : trail.includes('.') ? 'period' : trail.includes(',') ? 'comma' : 'word';
+    words.push({text: body, phones, source: 'phonemes', boundary});
+  }
+  if (words.length && words[words.length - 1].boundary === 'word') words[words.length - 1].boundary = 'period';
+  return {words, errors};
+}
+
 /**
  * Direct phoneme input: ARPABET tokens separated by spaces; words separated
  * by "/" or "|"; punctuation , . ? ! as standalone tokens marks boundaries.
+ * IPA is accepted too (detected by its letters; see parseIpaInput).
  */
 export function parsePhonemeInput(text: string): {words: Word[]; errors: string[]} {
+  if (isIpa(text)) return parseIpaInput(text);
   const words: Word[] = [];
   const errors: string[] = [];
   let current: Phone[] = [];

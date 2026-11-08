@@ -41,7 +41,7 @@ function preamble(voice: Patch): ScoreEvent[] {
 }
 
 /** Articulatory events for a list of timed segments. */
-export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
+export function articulate(segments: Segment[], voice: Patch, withPreamble = true): ScoreEvent[] {
   // Every gesture event remembers the segment that produced it (-1: global).
   type Tagged = {t: number; name: ParamName; value: number; tau: number; seg: number; order: number};
   const tagged: Tagged[] = [];
@@ -243,7 +243,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       at(s.end, 'voicing', 1, 10, i);
     }
   });
-  return resolveGestures(tagged, holds, preamble(voice));
+  return resolveGestures(tagged, holds, withPreamble ? preamble(voice) : []);
 }
 
 /**
@@ -718,6 +718,60 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
   events.push(...pitchEvents);
   events.sort((a, b) => a[0] - b[0]);
   return {score: compileScore(events, cursor + 0.4), segments, words: [], warnings: [], assignments, cues};
+}
+
+// ---- Live singing ------------------------------------------------------------
+// A key held down sings one syllable: the previous syllable's coda (when legato),
+// this syllable's onset and its vowel, held until the key is released, which
+// sings the diphthong's glide and the coda. The scores leave out the preamble,
+// so the articulators carry on from wherever they are.
+
+const HOLD = 30;
+
+/** Key down: sing `phones` (one syllable) at `midi`, its vowel held open-ended. */
+export function planLiveOn(phones: Phone[], midi: number, voicePatch: Patch, opts: {fromCoda?: Phone[]; legato?: boolean} = {}): Score {
+  const voice = singingVoice({...defaultPatch(), ...voicePatch});
+  const v = phones.findIndex(p => isVowel(p.symbol));
+  const nucleus = v >= 0 ? phones[v] : {symbol: 'AA', stress: 1};
+  const onset = v >= 0 ? phones.slice(0, v) : phones;
+  const segments: Segment[] = [];
+  let t = 0.005;
+  for (const p of [...(opts.fromCoda ?? []), ...onset]) {
+    const d = sungConsonant(p, false);
+    segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: 0});
+    t += d;
+  }
+  const vowelAt = t;
+  if (v >= 0) segments.push({symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: t + HOLD, word: 0});
+  else segments.push({symbol: 'SIL', stress: 0, start: t, end: t + 0.3, word: -1});
+  const events = articulate(segments, voice, false);
+  for (const name of ['tenseness', 'breath', 'loudness'] as ParamName[]) events.push([0, name, voice[name], 30]);
+  events.push([0, 'pitch', midiToHz(midi), opts.legato ? 30 : 12]);
+  events.push([0, 'vibratoDepth', 0, 40], [vowelAt + 0.25, 'vibratoDepth', voice.vibratoDepth, 180]);
+  events.sort((a, b) => a[0] - b[0]);
+  return compileScore(events, vowelAt + HOLD);
+}
+
+/** Key up: the held syllable's diphthong glide and coda, then the breath stops. */
+export function planLiveOff(phones: Phone[], voicePatch: Patch): Score {
+  const voice = singingVoice({...defaultPatch(), ...voicePatch});
+  const v = phones.findIndex(p => isVowel(p.symbol));
+  const coda = v >= 0 ? phones.slice(v + 1) : [];
+  const glide = v >= 0 && PHONEMES[phones[v].symbol].offglide;
+  if (!coda.length && !glide) return compileScore([[0, 'gate', 0, 45]], 0.3);
+  const segments: Segment[] = [];
+  let t = 0;
+  if (glide) {
+    segments.push({symbol: phones[v].symbol, stress: 1, start: 0, end: 0.09, word: 0});
+    t = 0.09;
+  }
+  for (const p of coda) {
+    const d = sungConsonant(p, coda.length > 1);
+    segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: 0});
+    t += d;
+  }
+  segments.push({symbol: 'SIL', stress: 0, start: t, end: t + 0.3, word: -1, boundary: 'period'});
+  return compileScore(articulate(segments, voice, false), t + 0.4);
 }
 
 /** A sustained vowel (or any shape) for a given time, e.g. for previews and renders of Play mode. */

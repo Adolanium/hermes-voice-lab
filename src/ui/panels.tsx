@@ -175,8 +175,8 @@ export function SpeakPanel({project, plan, onChange, onSpeak, onStop, playing, p
         </div>
       </div>
       <textarea className="hvl-textarea" value={sp.text} maxLength={1000} spellCheck={!sp.phonemes}
-        aria-label={sp.phonemes ? 'ARPABET phonemes' : 'Text to speak'}
-        placeholder={sp.phonemes ? 'ARPABET, e.g. HH AH0 L OW1 / W ER1 L D' : 'Type a short English phrase'}
+        aria-label={sp.phonemes ? 'ARPABET or IPA phonemes' : 'Text to speak'}
+        placeholder={sp.phonemes ? 'ARPABET (HH AH0 L OW1 / W ER1 L D) or IPA (həˈloʊ wɝld)' : 'Type a short English phrase'}
         onChange={e => onChange({text: e.target.value})}
         onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onSpeak(); } }} />
       {!sp.phonemes && (
@@ -290,6 +290,10 @@ interface SingProps {
   position: number;
   ready: boolean;
   onPreviewNote: (midi: number) => void;
+  liveSing: boolean;
+  onLiveSing: (on: boolean) => void;
+  nextSyllable: string;
+  onLiveRestart: () => void;
 }
 
 const LOW = 48;
@@ -297,7 +301,7 @@ const HIGH = 84;
 const ROW = 13;
 const BEAT = 46;
 
-export function SingPanel({project, plan, onChange, onSing, onStop, playing, position, ready, onPreviewNote}: SingProps) {
+export function SingPanel({project, plan, onChange, onSing, onStop, playing, position, ready, onPreviewNote, liveSing, onLiveSing, nextSyllable, onLiveRestart}: SingProps) {
   const song = project.song;
   const [selected, setSelected] = useState<number | null>(null);
   const notes = song.notes;
@@ -436,6 +440,9 @@ export function SingPanel({project, plan, onChange, onSing, onStop, playing, pos
             title="Cartoon singing: scoops, slides, wobbly vibrato and an oversized mouth">Cartoon</button>
           <button className={`hvl-btn ${song.style === 'yodel' ? 'is-on' : ''}`} onClick={() => onChange({style: song.style === 'yodel' ? 'natural' : 'yodel'})} aria-pressed={song.style === 'yodel'}
             title="Yodel: high notes flip to falsetto, low notes stay in chest voice, and the leaps between them snap">Yodel</button>
+          <button className={`hvl-btn ${liveSing ? 'is-on' : ''}`} onClick={() => onLiveSing(!liveSing)} aria-pressed={liveSing}
+            title="Live: each key you press (keyboard, computer keys or MIDI) sings the next syllable of the lyrics, held until you let go">Live</button>
+          {liveSing && <span className="hvl-note" aria-live="polite">Next: <b>{nextSyllable}</b> <button className="hvl-btn is-ghost" onClick={onLiveRestart} title="Back to the first syllable">↺</button></span>}
           <button className="hvl-btn is-ghost" onClick={() => { onChange({...SILLY_SONG, notes: SILLY_SONG.notes.map(n => ({...n}))}); setSelected(null); }}
             title="Load the novelty demo song">Silly song</button>
         </div>

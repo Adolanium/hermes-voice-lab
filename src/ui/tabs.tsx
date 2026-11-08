@@ -28,6 +28,10 @@ interface Props {
   position: number;
   ready: boolean;
   onPreviewNote: (midi: number) => void;
+  liveSing: boolean;
+  onLiveSing: (on: boolean) => void;
+  nextSyllable: string;
+  onLiveRestart: () => void;
 }
 
 const TABS: Array<[Mode, string, string]> = [['play', 'Play', 'Hold a shape and play notes'], ['speak', 'Speak', 'Phrases and phonemes'], ['sing', 'Sing', 'Lyrics on a melody']];
@@ -52,7 +56,8 @@ export function PlaySpeakSingTabs(p: Props) {
       )}
       {p.mode === 'sing' && (
         <SingPanel project={p.project} plan={p.songPlan} onChange={p.onSong} onSing={() => p.onPlay('sing')} onStop={p.onStop}
-          playing={p.scorePlaying} position={p.position} ready={p.ready} onPreviewNote={p.onPreviewNote} />
+          playing={p.scorePlaying} position={p.position} ready={p.ready} onPreviewNote={p.onPreviewNote}
+          liveSing={p.liveSing} onLiveSing={p.onLiveSing} nextSyllable={p.nextSyllable} onLiveRestart={p.onLiveRestart} />
       )}
     </section>
   );

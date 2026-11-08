@@ -1,6 +1,7 @@
 /** On-screen and computer keyboard. Releases every held note on blur. */
 import React, {useEffect, useRef, useState} from 'react';
 import {noteName} from '../core/params';
+import type {MidiStatus} from './midi';
 
 const KEYMAP = ['a', 'w', 's', 'e', 'd', 'f', 't', 'g', 'y', 'h', 'u', 'j', 'k', 'o', 'l', 'p', ';', "'"];
 const BLACK = new Set([1, 3, 6, 8, 10]);
@@ -13,9 +14,10 @@ interface Props {
   /** Disable the computer keyboard (e.g. while typing in a text field). */
   enabled: boolean;
   onBaseChange: (base: number) => void;
+  midi?: {status: MidiStatus; inputs: string[]; enable: () => void};
 }
 
-export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBaseChange}: Props) {
+export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBaseChange, midi}: Props) {
   const [down, setDown] = useState<Set<number>>(new Set());
   const held = useRef(new Map<string, number>());
   const pointer = useRef<number | null>(null);
@@ -107,6 +109,12 @@ export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBas
         <span className="hvl-kicker">Keyboard</span>
         <span className="hvl-row" style={{gap: 6}}>
           <span className="hvl-note">Keys A–; play · Z/X octave</span>
+          {midi && (
+            <button className={`hvl-btn is-ghost ${midi.status === 'on' ? 'is-on' : ''}`} onClick={midi.enable} disabled={midi.status === 'on'}
+              title={midi.status === 'on' ? (midi.inputs.length ? `MIDI: ${midi.inputs.join(', ')}` : 'MIDI on: no device connected') : midi.status === 'unavailable' ? 'Web MIDI is not available here' : midi.status === 'denied' ? 'MIDI access was refused' : 'Play from a MIDI keyboard'}>
+              MIDI{midi.status === 'on' ? ` · ${midi.inputs.length}` : midi.status === 'unavailable' || midi.status === 'denied' ? ' ✕' : ''}
+            </button>
+          )}
           <button className="hvl-btn is-ghost" onClick={() => onBaseChange(Math.max(36, base - 12))} aria-label="Octave down">−</button>
           <span className="hvl-note" style={{minWidth: 54, textAlign: 'center'}}>{noteName(base)}–{noteName(base + 12 * octaves)}</span>
           <button className="hvl-btn is-ghost" onClick={() => onBaseChange(Math.min(84, base + 12))} aria-label="Octave up">+</button>

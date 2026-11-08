@@ -3,7 +3,8 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {TractResponse} from '../core/engine';
 import {STATE} from '../core/engine';
 import {midiToHz, noteName, hzToMidi, PARAM_NAMES, type ParamName, type Patch, VOICE_PARAMS} from '../core/params';
-import {planSong, planSpeech, type Plan, type SongPlan} from '../core/planner';
+import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, type Plan, type SongPlan} from '../core/planner';
+import {isVowel, type Phone} from '../core/phonemes';
 import {VOICE_PRESETS} from '../core/presets';
 import {newProject, projectScore, validateProject, type Mode, type Project} from '../core/project';
 import type {Lexicon} from '../core/text';
@@ -12,6 +13,7 @@ import {loadLexicon} from './assets';
 import {analysis, renderWav, VoiceAudio} from './audio';
 import {Icon, Mark, useAudioStatus, useOpaqueInk, useTelemetry} from './controls';
 import {Keyboard} from './Keyboard';
+import {useMidi} from './midi';
 import {PlaySpeakSingTabs} from './tabs';
 import {Portrait, type Pose} from './Portrait';
 import {Airway, Glottal, Spectrum, Waveform} from './scopes';
@@ -48,6 +50,11 @@ export default function VoiceLab({bridge}: Props) {
   const [userPresets, setUserPresets] = useState<Array<{name: string; voice: Patch}>>(() => bridge.storage.get(USER_PRESETS, []));
   const [typing, setTyping] = useState(false);
   const notesDown = useRef<number[]>([]);
+  // Live singing: each key press sings the next lyric syllable.
+  const [liveSing, setLiveSing] = useState(false);
+  const liveCursor = useRef(0);
+  const [liveIndex, setLiveIndex] = useState(0);
+  const liveHeld = useRef<{midi: number; phones: Phone[]} | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectRef = useRef(project);
   projectRef.current = project;
@@ -144,8 +151,40 @@ export default function VoiceLab({bridge}: Props) {
     void sound(on);
   };
 
+  const syllables = useMemo(() => (lexicon ? lyricSyllables(project.song.lyrics, lexicon) : []), [lexicon, project.song.lyrics]);
+  const liveActive = liveSing && project.mode === 'sing' && syllables.length > 0;
+  const liveOn = async (midi: number) => {
+    if (!(await ensureAudio())) return;
+    audio.claim();
+    const syl = syllables[liveCursor.current % syllables.length];
+    liveCursor.current += 1;
+    setLiveIndex(liveCursor.current);
+    const held = liveHeld.current;
+    if (!syl.phones.length) {
+      // A "-" in the lyrics carries the held vowel to the new pitch.
+      audio.set('pitch', midiToHz(midi), 40);
+      if (held) held.midi = midi;
+      return;
+    }
+    const v = held ? held.phones.findIndex(p => isVowel(p.symbol)) : -1;
+    const fromCoda = held && v >= 0 ? held.phones.slice(v + 1) : [];
+    audio.play(planLiveOn(syl.phones, midi, projectRef.current.voice, {fromCoda, legato: !!held}));
+    liveHeld.current = {midi, phones: syl.phones};
+  };
+  const liveOff = (midi: number) => {
+    const held = liveHeld.current;
+    if (!held || held.midi !== midi) return;
+    audio.play(planLiveOff(held.phones, projectRef.current.voice));
+    liveHeld.current = null;
+  };
+  const restartLive = () => {
+    liveCursor.current = 0;
+    setLiveIndex(0);
+  };
+
   const onNoteOn = async (midi: number) => {
     notesDown.current = [...notesDown.current.filter(m => m !== midi), midi];
+    if (liveActive) return liveOn(midi);
     if (!(await ensureAudio())) return;
     const legato = notesDown.current.length > 1;
     if (!legato) await sound(true, midiToHz(midi));
@@ -153,10 +192,12 @@ export default function VoiceLab({bridge}: Props) {
   };
   const onNoteOff = (midi: number) => {
     notesDown.current = notesDown.current.filter(m => m !== midi);
+    if (liveActive) return liveOff(midi);
     const last = notesDown.current[notesDown.current.length - 1];
     if (last !== undefined) audio.set('pitch', midiToHz(last), 35);
     else if (!holding) audio.set('gate', 0, 45);
   };
+  const midi = useMidi(m => void onNoteOn(m), m => onNoteOff(m));
   const previewNote = async (midi: number) => {
     if (!(await ensureAudio())) return;
     audio.stopScore();
@@ -488,6 +529,10 @@ export default function VoiceLab({bridge}: Props) {
             position={position}
             ready={!!lexicon}
             onPreviewNote={previewNote}
+            liveSing={liveSing}
+            onLiveSing={on => { setLiveSing(on); restartLive(); if (!on) stop(); }}
+            nextSyllable={syllables.length ? syllables[liveIndex % syllables.length].text : ''}
+            onLiveRestart={restartLive}
           />
         </main>
 
@@ -498,7 +543,8 @@ export default function VoiceLab({bridge}: Props) {
           <Glottal shape={audio.glottal ?? null} rd={rd} f0={running ? f0 : 0} voicing={params?.voicing ?? 1} sounding={running && airway.gate > 0.05 && !airway.closed} />
         </section>
 
-        <Keyboard base={base} onBaseChange={b => { setBase(b); bridge.storage.set('keyboardBase', b); }} onNoteOn={m => void onNoteOn(m)} onNoteOff={onNoteOff} enabled={!typing} />
+        <Keyboard base={base} onBaseChange={b => { setBase(b); bridge.storage.set('keyboardBase', b); }} onNoteOn={m => void onNoteOn(m)} onNoteOff={onNoteOff} enabled={!typing}
+          midi={midi} />
         <footer className="hvl-note" style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
           <span>Physical articulatory synthesis in WebAssembly — no samples, no network. {bridge.scopeLabel}</span>
           <span>Unofficial character voice inspired by Nous Girl.</span>

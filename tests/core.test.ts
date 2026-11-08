@@ -8,11 +8,11 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {compileScore, Engine, renderScore} from '../src/core/engine';
 import {PARAMS, PARAM_NAMES, validatePatch, parseNoteName, midiToHz} from '../src/core/params';
-import {planSong, planSpeech, planSustain} from '../src/core/planner';
+import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, planSustain} from '../src/core/planner';
 import {decodeLexicon, letterToSound, parsePhonemeInput, syllabify, tokenize} from '../src/core/text';
 import {newProject, projectScore, SILLY_SONG, validateProject} from '../src/core/project';
 import {SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
-import {PHONEMES, VOWEL_CALIBRATION} from '../src/core/phonemes';
+import {PHONEMES, VOWEL_CALIBRATION, isVowel as isVowelSymbol} from '../src/core/phonemes';
 const PHONEMES_TARGET = (symbol: string) => PHONEMES[symbol].target;
 import {encodeWav, measure} from '../src/core/wav';
 
@@ -407,4 +407,52 @@ test('ejectives and clicks pop from the larynx and the tongue, not the lungs', (
   const rms = (a: number, b: number) => { let s = 0; for (let i = Math.round(a * sr); i < Math.round(b * sr); i++) s += out[i] ** 2; return Math.sqrt(s / ((b - a) * sr)); };
   assert.ok(rms(q.start + 0.025, q.end - 0.005) < 0.25 * rms(q.start - 0.08, q.start - 0.02), 'glottal stop is silent');
   assert.ok(planSpeech('tsk', lexicon).segments.some(s => s.symbol === 'CD'), '"tsk" is a dental click');
+});
+
+test('IPA input: stress marks, diphthongs, affricates and the non-English sounds', () => {
+  const {words, errors} = parsePhonemeInput('/həˈloʊ wɝld, ˈtʃɝtʃ ʔ kʼa ǃa pero/');
+  assert.deepEqual(errors, []);
+  const flat = (k: number) => words[k].phones.map(p => p.symbol + (isVowelSymbol(p.symbol) ? p.stress : '')).join(' ');
+  assert.equal(flat(0), 'HH AH0 L OW1');
+  assert.equal(flat(1), 'W ER1 L D');
+  assert.equal(words[1].boundary, 'comma');
+  assert.equal(flat(2), 'CH ER1 CH');
+  assert.equal(flat(3), 'Q');
+  assert.equal(flat(4), 'KE AA1');
+  assert.equal(flat(5), 'CA AA1');
+  assert.equal(flat(6), 'P EY1 RR OW0');
+  // ARPABET still works, and planSpeech speaks IPA.
+  assert.equal(parsePhonemeInput('HH AH0 L OW1').words[0].phones.length, 4);
+  assert.ok(planSpeech('ˈsiːsɔ', lexicon, {phonemes: true}).segments.some(s => s.symbol === 'AO'));
+});
+
+test('live singing: key down sings the onset and holds the vowel, legato carries the coda, key up ends it', () => {
+  const sr = 48000;
+  const syl = lyricSyllables('lamp sing', lexicon);
+  assert.equal(syl.length, 2);
+  const on1 = planLiveOn(syl[0].phones, 60, SIGNATURE);
+  // No preamble: the articulators carry on from where they are (no instant jumps of the tongue or lips).
+  for (let i = 0; i < on1.events.length; i += 4) {
+    const name = PARAM_NAMES[on1.events[i + 1]];
+    if (['tongueX', 'tongueY', 'jaw', 'lipOpen', 'tipClose'].includes(name)) assert.ok(on1.events[i + 3] > 0, `${name} moves smoothly`);
+  }
+  const e = engine(sr, 4);
+  const play = (score: typeof on1, seconds: number) => {
+    e.loadScore(score);
+    e.play(false);
+    const out = new Float32Array(Math.round(seconds * sr));
+    for (let at = 0; at < out.length; at += 128) out.set(e.render(Math.min(128, out.length - at))[0], at);
+    return out;
+  };
+  const a = play(on1, 0.6);
+  const legato = play(planLiveOn(syl[1].phones, 64, SIGNATURE, {fromCoda: syl[0].phones.slice(2), legato: true}), 0.6);
+  const off = play(planLiveOff(syl[1].phones, SIGNATURE), 0.6);
+  const f0a = f0Of(a.subarray(0.35 * sr, 0.35 * sr + 9600), sr);
+  const f0b = f0Of(legato.subarray(0.4 * sr, 0.4 * sr + 9600), sr);
+  assert.ok(Math.abs(1200 * Math.log2(f0a / midiToHz(60))) < 30, `held vowel at C4 (${f0a.toFixed(1)} Hz)`);
+  assert.ok(Math.abs(1200 * Math.log2(f0b / midiToHz(64))) < 30, `legato note at E4 (${f0b.toFixed(1)} Hz)`);
+  let tail = 0;
+  for (let i = Math.round(0.45 * sr); i < off.length; i++) tail = Math.max(tail, Math.abs(off[i]));
+  assert.ok(tail < 0.01, 'silent after the key is released');
+  for (const x of [a, legato, off]) for (const v of x) assert.ok(Number.isFinite(v) && Math.abs(v) < 1, 'bounded');
 });
