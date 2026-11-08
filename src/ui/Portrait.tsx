@@ -286,6 +286,9 @@ export function Portrait({pose, cutaway, labels, speaking, onDrag, onDragEnd}: P
 
       <path d={HAIR_BACK} fill={S.ink} />
       {STRANDS.map((d, i) => <path key={i} d={d} fill="none" stroke={S.skin} strokeWidth="1" opacity="0.22" />)}
+      {/* Gloss on the back of the head and rim light on the flipped ends */}
+      <path d="M 196 108 C 160 126 134 156 122 194 L 128 192 L 130 200 L 135 190 L 139 197 L 143 186 C 154 158 174 134 200 118 L 194 118 L 196 110 Z" fill={S.skin} opacity="0.8" />
+      <path d="M 70 478 C 80 482 92 478 100 468 M 124 492 C 134 494 144 488 148 478 M 176 484 C 186 486 194 480 198 472" fill="none" stroke={S.skin} strokeWidth="1.6" strokeLinecap="round" opacity="0.7" />
       {/* Shoulders, neck and high collar */}
       <path d="M 70 530 C 92 500 160 486 246 484 L 356 480 C 420 486 462 506 480 530 Z" fill={S.ink} />
       <path d={NECK} fill={S.skin} />
