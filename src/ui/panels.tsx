@@ -144,9 +144,54 @@ interface SpeakProps {
   playing: boolean;
   position: number;
   ready: boolean;
+  onTry: (symbol: string) => void;
 }
 
-export function SpeakPanel({project, plan, onChange, onSpeak, onStop, playing, position, ready}: SpeakProps) {
+/** Consonants by place (columns) and manner (rows); each cell lists its phoneme symbols. */
+const PLACES = ['Bilabial', 'Labiodental', 'Dental', 'Alveolar', 'Postalveolar', 'Palatal', 'Velar', 'Uvular', 'Glottal'];
+const CHART: Array<[string, Array<string[]>]> = [
+  ['Stop', [['P', 'B'], [], [], ['T', 'D'], [], [], ['K', 'G'], [], ['Q']]],
+  ['Nasal', [['M'], [], [], ['N'], [], [], ['NG'], [], []]],
+  ['Trill', [['BR'], [], [], ['RR'], [], [], [], ['RU'], []]],
+  ['Tap', [[], [], [], ['DX'], [], [], [], [], []]],
+  ['Fricative', [[], ['F', 'V'], ['TH', 'DH'], ['S', 'Z'], ['SH', 'ZH'], [], [], [], ['HH']]],
+  ['Affricate', [[], [], [], [], ['CH', 'JH'], [], [], [], []]],
+  ['Approximant', [['W'], [], [], ['L'], ['R'], ['Y'], [], [], []]],
+  ['Ejective', [['PE'], [], [], ['TE'], [], [], ['KE'], [], []]],
+  ['Click', [['CB'], [], ['CD'], ['CA'], [], [], [], [], []]],
+];
+
+function ConsonantChart({current, onTry}: {current: string | null; onTry: (symbol: string) => void}) {
+  return (
+    <div className="hvl-group">
+      <div className="hvl-section-title"><h3>Consonants</h3><span>Click a sound to hear it between vowels</span></div>
+      <div className="hvl-chart" role="table" aria-label="Consonant chart: place by manner">
+        <div className="hvl-chart-row" role="row">
+          <span role="columnheader" />
+          {PLACES.map(p => <span key={p} role="columnheader" className="hvl-chart-head">{p}</span>)}
+        </div>
+        {CHART.map(([manner, cells]) => (
+          <div key={manner} className="hvl-chart-row" role="row">
+            <span role="rowheader" className="hvl-chart-head">{manner}</span>
+            {cells.map((symbols, k) => (
+              <span key={k} role="cell" className="hvl-chart-cell">
+                {symbols.map(s => (
+                  <button key={s} className={`hvl-ph ${current === s ? 'is-now' : ''}`} onClick={() => onTry(s)}
+                    style={{'--c': MANNER_COLORS[PHONEMES[s]?.manner ?? 'stop']} as React.CSSProperties}
+                    title={`${s} · ${PHONEMES[s]?.example ?? ''}`} aria-label={`${PHONEMES[s]?.ipa} as in ${PHONEMES[s]?.example}`}>
+                    {PHONEMES[s]?.ipa}
+                  </button>
+                ))}
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function SpeakPanel({project, plan, onChange, onSpeak, onStop, playing, position, ready, onTry}: SpeakProps) {
   const sp = project.speech;
   const current = playing ? plan?.segments.findIndex(s => position >= s.start && position < s.end) ?? -1 : -1;
   const byWord = useMemo(() => {
@@ -214,6 +259,7 @@ export function SpeakPanel({project, plan, onChange, onSpeak, onStop, playing, p
         {plan?.warnings.map(w => <div key={w} className="hvl-warning">{w}</div>)}
       </div>
       {plan && <GestureTimeline plan={plan} position={playing ? position : -1} />}
+      <ConsonantChart current={current >= 0 && plan ? plan.segments[current].symbol : null} onTry={onTry} />
       <p className="hvl-note" style={{margin: 0}}>
         English only: CMU dictionary words plus rule-based guesses for unknown words; ARPABET input for exact control. Speech is synthesized by the articulatory model and can sound robotic — intelligibility is still being improved.
       </p>

@@ -231,6 +231,12 @@ export default function VoiceLab({bridge}: Props) {
     const {score} = projectScore(source, lexicon, mode);
     audio.play(score, mode === 'sing' && source.song.loop);
   };
+  // Hear one consonant between two vowels ("ah-X-ah").
+  const trySound = async (symbol: string) => {
+    if (!lexicon || !(await ensureAudio())) return;
+    setHolding(false);
+    audio.play(planSpeech(`AA1 ${symbol} AA1`, lexicon, {voice: projectRef.current.voice, phonemes: true}).score);
+  };
   const stop = () => {
     audio.silence();
     setHolding(false);
@@ -533,6 +539,7 @@ export default function VoiceLab({bridge}: Props) {
             onLiveSing={on => { setLiveSing(on); restartLive(); if (!on) stop(); }}
             nextSyllable={syllables.length ? syllables[liveIndex % syllables.length].text : ''}
             onLiveRestart={restartLive}
+            onTry={symbol => void trySound(symbol)}
           />
         </main>
 
