@@ -28,7 +28,7 @@ Everything is synthesized locally by a Rust engine compiled to WebAssembly: a gl
   |---|---|
   | ![Sealed airway](docs/media/voice-lab-airway-sealed.png) | ![Nasal airway](docs/media/voice-lab-airway-nasal.png) |
 - **See it.** The cutaway shows the modeled mouth, tongue, throat and nasal path. The airway panel draws the area function the engine is using, the spectrum overlays the measured output on the modeled tract resonances (F1–F4), and the waveform and glottal-pulse panels show the output and the LF pulse. Panels are labeled *measured* or *model*.
-- **Record it.** A recording chain after the voice: microphone distance (close adds the proximity bass, far is thinner, duller and roomier), a three-band EQ, a compressor and drive. At the defaults it is bypassed and the voice is untouched.
+- **Record it.** A recording chain after the voice: microphone distance (close adds the proximity bass, far is thinner, duller and roomier), a three-band EQ, a compressor and drive. At neutral settings it is bypassed and the voice is untouched; the default voice uses a +3 dB lift at 1.6 kHz, fitted to real speakers.
 - **Keep it.** Projects save with each conversation. Voice presets save per plugin. Projects can be saved to and opened from a folder you grant, and WAV export (48 kHz stereo) uses the same engine.
 
 ## Ask Hermes

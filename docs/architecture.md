@@ -49,7 +49,7 @@ The seal and the alligator use the human airway, which now reaches 32 cm, with t
 - an RMS compressor (10 ms attack, 150 ms release, threshold −14 to −30 dB, ratio 1–8, make-up gain);
 - drive (unity-gain tanh, so quiet signals pass and peaks round off).
 
-Every stage is bypassed at its default, so default renders are bit-identical to the plain voice.
+Every stage is bypassed at its neutral setting (the engine's defaults), so those renders are bit-identical to the plain voice. The default character voice uses a +3 dB peak at 1.6 kHz: the source and tract are 3–4 dB weak in the 1–4 kHz presence region against real speakers, and this lift brought it 0.53 dB (MCD) closer to them without costing intelligibility.
 
 **Voice qualities.** Four controls change the larynx, not a filter:
 - **Falsetto** (`register`): only the thin edges of the folds vibrate. The pulse becomes smooth and symmetric with a smaller swing, and a posterior gap stays open, which adds aspiration. Measured on a held /ɑ/ at 220 Hz, H1−H2 rises from 3 to 15 dB, and the level drops about 8 dB.

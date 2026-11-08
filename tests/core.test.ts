@@ -486,7 +486,7 @@ test('recording chain: neutral by default; mic, EQ, compressor and drive do what
   const aa = VOWEL_PRESETS.find(v => v.label === 'AA')!.shape;
   const sr = 48000;
   const take = (patch: Record<string, number>) => {
-    const voice = {...SIGNATURE, pitch: 196, vibratoDepth: 0, humanize: 0, space: 0, ...patch};
+    const voice = {...SIGNATURE, pitch: 196, vibratoDepth: 0, humanize: 0, space: 0, eqMid: 0, ...patch};
     return renderScore(engine(sr, 9), planSustain(aa, voice, 1.4), voice)[0].subarray(0.5 * sr, 1.3 * sr);
   };
   const band = (x: Float32Array, lo: number, hi: number) => {

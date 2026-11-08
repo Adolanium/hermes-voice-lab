@@ -14,7 +14,9 @@ export const SIGNATURE: Patch = {
   pitch: 212, loudness: 0.72, tenseness: 0.4, breath: 0.15, vibratoDepth: 0.18, vibratoRate: 5.4,
   tractLength: 14.2, throat: 0.5, gain: 0.7, humanize: 0.45, space: 0.18,
   register: 0, fry: 0, growl: 0, twang: 0, pharynx: 1,
-  mic: 0.4, eqLow: 0, eqMid: 0, eqHigh: 0, comp: 0, drive: 0,
+  // A +3 dB lift at 1.6 kHz: against real speakers (TSP) it lowered the mel-cepstral distance by
+  // 0.53 dB; the voice itself is weak in the 1–4 kHz presence region.
+  mic: 0.4, eqLow: 0, eqMid: 3, eqHigh: 0, comp: 0, drive: 0,
 };
 
 export const VOICE_PRESETS: VoicePreset[] = [
