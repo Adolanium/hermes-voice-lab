@@ -631,8 +631,9 @@ function preamble(voice) {
   return ev;
 }
 function articulate(segments, voice) {
-  const ev = preamble(voice);
-  const at = (t, name, value, tau) => ev.push([Math.max(0, t), name, clampParam(name, value), tau]);
+  const tagged = [];
+  const at = (t, name, value, tau, seg = -1) => tagged.push({ t: Math.max(0, t), name, value: clampParam(name, value), tau, seg, order: tagged.length });
+  const holds = [];
   const vowelIdx = segments.map((s, i) => isVowel(s.symbol) ? i : -1).filter((i) => i >= 0);
   const nextVowel = (i) => segments[vowelIdx.find((v) => v > i) ?? -1];
   const prevVowel = (i) => segments[[...vowelIdx].reverse().find((v) => v < i) ?? -1];
@@ -655,16 +656,16 @@ function articulate(segments, voice) {
     if (isVowel(s.symbol)) {
       const target = vowelTarget({ symbol: s.symbol, stress: s.stress });
       if (ph.offglide) {
-        anchors.push({ time: s.start + 0.22 * dur, target });
-        anchors.push({ time: s.start + 0.8 * dur, target: { ...ph.offglide, rhotic: 0 } });
+        anchors.push({ time: s.start + 0.22 * dur, target, seg: i });
+        anchors.push({ time: s.start + 0.8 * dur, target: { ...ph.offglide, rhotic: 0 }, seg: i });
       } else {
-        anchors.push({ time: s.start + 0.38 * dur, target });
+        anchors.push({ time: s.start + 0.38 * dur, target, seg: i });
       }
       return;
     }
     if (s.symbol === "HH") {
       const v = nextVowel(i);
-      if (v) anchors.push({ time: s.start + 0.2 * dur, target: vowelTarget({ symbol: v.symbol, stress: v.stress }) });
+      if (v) anchors.push({ time: s.start + 0.2 * dur, target: vowelTarget({ symbol: v.symbol, stress: v.stress }), seg: i });
       return;
     }
     const t = ph.target;
@@ -672,7 +673,7 @@ function articulate(segments, voice) {
     for (const k of ["tongueX", "tongueY", "rhotic", "jaw"]) if (t[k] !== void 0) body[k] = t[k];
     if (Object.keys(body).length) {
       if (s.symbol === "R") body.jaw = 0.55;
-      anchors.push({ time: s.start + 0.5 * dur, target: body, tau: 22 });
+      anchors.push({ time: s.start + 0.5 * dur, target: body, tau: 22, seg: i });
     }
   });
   anchors.sort((a, b) => a.time - b.time);
@@ -681,7 +682,7 @@ function articulate(segments, voice) {
     const tau = a.tau ?? Math.min(48, Math.max(14, gap * 1e3 * 0.3));
     const start = Math.max(k ? anchors[k - 1].time : 0, a.time - LEAD_SCALE * tau / 1e3);
     for (const [name, value] of Object.entries(a.target)) {
-      if (["tongueX", "tongueY", "jaw", "throat", "rhotic", "lipOpen", "lipRound"].includes(name)) at(start, name, value, tau);
+      if (["tongueX", "tongueY", "jaw", "throat", "rhotic", "lipOpen", "lipRound"].includes(name)) at(start, name, value, tau, a.seg);
     }
   });
   segments.forEach((s, i) => {
@@ -697,46 +698,69 @@ function articulate(segments, voice) {
     const onset = s.start - (complete ? 4.2 : 3.5) * closeTau / 1e3;
     const releaseTau = ph.manner === "stop" ? 6 : ph.manner === "fricative" ? 14 : 12;
     const nextIsSame = (param) => next && next.symbol !== "SIL" && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== void 0;
-    if (t.tipPlace !== void 0) at(s.start - 0.07, "tipPlace", t.tipPlace, 18);
-    if (t.jaw !== void 0 && ph.manner !== "approximant") at(onset - 0.02, "jaw", t.jaw, 22);
-    if (t.lipRound !== void 0) at(onset - 0.03, "lipRound", t.lipRound, 25);
+    if (t.tipPlace !== void 0) at(s.start - 0.07, "tipPlace", t.tipPlace, 18, i);
+    if (t.jaw !== void 0 && ph.manner !== "approximant") at(onset - 0.02, "jaw", t.jaw, 22, i);
+    if (t.lipRound !== void 0) at(onset - 0.03, "lipRound", t.lipRound, 25, i);
     const closures = ["lipOpen", "tipClose", "dorsumClose"];
     for (const param of closures) {
       if (t[param] === void 0) continue;
-      if (param === "lipOpen" && ["R", "W"].includes(s.symbol)) continue;
-      at(onset, param, t[param], closeTau);
+      at(onset, param, t[param], closeTau, i);
+      holds.push({ seg: i, name: param, start: onset, end: s.end, tau: releaseTau });
       if (ph.manner === "affricate" && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
-        at(s.start + 0.55 * dur, "tipClose", r.tipClose, 6);
-        at(s.start + 0.45 * dur, "tipPlace", r.tipPlace, 10);
+        at(s.start + 0.55 * dur, "tipClose", r.tipClose, 6, i);
+        at(s.start + 0.45 * dur, "tipPlace", r.tipPlace, 10, i);
       }
       if (!nextIsSame(param)) {
         const rest = param === "lipOpen" ? vowelLips.lipOpen ?? 0.6 : 0;
-        at(s.end - (param === "lipOpen" ? 4e-3 : 2e-3), param, rest, releaseTau);
+        at(s.end - (param === "lipOpen" ? 4e-3 : 2e-3), param, rest, releaseTau, i);
       }
     }
     if (t.lateral) {
-      at(onset, "lateral", 1, 10);
-      at(s.end, "lateral", 0, 15);
+      at(onset, "lateral", 1, 10, i);
+      at(s.end, "lateral", 0, 15, i);
     }
     if (t.lipRound !== void 0 && (!next || isVowel(next.symbol) || next.symbol === "SIL")) {
-      at(s.end, "lipRound", vowelLips.lipRound ?? 0.1, 30);
+      at(s.end, "lipRound", vowelLips.lipRound ?? 0.1, 30, i);
     }
     if (t.velum) {
-      at(s.start - 0.06, "velum", 1, 22);
-      if (!(next && PHONEMES[next.symbol]?.target.velum)) at(s.end + 0.01, "velum", 0, 25);
+      at(s.start - 0.06, "velum", 1, 22, i);
+      if (!(next && PHONEMES[next.symbol]?.target.velum)) at(s.end + 0.01, "velum", 0, 25, i);
     }
     if (!ph.voiced) {
-      at(s.start - 0.012, "voicing", 0, 7);
+      at(s.start - 0.012, "voicing", 0, 7, i);
       const aspirated = ph.manner === "stop" && next && isVowel(next.symbol) && next.stress > 0;
       const vot = ph.manner === "stop" ? aspirated ? 0.05 : 0.018 : ph.manner === "affricate" ? 0.01 : 0;
       const following = next && next.symbol !== "SIL" && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
-      if (!following) at(s.end + vot, "voicing", 1, 8);
+      if (!following) at(s.end + vot, "voicing", 1, 8, i);
     } else if (ph.manner === "fricative" || ph.manner === "stop") {
-      at(s.start, "voicing", 0.85, 10);
-      at(s.end, "voicing", 1, 10);
+      at(s.start, "voicing", 0.85, 10, i);
+      at(s.end, "voicing", 1, 10, i);
     }
   });
+  return resolveGestures(tagged, holds, preamble(voice));
+}
+function resolveGestures(tagged, holds, ev) {
+  holds.sort((a, b) => a.start - b.start);
+  for (const e of tagged) {
+    if (e.seg < 0) continue;
+    for (const h of holds) {
+      if (h.name === e.name && h.seg < e.seg && e.t >= h.start && e.t < h.end) {
+        e.t = h.end;
+        e.tau = Math.min(e.tau, h.tau);
+      }
+    }
+  }
+  tagged.sort((a, b) => a.t - b.t || a.seg - b.seg || a.order - b.order);
+  const latest = /* @__PURE__ */ new Map();
+  for (const e of tagged) {
+    if (e.seg >= 0) {
+      const owner = latest.get(e.name) ?? -1;
+      if (e.seg < owner) continue;
+      latest.set(e.name, e.seg);
+    }
+    ev.push([e.t, e.name, e.value, e.tau]);
+  }
   ev.sort((a, b) => a[0] - b[0]);
   return ev;
 }

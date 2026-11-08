@@ -42,8 +42,15 @@ function preamble(voice: Patch): ScoreEvent[] {
 
 /** Articulatory events for a list of timed segments. */
 export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
-  const ev: ScoreEvent[] = preamble(voice);
-  const at = (t: number, name: ParamName, value: number, tau: number) => ev.push([Math.max(0, t), name, clampParam(name, value), tau]);
+  // Every gesture event remembers the segment that produced it (-1: global).
+  type Tagged = {t: number; name: ParamName; value: number; tau: number; seg: number; order: number};
+  const tagged: Tagged[] = [];
+  const at = (t: number, name: ParamName, value: number, tau: number, seg = -1) =>
+    tagged.push({t: Math.max(0, t), name, value: clampParam(name, value), tau, seg, order: tagged.length});
+  // Intervals during which a consonant owns an articulator (closure onset to
+  // release); later segments' movements of that articulator wait for the release.
+  type Hold = {seg: number; name: ParamName; start: number; end: number; tau: number};
+  const holds: Hold[] = [];
   const vowelIdx = segments.map((s, i) => (isVowel(s.symbol) ? i : -1)).filter(i => i >= 0);
   const nextVowel = (i: number) => segments[vowelIdx.find(v => v > i) ?? -1];
   const prevVowel = (i: number) => segments[[...vowelIdx].reverse().find(v => v < i) ?? -1];
@@ -62,7 +69,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
   });
 
   // Tongue-body anchors: vowels plus consonants that need the dorsum.
-  type Anchor = {time: number; target: Patch; tau?: number};
+  type Anchor = {time: number; target: Patch; tau?: number; seg: number};
   const anchors: Anchor[] = [];
   segments.forEach((s, i) => {
     if (s.symbol === 'SIL') return;
@@ -71,17 +78,17 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     if (isVowel(s.symbol)) {
       const target = vowelTarget({symbol: s.symbol, stress: s.stress});
       if (ph.offglide) {
-        anchors.push({time: s.start + 0.22 * dur, target});
-        anchors.push({time: s.start + 0.8 * dur, target: {...ph.offglide, rhotic: 0}});
+        anchors.push({time: s.start + 0.22 * dur, target, seg: i});
+        anchors.push({time: s.start + 0.8 * dur, target: {...ph.offglide, rhotic: 0}, seg: i});
       } else {
-        anchors.push({time: s.start + 0.38 * dur, target});
+        anchors.push({time: s.start + 0.38 * dur, target, seg: i});
       }
       return;
     }
     if (s.symbol === 'HH') {
       // /h/ takes the following vowel's shape (voiceless onset).
       const v = nextVowel(i);
-      if (v) anchors.push({time: s.start + 0.2 * dur, target: vowelTarget({symbol: v.symbol, stress: v.stress})});
+      if (v) anchors.push({time: s.start + 0.2 * dur, target: vowelTarget({symbol: v.symbol, stress: v.stress}), seg: i});
       return;
     }
     const t = ph.target;
@@ -89,7 +96,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     for (const k of ['tongueX', 'tongueY', 'rhotic', 'jaw'] as ParamName[]) if (t[k] !== undefined) body[k] = t[k];
     if (Object.keys(body).length) {
       if (s.symbol === 'R') body.jaw = 0.55;
-      anchors.push({time: s.start + 0.5 * dur, target: body, tau: 22});
+      anchors.push({time: s.start + 0.5 * dur, target: body, tau: 22, seg: i});
     }
   });
   anchors.sort((a, b) => a.time - b.time);
@@ -98,7 +105,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     const tau = a.tau ?? Math.min(48, Math.max(14, gap * 1000 * 0.3));
     const start = Math.max(k ? anchors[k - 1].time : 0, a.time - (LEAD_SCALE * tau) / 1000);
     for (const [name, value] of Object.entries(a.target)) {
-      if (['tongueX', 'tongueY', 'jaw', 'throat', 'rhotic', 'lipOpen', 'lipRound'].includes(name)) at(start, name as ParamName, value!, tau);
+      if (['tongueX', 'tongueY', 'jaw', 'throat', 'rhotic', 'lipOpen', 'lipRound'].includes(name)) at(start, name as ParamName, value!, tau, a.seg);
     }
   });
 
@@ -121,50 +128,85 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     const nextIsSame = (param: ParamName) => next && next.symbol !== 'SIL' && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== undefined;
 
     // Position the tip before it closes.
-    if (t.tipPlace !== undefined) at(s.start - 0.07, 'tipPlace', t.tipPlace, 18);
-    if (t.jaw !== undefined && ph.manner !== 'approximant') at(onset - 0.02, 'jaw', t.jaw, 22);
-    if (t.lipRound !== undefined) at(onset - 0.03, 'lipRound', t.lipRound, 25);
+    if (t.tipPlace !== undefined) at(s.start - 0.07, 'tipPlace', t.tipPlace, 18, i);
+    if (t.jaw !== undefined && ph.manner !== 'approximant') at(onset - 0.02, 'jaw', t.jaw, 22, i);
+    if (t.lipRound !== undefined) at(onset - 0.03, 'lipRound', t.lipRound, 25, i);
 
     const closures: ParamName[] = ['lipOpen', 'tipClose', 'dorsumClose'];
     for (const param of closures) {
       if (t[param] === undefined) continue;
-      if (param === 'lipOpen' && ['R', 'W'].includes(s.symbol)) continue; // handled by anchors
-      at(onset, param, t[param]!, closeTau);
+      at(onset, param, t[param]!, closeTau, i);
+      holds.push({seg: i, name: param, start: onset, end: s.end, tau: releaseTau});
       if (ph.manner === 'affricate' && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
-        at(s.start + 0.55 * dur, 'tipClose', r.tipClose!, 6);
-        at(s.start + 0.45 * dur, 'tipPlace', r.tipPlace!, 10);
+        at(s.start + 0.55 * dur, 'tipClose', r.tipClose!, 6, i);
+        at(s.start + 0.45 * dur, 'tipPlace', r.tipPlace!, 10, i);
       }
       if (!nextIsSame(param)) {
         const rest = param === 'lipOpen' ? vowelLips.lipOpen ?? 0.6 : 0;
-        at(s.end - (param === 'lipOpen' ? 0.004 : 0.002), param, rest, releaseTau);
+        at(s.end - (param === 'lipOpen' ? 0.004 : 0.002), param, rest, releaseTau, i);
       }
     }
     if (t.lateral) {
-      at(onset, 'lateral', 1, 10);
-      at(s.end, 'lateral', 0, 15);
+      at(onset, 'lateral', 1, 10, i);
+      at(s.end, 'lateral', 0, 15, i);
     }
     if (t.lipRound !== undefined && (!next || isVowel(next.symbol) || next.symbol === 'SIL')) {
-      at(s.end, 'lipRound', vowelLips.lipRound ?? 0.1, 30);
+      at(s.end, 'lipRound', vowelLips.lipRound ?? 0.1, 30, i);
     }
     // Velum: anticipatory lowering, raise after.
     if (t.velum) {
-      at(s.start - 0.06, 'velum', 1, 22);
-      if (!(next && PHONEMES[next.symbol]?.target.velum)) at(s.end + 0.01, 'velum', 0, 25);
+      at(s.start - 0.06, 'velum', 1, 22, i);
+      if (!(next && PHONEMES[next.symbol]?.target.velum)) at(s.end + 0.01, 'velum', 0, 25, i);
     }
     // Glottis.
     if (!ph.voiced) {
-      at(s.start - 0.012, 'voicing', 0, 7);
+      at(s.start - 0.012, 'voicing', 0, 7, i);
       const aspirated = ph.manner === 'stop' && next && isVowel(next.symbol) && next.stress > 0;
       const vot = ph.manner === 'stop' ? (aspirated ? 0.05 : 0.018) : ph.manner === 'affricate' ? 0.01 : 0.0;
       const following = next && next.symbol !== 'SIL' && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
-      if (!following) at(s.end + vot, 'voicing', 1, 8);
+      if (!following) at(s.end + vot, 'voicing', 1, 8, i);
     } else if (ph.manner === 'fricative' || ph.manner === 'stop') {
       // Voiced obstruents: slightly breathy to sustain voicing behind the closure.
-      at(s.start, 'voicing', 0.85, 10);
-      at(s.end, 'voicing', 1, 10);
+      at(s.start, 'voicing', 0.85, 10, i);
+      at(s.end, 'voicing', 1, 10, i);
     }
   });
+  return resolveGestures(tagged, holds, preamble(voice));
+}
+
+/**
+ * Turn segment-tagged events into a score. Movements of an articulator that a
+ * consonant holds closed wait for its release (and then move at release
+ * speed), and once a later segment has started moving an articulator, events
+ * from earlier segments for it (e.g. a restore after a voiced fricative) are
+ * dropped, so later gestures are never undone by earlier ones.
+ */
+function resolveGestures(
+  tagged: Array<{t: number; name: ParamName; value: number; tau: number; seg: number; order: number}>,
+  holds: Array<{seg: number; name: ParamName; start: number; end: number; tau: number}>,
+  ev: ScoreEvent[],
+): ScoreEvent[] {
+  holds.sort((a, b) => a.start - b.start);
+  for (const e of tagged) {
+    if (e.seg < 0) continue;
+    for (const h of holds) {
+      if (h.name === e.name && h.seg < e.seg && e.t >= h.start && e.t < h.end) {
+        e.t = h.end;
+        e.tau = Math.min(e.tau, h.tau);
+      }
+    }
+  }
+  tagged.sort((a, b) => a.t - b.t || a.seg - b.seg || a.order - b.order);
+  const latest = new Map<ParamName, number>();
+  for (const e of tagged) {
+    if (e.seg >= 0) {
+      const owner = latest.get(e.name) ?? -1;
+      if (e.seg < owner) continue;
+      latest.set(e.name, e.seg);
+    }
+    ev.push([e.t, e.name, e.value, e.tau]);
+  }
   ev.sort((a, b) => a[0] - b[0]);
   return ev;
 }
