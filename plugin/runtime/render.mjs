@@ -1198,12 +1198,7 @@ function lyricSyllables(lyrics, lexicon2) {
 }
 var BREATH = 0.13;
 function singingVoice(voice) {
-  return {
-    ...voice,
-    tenseness: clampParam("tenseness", Math.max(voice.tenseness, Math.min(0.6, voice.tenseness + 0.25))),
-    breath: clampParam("breath", voice.breath * 0.45),
-    loudness: clampParam("loudness", voice.loudness + 0.1)
-  };
+  return { ...voice, loudness: clampParam("loudness", voice.loudness + 0.1) };
 }
 function sungConsonant(p, cluster) {
   return Math.min(0.1, PHONEMES[p.symbol].duration / 1e3 * (cluster ? 0.7 : 0.85));

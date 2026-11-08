@@ -524,16 +524,12 @@ export interface SongPlan extends Plan {
 const BREATH = 0.13;
 
 /**
- * Singers use a firmer, louder, less breathy voice than speakers: more tension
- * and effort, half the breath, relative to the chosen voice. Words carry better.
+ * Singers use a little more effort than speakers. (A firmer, less breathy sung voice helped
+ * Whisper slightly but moved the voice away from a real singer: against the Children's Song
+ * Dataset, dropping it lowered the note mel-cepstral distance by 1.5 dB.)
  */
 function singingVoice(voice: Patch & ReturnType<typeof defaultPatch>) {
-  return {
-    ...voice,
-    tenseness: clampParam('tenseness', Math.max(voice.tenseness, Math.min(0.6, voice.tenseness + 0.25))),
-    breath: clampParam('breath', voice.breath * 0.45),
-    loudness: clampParam('loudness', voice.loudness + 0.1),
-  };
+  return {...voice, loudness: clampParam('loudness', voice.loudness + 0.1)};
 }
 
 /** A sung consonant's length (s): its spoken length, a little shorter in clusters, capped. */
