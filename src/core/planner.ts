@@ -49,7 +49,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     tagged.push({t: Math.max(0, t), name, value: clampParam(name, value), tau, seg, order: tagged.length});
   // Intervals during which a consonant owns an articulator (closure onset to
   // release); later segments' movements of that articulator wait for the release.
-  type Hold = {seg: number; name: ParamName; start: number; end: number; tau: number};
+  type Hold = {seg: number; name: ParamName; start: number; end: number; tau: number; value: number};
   const holds: Hold[] = [];
   const vowelIdx = segments.map((s, i) => (isVowel(s.symbol) ? i : -1)).filter(i => i >= 0);
   const nextVowel = (i: number) => segments[vowelIdx.find(v => v > i) ?? -1];
@@ -145,7 +145,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       const stopped = s.symbol === 'DH' && param === 'tipClose' && (phraseInitial || ['stop', 'nasal'].includes(PHONEMES[prevSeg.symbol]?.manner));
       at(onset, param, stopped ? 1 : t[param]!, closeTau, i);
       if (stopped) at(s.start + 0.45 * dur, param, t[param]!, 6, i);
-      holds.push({seg: i, name: param, start: onset, end: s.end, tau: releaseTau});
+      holds.push({seg: i, name: param, start: onset, end: s.end, tau: releaseTau, value: t[param]!});
       if (ph.manner === 'affricate' && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
         at(s.start + 0.55 * dur, 'tipClose', r.tipClose!, 6, i);
@@ -182,6 +182,12 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       const vot = ph.manner === 'stop' ? (aspirated ? 0.055 : 0.015) : ph.manner === 'affricate' ? 0.02 : 0.0;
       const following = next && next.symbol !== 'SIL' && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
       if (!following) at(s.end + Math.max(0, vot - 0.012), 'voicing', 1, 8, i);
+    } else if (phraseInitial && (ph.manner === 'stop' || ph.manner === 'affricate')) {
+      // Utterance-initial /b d g/ in English are short-lag, not prevoiced:
+      // the folds are apart but not vibrating during the closure; voicing
+      // starts just after the release.
+      at(onset, 'voicing', 0.15, 10, i);
+      at(s.end - 0.006, 'voicing', 1, 6, i);
     } else if (ph.manner === 'fricative' || ph.manner === 'stop' || ph.manner === 'affricate') {
       // Voiced obstruents: the glottis opens partly, keeping the folds
       // vibrating while feeding enough flow for frication / pressure build-up.
@@ -201,14 +207,17 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
  */
 function resolveGestures(
   tagged: Array<{t: number; name: ParamName; value: number; tau: number; seg: number; order: number}>,
-  holds: Array<{seg: number; name: ParamName; start: number; end: number; tau: number}>,
+  holds: Array<{seg: number; name: ParamName; start: number; end: number; tau: number; value: number}>,
   ev: ScoreEvent[],
 ): ScoreEvent[] {
   holds.sort((a, b) => a.start - b.start);
   for (const e of tagged) {
     if (e.seg < 0) continue;
     for (const h of holds) {
-      if (h.name === e.name && h.seg < e.seg && e.t >= h.start && e.t < h.end) {
+      // Only movements that would open the constriction wait; a following
+      // consonant may tighten it further (overlapping gestures).
+      const opens = h.name === 'lipOpen' ? e.value > h.value : e.value < h.value;
+      if (h.name === e.name && h.seg < e.seg && opens && e.t >= h.start && e.t < h.end) {
         e.t = h.end;
         e.tau = Math.min(e.tau, h.tau);
       }
@@ -245,6 +254,9 @@ export interface Plan {
   warnings: string[];
 }
 
+/** Inherent durations are scaled to a ~160 words/minute reading rate at rate 1. */
+const TEMPO = 1.25;
+
 function durationOf(seg: Phone, prev: Phone | undefined, next: Phone | undefined, final: boolean, rate: number): number {
   const ph = PHONEMES[seg.symbol];
   let d = ph.duration;
@@ -258,7 +270,7 @@ function durationOf(seg: Phone, prev: Phone | undefined, next: Phone | undefined
     if (cluster) d *= 0.8;
     if (final) d *= 1.15;
   }
-  return d / 1000 / rate;
+  return (TEMPO * d) / 1000 / rate;
 }
 
 /** Plan speech from words. */

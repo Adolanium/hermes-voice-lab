@@ -710,7 +710,7 @@ function articulate(segments, voice) {
       const stopped = s.symbol === "DH" && param === "tipClose" && (phraseInitial || ["stop", "nasal"].includes(PHONEMES[prevSeg.symbol]?.manner));
       at(onset, param, stopped ? 1 : t[param], closeTau, i);
       if (stopped) at(s.start + 0.45 * dur, param, t[param], 6, i);
-      holds.push({ seg: i, name: param, start: onset, end: s.end, tau: releaseTau });
+      holds.push({ seg: i, name: param, start: onset, end: s.end, tau: releaseTau, value: t[param] });
       if (ph.manner === "affricate" && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
         at(s.start + 0.55 * dur, "tipClose", r.tipClose, 6, i);
@@ -740,6 +740,9 @@ function articulate(segments, voice) {
       const vot = ph.manner === "stop" ? aspirated ? 0.055 : 0.015 : ph.manner === "affricate" ? 0.02 : 0;
       const following = next && next.symbol !== "SIL" && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
       if (!following) at(s.end + Math.max(0, vot - 0.012), "voicing", 1, 8, i);
+    } else if (phraseInitial && (ph.manner === "stop" || ph.manner === "affricate")) {
+      at(onset, "voicing", 0.15, 10, i);
+      at(s.end - 6e-3, "voicing", 1, 6, i);
     } else if (ph.manner === "fricative" || ph.manner === "stop" || ph.manner === "affricate") {
       at(s.start - 0.01, "voicing", ph.manner === "stop" ? 0.85 : 0.66, 10, i);
       at(s.end, "voicing", 1, 10, i);
@@ -752,7 +755,8 @@ function resolveGestures(tagged, holds, ev) {
   for (const e of tagged) {
     if (e.seg < 0) continue;
     for (const h of holds) {
-      if (h.name === e.name && h.seg < e.seg && e.t >= h.start && e.t < h.end) {
+      const opens = h.name === "lipOpen" ? e.value > h.value : e.value < h.value;
+      if (h.name === e.name && h.seg < e.seg && opens && e.t >= h.start && e.t < h.end) {
         e.t = h.end;
         e.tau = Math.min(e.tau, h.tau);
       }
@@ -771,6 +775,7 @@ function resolveGestures(tagged, holds, ev) {
   ev.sort((a, b) => a[0] - b[0]);
   return ev;
 }
+var TEMPO = 1.25;
 function durationOf(seg, prev, next, final, rate2) {
   const ph = PHONEMES[seg.symbol];
   let d = ph.duration;
@@ -784,7 +789,7 @@ function durationOf(seg, prev, next, final, rate2) {
     if (cluster) d *= 0.8;
     if (final) d *= 1.15;
   }
-  return d / 1e3 / rate2;
+  return TEMPO * d / 1e3 / rate2;
 }
 function planWords(words, opts = {}) {
   const rate2 = Math.min(2.5, Math.max(0.4, opts.rate ?? 1));

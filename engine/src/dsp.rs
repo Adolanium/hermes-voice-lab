@@ -167,7 +167,7 @@ impl Room {
     pub fn new(rate: f32) -> Self {
         let ms = [31.7f32, 37.3, 41.9, 47.1];
         let len = |m: f32| ((m * 0.001 * rate) as usize).max(8);
-        let rt60 = 1.25f32;
+        let rt60 = 0.7f32;
         let mean = ms.iter().sum::<f32>() / 4.0 * 0.001;
         Self {
             lines: [vec![0.0; len(ms[0])], vec![0.0; len(ms[1])], vec![0.0; len(ms[2])], vec![0.0; len(ms[3])]],
