@@ -1106,7 +1106,9 @@ function planWords(words, opts = {}) {
   events.sort((a, b) => a[0] - b[0]);
   return { score: compileScore(events, t + 0.1), segments, words, warnings: [] };
 }
-function intonation(segments, base, expression) {
+var INTONATION_SCALE = 2.6;
+function intonation(segments, base, expressionSetting) {
+  const expression = expressionSetting * INTONATION_SCALE;
   const ev = [];
   const st = (semitones) => base * 2 ** (semitones / 12);
   let phraseStart = 0;
@@ -1741,6 +1743,11 @@ if (args.has("voice")) {
   project = { ...project, voice: { ...project.voice, ...preset.voice } };
 }
 if (args.has("patch")) project = { ...project, voice: { ...project.voice, ...validatePatch(JSON.parse(args.get("patch")), "patch") } };
+if (args.has("expression")) {
+  const expression = Number(args.get("expression"));
+  if (!(expression >= 0 && expression <= 1)) fail("expression must be 0\u20131");
+  project = { ...project, speech: { ...project.speech, expression } };
+}
 if (args.has("speed")) {
   const speed = Number(args.get("speed"));
   if (!(speed >= 0.4 && speed <= 2.5)) fail("speed must be 0.4\u20132.5");

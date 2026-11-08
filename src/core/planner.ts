@@ -364,8 +364,16 @@ export function planWords(words: Word[], opts: SpeechOptions = {}): Plan {
   return {score: compileScore(events, t + 0.1), segments, words, warnings: []};
 }
 
+/**
+ * How far the intonation moves at a given expression, fitted to real speakers (TSP, adult
+ * female): at ×1 our pitch range was 5.1 semitones narrower than theirs; ×2.6 matches it
+ * (+0.4 st) and moves our speech closer to theirs (MCD −0.61 dB) and to Whisper (WER 38.9 → 33.2%).
+ */
+const INTONATION_SCALE = 2.6;
+
 /** Statement declination with accents on stressed syllables; questions rise. */
-function intonation(segments: Segment[], base: number, expression: number): ScoreEvent[] {
+function intonation(segments: Segment[], base: number, expressionSetting: number): ScoreEvent[] {
+  const expression = expressionSetting * INTONATION_SCALE;
   const ev: ScoreEvent[] = [];
   const st = (semitones: number) => base * 2 ** (semitones / 12);
   let phraseStart = 0;

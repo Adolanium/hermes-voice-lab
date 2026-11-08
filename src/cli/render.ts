@@ -36,6 +36,11 @@ if (args.has('voice')) {
   project = {...project, voice: {...project.voice, ...preset.voice}};
 }
 if (args.has('patch')) project = {...project, voice: {...project.voice, ...validatePatch(JSON.parse(args.get('patch')!), 'patch')}};
+if (args.has('expression')) {
+  const expression = Number(args.get('expression'));
+  if (!(expression >= 0 && expression <= 1)) fail('expression must be 0–1');
+  project = {...project, speech: {...project.speech, expression}};
+}
 if (args.has('speed')) {
   const speed = Number(args.get('speed'));
   if (!(speed >= 0.4 && speed <= 2.5)) fail('speed must be 0.4–2.5');
