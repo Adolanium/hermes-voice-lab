@@ -70,7 +70,7 @@ npm ci
 rustup target add wasm32-unknown-unknown    # Rust 1.98, pinned in rust-toolchain.toml
 node scripts/build-engine.mjs              # engine → plugin/runtime/voice_lab_engine.wasm
 npm run build                              # plugin/runtime/render.mjs + plugin/desktop/plugin.js
-npm test && npm run test:engine && npm run typecheck
+npm test && npm run test:engine && npm run typecheck   # BLESS=1 npm test re-blesses the golden renders after a deliberate sound change
 npm run package                            # release/hermes-voice-lab-<ver>.tar.gz (optional)
 HERMES_HOME=/path/to/test-home node scripts/install-dev.mjs   # copy plugin/ into a test profile
 ```

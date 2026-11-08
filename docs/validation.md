@@ -4,6 +4,8 @@ Tested on 2026-11-08 on macOS 27.2 (arm64). Hermes Desktop was the official app 
 
 ## Automated
 
+Golden tests (`tests/golden.test.ts`) fingerprint fixed renders and plans with SHA-256: speech, a song, a beat, the clicks, ejectives and trills, the voice qualities, a body and the recording chain. Any change to the sound or the plans fails them on purpose. A deliberate change is re-blessed with `BLESS=1 npm test`, and the commit says what changed and why.
+
 | Suite | Command | Result |
 |---|---|---|
 | Rust engine (14 tests) | `npm run test:engine` | pass |
