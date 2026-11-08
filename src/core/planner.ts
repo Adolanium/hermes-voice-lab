@@ -125,7 +125,10 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     // Closures aim past contact (engine: contact at 92%); a critically damped
     // move reaches 92% after ~4.2 time constants, so start that early to
     // have the seal complete at segment start. Fricatives need ~3.5 tau to settle.
-    const onset = s.start - ((complete ? 4.2 : 3.5) * closeTau) / 1000;
+    // After a pause the articulators are already in place when the breath starts.
+    const prevSeg = segments[i - 1];
+    const phraseInitial = !prevSeg || prevSeg.symbol === 'SIL';
+    const onset = phraseInitial ? Math.max(prevSeg?.start ?? 0, s.start - 0.1) : s.start - ((complete ? 4.2 : 3.5) * closeTau) / 1000;
     const releaseTau = ph.manner === 'stop' ? 6 : ph.manner === 'fricative' ? 14 : 12;
     const nextIsSame = (param: ParamName) => next && next.symbol !== 'SIL' && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== undefined;
 
@@ -137,7 +140,11 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     const closures: ParamName[] = ['lipOpen', 'tipClose', 'dorsumClose'];
     for (const param of closures) {
       if (t[param] === undefined) continue;
-      at(onset, param, t[param]!, closeTau, i);
+      // /ð/ after a pause or a stop/nasal is usually a brief dental stop
+      // released into the fricative ("the" → [d̪ə]).
+      const stopped = s.symbol === 'DH' && param === 'tipClose' && (phraseInitial || ['stop', 'nasal'].includes(PHONEMES[prevSeg.symbol]?.manner));
+      at(onset, param, stopped ? 1 : t[param]!, closeTau, i);
+      if (stopped) at(s.start + 0.45 * dur, param, t[param]!, 6, i);
       holds.push({seg: i, name: param, start: onset, end: s.end, tau: releaseTau});
       if (ph.manner === 'affricate' && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
@@ -168,7 +175,6 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       // constriction is reached.
       const closing = ph.manner === 'stop' || ph.manner === 'affricate';
       at(closing ? s.start : s.start - 0.012, 'voicing', 0, 7, i);
-      const prevSeg = segments[i - 1];
       const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === 'S';
       const aspirated = ph.manner === 'stop' && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === 'SIL' || ['R', 'L', 'W', 'Y'].includes(next.symbol));
       // Voice onset time after release; adduction takes ~12 ms to reach the

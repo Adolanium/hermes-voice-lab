@@ -696,7 +696,9 @@ function articulate(segments, voice) {
     const vowelLips = nv ? vowelTarget({ symbol: nv.symbol, stress: nv.stress }) : SCHWA;
     const complete = ph.manner === "stop" || ph.manner === "nasal" || ph.manner === "affricate";
     const closeTau = s.symbol === "DX" ? 4 : complete ? 9 : 14;
-    const onset = s.start - (complete ? 4.2 : 3.5) * closeTau / 1e3;
+    const prevSeg = segments[i - 1];
+    const phraseInitial = !prevSeg || prevSeg.symbol === "SIL";
+    const onset = phraseInitial ? Math.max(prevSeg?.start ?? 0, s.start - 0.1) : s.start - (complete ? 4.2 : 3.5) * closeTau / 1e3;
     const releaseTau = ph.manner === "stop" ? 6 : ph.manner === "fricative" ? 14 : 12;
     const nextIsSame = (param) => next && next.symbol !== "SIL" && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== void 0;
     if (t.tipPlace !== void 0) at(s.start - 0.07, "tipPlace", t.tipPlace, 18, i);
@@ -705,7 +707,9 @@ function articulate(segments, voice) {
     const closures = ["lipOpen", "tipClose", "dorsumClose"];
     for (const param of closures) {
       if (t[param] === void 0) continue;
-      at(onset, param, t[param], closeTau, i);
+      const stopped = s.symbol === "DH" && param === "tipClose" && (phraseInitial || ["stop", "nasal"].includes(PHONEMES[prevSeg.symbol]?.manner));
+      at(onset, param, stopped ? 1 : t[param], closeTau, i);
+      if (stopped) at(s.start + 0.45 * dur, param, t[param], 6, i);
       holds.push({ seg: i, name: param, start: onset, end: s.end, tau: releaseTau });
       if (ph.manner === "affricate" && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
@@ -731,7 +735,6 @@ function articulate(segments, voice) {
     if (!ph.voiced) {
       const closing = ph.manner === "stop" || ph.manner === "affricate";
       at(closing ? s.start : s.start - 0.012, "voicing", 0, 7, i);
-      const prevSeg = segments[i - 1];
       const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === "S";
       const aspirated = ph.manner === "stop" && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === "SIL" || ["R", "L", "W", "Y"].includes(next.symbol));
       const vot = ph.manner === "stop" ? aspirated ? 0.055 : 0.015 : ph.manner === "affricate" ? 0.02 : 0;
