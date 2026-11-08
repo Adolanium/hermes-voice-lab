@@ -59,7 +59,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
   let inPhrase = false;
   segments.forEach((s, i) => {
     if (s.symbol === 'SIL') {
-      if (inPhrase) at(s.start, 'gate', 0, 35);
+      if (inPhrase) at(s.start, 'gate', 0, 20);
       inPhrase = false;
     } else if (!inPhrase) {
       at(s.start - 0.03, 'gate', 1, 10);
@@ -119,7 +119,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     const nv = nextVowel(i) ?? prevVowel(i);
     const vowelLips = nv ? vowelTarget({symbol: nv.symbol, stress: nv.stress}) : SCHWA;
     const complete = ph.manner === 'stop' || ph.manner === 'nasal' || ph.manner === 'affricate';
-    const closeTau = complete ? 9 : 14;
+    const closeTau = s.symbol === 'DX' ? 4 : complete ? 9 : 14;
     // Closures aim past contact (engine: contact at 92%); a critically damped
     // move reaches 92% after ~4.2 time constants, so start that early to
     // have the seal complete at segment start. Fricatives need ~3.5 tau to settle.
@@ -161,14 +161,23 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     }
     // Glottis.
     if (!ph.voiced) {
-      at(s.start - 0.012, 'voicing', 0, 7, i);
-      const aspirated = ph.manner === 'stop' && next && isVowel(next.symbol) && next.stress > 0;
-      const vot = ph.manner === 'stop' ? (aspirated ? 0.05 : 0.018) : ph.manner === 'affricate' ? 0.01 : 0.0;
+      // Stops and affricates abduct once the seal is complete (an open glottis
+      // behind a narrowing tip would hiss); fricatives slightly before the
+      // constriction is reached.
+      const closing = ph.manner === 'stop' || ph.manner === 'affricate';
+      at(closing ? s.start : s.start - 0.012, 'voicing', 0, 7, i);
+      const prevSeg = segments[i - 1];
+      const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === 'S';
+      const aspirated = ph.manner === 'stop' && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === 'SIL' || ['R', 'L', 'W', 'Y'].includes(next.symbol));
+      // Voice onset time after release; adduction takes ~12 ms to reach the
+      // point where the folds start to vibrate, so the command leads it.
+      const vot = ph.manner === 'stop' ? (aspirated ? 0.055 : 0.015) : ph.manner === 'affricate' ? 0.02 : 0.0;
       const following = next && next.symbol !== 'SIL' && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
-      if (!following) at(s.end + vot, 'voicing', 1, 8, i);
-    } else if (ph.manner === 'fricative' || ph.manner === 'stop') {
-      // Voiced obstruents: slightly breathy to sustain voicing behind the closure.
-      at(s.start, 'voicing', 0.85, 10, i);
+      if (!following) at(s.end + Math.max(0, vot - 0.012), 'voicing', 1, 8, i);
+    } else if (ph.manner === 'fricative' || ph.manner === 'stop' || ph.manner === 'affricate') {
+      // Voiced obstruents: the glottis opens partly, keeping the folds
+      // vibrating while feeding enough flow for frication / pressure build-up.
+      at(s.start - 0.01, 'voicing', ph.manner === 'stop' ? 0.85 : 0.66, 10, i);
       at(s.end, 'voicing', 1, 10, i);
     }
   });
@@ -257,6 +266,14 @@ export function planWords(words: Word[], opts: SpeechOptions = {}): Plan {
     const lastSyll = syll[syll.length - 1];
     w.phones.forEach((p, pi) => {
       const final = w.boundary !== 'word' && lastSyll.includes(p);
+      const prev = pi > 0 ? w.phones[pi - 1] : wi > 0 && words[wi - 1].boundary === 'word' ? words[wi - 1].phones.at(-1) : undefined;
+      const crossWord = pi === w.phones.length - 1;
+      const next = !crossWord ? w.phones[pi + 1] : w.boundary === 'word' ? words[wi + 1]?.phones[0] : undefined;
+      // American English flapping: T/D between a vowel and an unstressed vowel
+      // ("water"), or word-finally before a vowel-initial word ("meet at").
+      if ((p.symbol === 'T' || p.symbol === 'D') && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
+        p = {symbol: 'DX', stress: 0};
+      }
       const d = durationOf(p, w.phones[pi - 1], w.phones[pi + 1], final, rate);
       segments.push({symbol: p.symbol, stress: p.stress, start: t, end: t + d, word: wi});
       t += d;
