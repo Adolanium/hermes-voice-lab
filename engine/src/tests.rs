@@ -33,7 +33,15 @@ fn estimate_f0(x: &[f32], rate: f32) -> f32 {
             best = (lag, c);
         }
     }
-    let l = best.0;
+    // The +0.02 rule above may stop just short of a broad peak; climb to the
+    // local maximum before interpolating.
+    let mut l = best.0;
+    while l + 1 < hi && corr(l + 1) > corr(l) {
+        l += 1;
+    }
+    while l > lo && corr(l - 1) > corr(l) {
+        l -= 1;
+    }
     let (a, b, c) = (corr(l - 1), corr(l), corr(l + 1));
     let offset = 0.5 * (a - c) / (a - 2.0 * b + c);
     rate / (l as f32 + offset)

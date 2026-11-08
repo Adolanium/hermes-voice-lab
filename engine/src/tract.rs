@@ -53,6 +53,14 @@ fn neutral(u: f32, throat: f32, jaw: f32) -> f32 {
     lerp(a, oral, smoothstep(0.56, 0.68, u))
 }
 
+/// Tongue-body constriction location (fraction of tract from glottis) and
+/// area (cm²) at the corners: back-low, front-low, back-high, front-high.
+const TONGUE: [f32; 8] = [0.27, 0.55, 0.63, 0.745, 0.26, 1.25, 0.5, 0.42];
+
+/// Tongue-body profile: posterior/anterior flank widths (base, front-high
+/// increment), pharynx widening for front-high and oral widening for back-low.
+const TONGUE_SHAPE: [f32; 6] = [0.1, 0.13, 0.085, 0.02, 1.1, 1.5];
+
 /// Rhotic constriction depths, widths and positions (pharyngeal, palatal).
 const RHO: [f32; 6] = [0.75, 0.92, 0.08, 0.07, 0.22, 0.63];
 
@@ -86,15 +94,17 @@ pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
     // Tongue-body constriction location and area at the vowel-space corners:
     // front-high (palatal), back-high (velar), back-low (pharyngeal),
     // front-low (weak, mid-tract).
-    let loc = lerp(lerp(0.27, 0.55, tx), lerp(0.63, 0.745, tx), ty);
-    let ln_area = lerp(lerp(0.26f32.ln(), 1.25f32.ln(), tx), lerp(0.5f32.ln(), 0.42f32.ln(), tx), ty);
+    let [l_bl, l_fl, l_bh, l_fh, a_bl, a_fl, a_bh, a_fh] = TONGUE;
+    let loc = lerp(lerp(l_bl, l_fl, tx), lerp(l_bh, l_fh, tx), ty);
+    let ln_area = lerp(lerp(a_bl.ln(), a_fl.ln(), tx), lerp(a_bh.ln(), a_fh.ln(), tx), ty);
     let constriction = ln_area.exp() * (0.85 + 0.3 * jaw);
     // The tongue dorsum rises steeply from the pharynx and runs along the
     // palate for front vowels, so the posterior flank is longer.
-    let width_back = 0.1 + 0.13 * tx * ty;
-    let width_front = 0.085 + 0.02 * tx * ty;
-    let pharynx_gain = 1.0 + 1.1 * tx * ty.powf(0.7);
-    let oral_gain = 1.0 + 1.5 * (1.0 - tx) * (1.0 - ty);
+    let [wb0, wb1, wf0, wf1, ph_k, or_k] = TONGUE_SHAPE;
+    let width_back = wb0 + wb1 * tx * ty;
+    let width_front = wf0 + wf1 * tx * ty;
+    let pharynx_gain = 1.0 + ph_k * tx * ty.powf(0.7);
+    let oral_gain = 1.0 + or_k * (1.0 - tx) * (1.0 - ty);
     let rhotic = p[RHOTIC];
 
     // Tip place: 0 at the upper incisors, ~0.4 alveolar ridge (1 cm behind),

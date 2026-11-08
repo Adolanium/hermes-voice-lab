@@ -350,7 +350,7 @@ impl Voice {
         self.wall_coeff = 1.0 - (-2.0 * std::f32::consts::PI * 350.0 / self.int_rate).exp();
 
         // Voice quality: tenseness and effort lower Rd (brighter, firmer).
-        let rd = 2.2 - 2.0 * p[TENSENESS] - 0.4 * (p[LOUDNESS] - 0.6);
+        let rd = 1.8 - 2.0 * p[TENSENESS] - 0.4 * (p[LOUDNESS] - 0.6);
         self.rd_target = rd.clamp(0.3, 2.7);
 
         // Pitch with vibrato and slow drift (cents).
