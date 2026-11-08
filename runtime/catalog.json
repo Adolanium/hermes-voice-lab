@@ -1,0 +1,970 @@
+{
+ "params": [
+  {
+   "name": "pitch",
+   "min": 50,
+   "max": 1100,
+   "default": 210,
+   "label": "Pitch",
+   "unit": "Hz",
+   "help": "Fundamental frequency of the vocal folds."
+  },
+  {
+   "name": "loudness",
+   "min": 0,
+   "max": 1,
+   "default": 0.72,
+   "label": "Effort",
+   "unit": "",
+   "help": "Lung pressure. More effort is louder and slightly brighter."
+  },
+  {
+   "name": "tenseness",
+   "min": 0,
+   "max": 1,
+   "default": 0.52,
+   "label": "Tension",
+   "unit": "",
+   "help": "Glottal pulse shape (LF Rd). Low is lax and soft, high is pressed and bright."
+  },
+  {
+   "name": "breath",
+   "min": 0,
+   "max": 1,
+   "default": 0.22,
+   "label": "Breath",
+   "unit": "",
+   "help": "Glottal leak and aspiration noise."
+  },
+  {
+   "name": "voicing",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "label": "Voicing",
+   "unit": "",
+   "help": "Vocal-fold adduction. 0 opens the glottis for whisper or voiceless sounds."
+  },
+  {
+   "name": "vibratoDepth",
+   "min": 0,
+   "max": 1,
+   "default": 0.18,
+   "label": "Vibrato",
+   "unit": "",
+   "help": "Vibrato depth (up to ±85 cents)."
+  },
+  {
+   "name": "vibratoRate",
+   "min": 3,
+   "max": 9,
+   "default": 5.4,
+   "label": "Vibrato rate",
+   "unit": "Hz",
+   "help": "Vibrato speed."
+  },
+  {
+   "name": "tongueX",
+   "min": 0,
+   "max": 1,
+   "default": 0.36,
+   "label": "Tongue front",
+   "unit": "",
+   "help": "Tongue body position, back (0) to front (1)."
+  },
+  {
+   "name": "tongueY",
+   "min": 0,
+   "max": 1,
+   "default": 0.3,
+   "label": "Tongue height",
+   "unit": "",
+   "help": "Tongue body height, low (0) to high (1)."
+  },
+  {
+   "name": "tipPlace",
+   "min": 0,
+   "max": 1,
+   "default": 0.35,
+   "label": "Tip place",
+   "unit": "",
+   "help": "Tongue tip target, teeth (0) to behind the ridge (1)."
+  },
+  {
+   "name": "tipClose",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Tip closure",
+   "unit": "",
+   "help": "Tongue tip constriction. 1 seals the tract."
+  },
+  {
+   "name": "dorsumClose",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Back closure",
+   "unit": "",
+   "help": "Tongue back against the soft palate (k, g, ng)."
+  },
+  {
+   "name": "jaw",
+   "min": 0,
+   "max": 1,
+   "default": 0.62,
+   "label": "Jaw",
+   "unit": "",
+   "help": "Jaw opening."
+  },
+  {
+   "name": "lipOpen",
+   "min": 0,
+   "max": 1,
+   "default": 0.62,
+   "label": "Lips open",
+   "unit": "",
+   "help": "Lip aperture. 0 closes the lips."
+  },
+  {
+   "name": "lipRound",
+   "min": 0,
+   "max": 1,
+   "default": 0.12,
+   "label": "Lip round",
+   "unit": "",
+   "help": "Rounding and protrusion; lengthens the tract."
+  },
+  {
+   "name": "velum",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Nasal",
+   "unit": "",
+   "help": "Velum opening; couples the nasal cavity."
+  },
+  {
+   "name": "tractLength",
+   "min": 11,
+   "max": 19,
+   "default": 14.2,
+   "label": "Tract length",
+   "unit": "cm",
+   "help": "Overall vocal tract length (size), excluding lip protrusion."
+  },
+  {
+   "name": "throat",
+   "min": 0,
+   "max": 1,
+   "default": 0.5,
+   "label": "Throat",
+   "unit": "",
+   "help": "Pharynx width (tongue root). Wider is darker and warmer."
+  },
+  {
+   "name": "gain",
+   "min": 0,
+   "max": 1,
+   "default": 0.7,
+   "label": "Output",
+   "unit": "",
+   "help": "Output level."
+  },
+  {
+   "name": "humanize",
+   "min": 0,
+   "max": 1,
+   "default": 0.45,
+   "label": "Humanize",
+   "unit": "",
+   "help": "Jitter, shimmer and slow pitch drift."
+  },
+  {
+   "name": "space",
+   "min": 0,
+   "max": 1,
+   "default": 0.18,
+   "label": "Room",
+   "unit": "",
+   "help": "Small room reverberation."
+  },
+  {
+   "name": "lateral",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Lateral",
+   "unit": "",
+   "help": "Side channel around the tongue tip for l."
+  },
+  {
+   "name": "rhotic",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Rhotic",
+   "unit": "",
+   "help": "Bunched-r narrowing of pharynx and palate; lowers F3."
+  }
+ ],
+ "voiceParams": [
+  "pitch",
+  "loudness",
+  "tenseness",
+  "breath",
+  "vibratoDepth",
+  "vibratoRate",
+  "tractLength",
+  "throat",
+  "gain",
+  "humanize",
+  "space"
+ ],
+ "shapeParams": [
+  "tongueX",
+  "tongueY",
+  "tipPlace",
+  "tipClose",
+  "dorsumClose",
+  "jaw",
+  "lipOpen",
+  "lipRound",
+  "velum",
+  "voicing",
+  "rhotic",
+  "lateral"
+ ],
+ "voicePresets": [
+  {
+   "id": "signature",
+   "name": "Signature",
+   "description": "Clear, warm, gently breathy — the default character voice.",
+   "voice": {
+    "pitch": 212,
+    "loudness": 0.72,
+    "tenseness": 0.52,
+    "breath": 0.22,
+    "vibratoDepth": 0.18,
+    "vibratoRate": 5.4,
+    "tractLength": 14.2,
+    "throat": 0.5,
+    "gain": 0.7,
+    "humanize": 0.45,
+    "space": 0.18
+   }
+  },
+  {
+   "id": "warm",
+   "name": "Warm",
+   "description": "Lower, rounder and softer, with a wider throat.",
+   "voice": {
+    "pitch": 194,
+    "loudness": 0.72,
+    "tenseness": 0.44,
+    "breath": 0.28,
+    "vibratoDepth": 0.18,
+    "vibratoRate": 5.4,
+    "tractLength": 14.8,
+    "throat": 0.72,
+    "gain": 0.7,
+    "humanize": 0.45,
+    "space": 0.22
+   }
+  },
+  {
+   "id": "bright",
+   "name": "Bright",
+   "description": "Higher and firmer with a shorter tract.",
+   "voice": {
+    "pitch": 238,
+    "loudness": 0.72,
+    "tenseness": 0.68,
+    "breath": 0.12,
+    "vibratoDepth": 0.18,
+    "vibratoRate": 5.4,
+    "tractLength": 13.6,
+    "throat": 0.34,
+    "gain": 0.7,
+    "humanize": 0.45,
+    "space": 0.18
+   }
+  },
+  {
+   "id": "airy",
+   "name": "Airy",
+   "description": "Soft and breathy, close to the microphone.",
+   "voice": {
+    "pitch": 222,
+    "loudness": 0.72,
+    "tenseness": 0.28,
+    "breath": 0.62,
+    "vibratoDepth": 0.18,
+    "vibratoRate": 5.4,
+    "tractLength": 14.2,
+    "throat": 0.5,
+    "gain": 0.7,
+    "humanize": 0.5,
+    "space": 0.12
+   }
+  },
+  {
+   "id": "lyric",
+   "name": "Lyric",
+   "description": "Singing voice with fuller vibrato and a little hall.",
+   "voice": {
+    "pitch": 330,
+    "loudness": 0.8,
+    "tenseness": 0.6,
+    "breath": 0.16,
+    "vibratoDepth": 0.34,
+    "vibratoRate": 5.6,
+    "tractLength": 14.2,
+    "throat": 0.5,
+    "gain": 0.7,
+    "humanize": 0.45,
+    "space": 0.38
+   }
+  },
+  {
+   "id": "alto",
+   "name": "Alto",
+   "description": "Darker, lower feminine voice.",
+   "voice": {
+    "pitch": 176,
+    "loudness": 0.72,
+    "tenseness": 0.5,
+    "breath": 0.2,
+    "vibratoDepth": 0.18,
+    "vibratoRate": 5.4,
+    "tractLength": 15.2,
+    "throat": 0.62,
+    "gain": 0.7,
+    "humanize": 0.45,
+    "space": 0.18
+   }
+  }
+ ],
+ "vowels": [
+  {
+   "id": "iy",
+   "arpabet": "IY",
+   "ipa": "i",
+   "example": "see",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 0.998,
+    "tongueY": 0.881,
+    "jaw": 0.726,
+    "lipOpen": 1,
+    "lipRound": 0,
+    "throat": 0.34
+   }
+  },
+  {
+   "id": "ih",
+   "arpabet": "IH",
+   "ipa": "ɪ",
+   "example": "sit",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 1,
+    "tongueY": 0.552,
+    "jaw": 0.407,
+    "lipOpen": 0.942,
+    "lipRound": 0,
+    "throat": 0.379
+   }
+  },
+  {
+   "id": "ey",
+   "arpabet": "EY",
+   "ipa": "eɪ",
+   "example": "day",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 1,
+    "tongueY": 0.73,
+    "jaw": 0.777,
+    "lipOpen": 1,
+    "lipRound": 0,
+    "throat": 0.018
+   }
+  },
+  {
+   "id": "eh",
+   "arpabet": "EH",
+   "ipa": "ɛ",
+   "example": "bed",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 1,
+    "tongueY": 0.209,
+    "jaw": 1,
+    "lipOpen": 1,
+    "lipRound": 0,
+    "throat": 0
+   }
+  },
+  {
+   "id": "ae",
+   "arpabet": "AE",
+   "ipa": "æ",
+   "example": "cat",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 0.999,
+    "tongueY": 0.453,
+    "jaw": 1,
+    "lipOpen": 1,
+    "lipRound": 0,
+    "throat": 0
+   }
+  },
+  {
+   "id": "aa",
+   "arpabet": "AA",
+   "ipa": "ɑ",
+   "example": "father",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 0.004,
+    "tongueY": 0,
+    "jaw": 1,
+    "lipOpen": 1,
+    "lipRound": 0,
+    "throat": 0
+   }
+  },
+  {
+   "id": "ao",
+   "arpabet": "AO",
+   "ipa": "ɔ",
+   "example": "thought",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 0.035,
+    "tongueY": 0.089,
+    "jaw": 0.996,
+    "lipOpen": 0.634,
+    "lipRound": 0.311,
+    "throat": 0
+   }
+  },
+  {
+   "id": "ow",
+   "arpabet": "OW",
+   "ipa": "oʊ",
+   "example": "go",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 0.239,
+    "tongueY": 0.137,
+    "jaw": 0.497,
+    "lipOpen": 0.524,
+    "lipRound": 0.689,
+    "throat": 0.403
+   }
+  },
+  {
+   "id": "uh",
+   "arpabet": "UH",
+   "ipa": "ʊ",
+   "example": "book",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 0.055,
+    "tongueY": 0.787,
+    "jaw": 0.363,
+    "lipOpen": 0.434,
+    "lipRound": 0.54,
+    "throat": 0.14
+   }
+  },
+  {
+   "id": "uw",
+   "arpabet": "UW",
+   "ipa": "u",
+   "example": "blue",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 0.001,
+    "tongueY": 0.811,
+    "jaw": 0.269,
+    "lipOpen": 0.432,
+    "lipRound": 0.839,
+    "throat": 0.16
+   }
+  },
+  {
+   "id": "ah",
+   "arpabet": "AH",
+   "ipa": "ʌ",
+   "example": "cup",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0,
+    "tongueX": 0.698,
+    "tongueY": 0,
+    "jaw": 1,
+    "lipOpen": 0.981,
+    "lipRound": 0.62,
+    "throat": 0
+   }
+  },
+  {
+   "id": "er",
+   "arpabet": "ER",
+   "ipa": "ɝ",
+   "example": "bird",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "rhotic": 0.903,
+    "tongueX": 0,
+    "tongueY": 1,
+    "jaw": 0.959,
+    "lipOpen": 0.867,
+    "lipRound": 0.798,
+    "throat": 0
+   }
+  },
+  {
+   "id": "schwa",
+   "arpabet": "AX",
+   "ipa": "ə",
+   "example": "about",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 0,
+    "lateral": 0,
+    "voicing": 1,
+    "tongueX": 0.5,
+    "tongueY": 0.32,
+    "jaw": 0.5,
+    "lipOpen": 0.62,
+    "lipRound": 0.12,
+    "throat": 0.4,
+    "rhotic": 0
+   }
+  },
+  {
+   "id": "hum",
+   "arpabet": "M",
+   "ipa": "m",
+   "example": "hum",
+   "shape": {
+    "tipClose": 0,
+    "dorsumClose": 0,
+    "velum": 1,
+    "lateral": 0,
+    "voicing": 1,
+    "tongueX": 0.5,
+    "tongueY": 0.32,
+    "jaw": 0.5,
+    "lipOpen": 0,
+    "lipRound": 0.12,
+    "throat": 0.4,
+    "rhotic": 0
+   }
+  }
+ ],
+ "phonemes": [
+  {
+   "symbol": "AA",
+   "ipa": "ɑ",
+   "example": "father"
+  },
+  {
+   "symbol": "AE",
+   "ipa": "æ",
+   "example": "cat"
+  },
+  {
+   "symbol": "AH",
+   "ipa": "ʌ",
+   "example": "cup"
+  },
+  {
+   "symbol": "AO",
+   "ipa": "ɔ",
+   "example": "thought"
+  },
+  {
+   "symbol": "EH",
+   "ipa": "ɛ",
+   "example": "bed"
+  },
+  {
+   "symbol": "ER",
+   "ipa": "ɝ",
+   "example": "bird"
+  },
+  {
+   "symbol": "IH",
+   "ipa": "ɪ",
+   "example": "sit"
+  },
+  {
+   "symbol": "IY",
+   "ipa": "i",
+   "example": "see"
+  },
+  {
+   "symbol": "UH",
+   "ipa": "ʊ",
+   "example": "book"
+  },
+  {
+   "symbol": "UW",
+   "ipa": "u",
+   "example": "blue"
+  },
+  {
+   "symbol": "EY",
+   "ipa": "eɪ",
+   "example": "day"
+  },
+  {
+   "symbol": "OW",
+   "ipa": "oʊ",
+   "example": "go"
+  },
+  {
+   "symbol": "AY",
+   "ipa": "aɪ",
+   "example": "my"
+  },
+  {
+   "symbol": "AW",
+   "ipa": "aʊ",
+   "example": "now"
+  },
+  {
+   "symbol": "OY",
+   "ipa": "ɔɪ",
+   "example": "boy"
+  },
+  {
+   "symbol": "P",
+   "ipa": "p",
+   "example": "pen"
+  },
+  {
+   "symbol": "B",
+   "ipa": "b",
+   "example": "bed"
+  },
+  {
+   "symbol": "T",
+   "ipa": "t",
+   "example": "top"
+  },
+  {
+   "symbol": "D",
+   "ipa": "d",
+   "example": "day"
+  },
+  {
+   "symbol": "K",
+   "ipa": "k",
+   "example": "cat"
+  },
+  {
+   "symbol": "G",
+   "ipa": "g",
+   "example": "go"
+  },
+  {
+   "symbol": "M",
+   "ipa": "m",
+   "example": "me"
+  },
+  {
+   "symbol": "N",
+   "ipa": "n",
+   "example": "no"
+  },
+  {
+   "symbol": "NG",
+   "ipa": "ŋ",
+   "example": "sing"
+  },
+  {
+   "symbol": "F",
+   "ipa": "f",
+   "example": "fine"
+  },
+  {
+   "symbol": "V",
+   "ipa": "v",
+   "example": "very"
+  },
+  {
+   "symbol": "TH",
+   "ipa": "θ",
+   "example": "think"
+  },
+  {
+   "symbol": "DH",
+   "ipa": "ð",
+   "example": "this"
+  },
+  {
+   "symbol": "S",
+   "ipa": "s",
+   "example": "see"
+  },
+  {
+   "symbol": "Z",
+   "ipa": "z",
+   "example": "zoo"
+  },
+  {
+   "symbol": "SH",
+   "ipa": "ʃ",
+   "example": "she"
+  },
+  {
+   "symbol": "ZH",
+   "ipa": "ʒ",
+   "example": "vision"
+  },
+  {
+   "symbol": "CH",
+   "ipa": "tʃ",
+   "example": "chair"
+  },
+  {
+   "symbol": "JH",
+   "ipa": "dʒ",
+   "example": "joy"
+  },
+  {
+   "symbol": "L",
+   "ipa": "l",
+   "example": "love"
+  },
+  {
+   "symbol": "R",
+   "ipa": "ɹ",
+   "example": "red"
+  },
+  {
+   "symbol": "W",
+   "ipa": "w",
+   "example": "we"
+  },
+  {
+   "symbol": "Y",
+   "ipa": "j",
+   "example": "yes"
+  },
+  {
+   "symbol": "HH",
+   "ipa": "h",
+   "example": "hat"
+  }
+ ],
+ "limits": {
+  "notes": 512,
+  "text": 1000,
+  "lyrics": 2000,
+  "seconds": 120,
+  "name": 120
+ },
+ "defaultProject": {
+  "version": 2,
+  "name": "Voice study",
+  "mode": "play",
+  "voice": {
+   "pitch": 212,
+   "loudness": 0.72,
+   "tenseness": 0.52,
+   "breath": 0.22,
+   "vibratoDepth": 0.18,
+   "vibratoRate": 5.4,
+   "tractLength": 14.2,
+   "throat": 0.5,
+   "gain": 0.7,
+   "humanize": 0.45,
+   "space": 0.18
+  },
+  "shape": {
+   "tipClose": 0,
+   "dorsumClose": 0,
+   "velum": 0,
+   "lateral": 0,
+   "voicing": 1,
+   "rhotic": 0,
+   "tongueX": 0.004,
+   "tongueY": 0,
+   "jaw": 1,
+   "lipOpen": 1,
+   "lipRound": 0,
+   "throat": 0
+  },
+  "speech": {
+   "text": "Hello! I am a voice made of air, a few tubes, and a little bit of math. Shall we sing?",
+   "phonemes": false,
+   "rate": 1,
+   "expression": 0.6
+  },
+  "song": {
+   "bpm": 96,
+   "lyrics": "Ev-ery qui-et sig-nal finds a way to sing, o-pen up the morn-ing light",
+   "notes": [
+    {
+     "start": 0,
+     "length": 0.5,
+     "midi": 64
+    },
+    {
+     "start": 0.5,
+     "length": 0.5,
+     "midi": 67
+    },
+    {
+     "start": 1,
+     "length": 0.5,
+     "midi": 69
+    },
+    {
+     "start": 1.5,
+     "length": 0.5,
+     "midi": 67
+    },
+    {
+     "start": 2,
+     "length": 1,
+     "midi": 72
+    },
+    {
+     "start": 3,
+     "length": 0.5,
+     "midi": 71
+    },
+    {
+     "start": 3.5,
+     "length": 0.5,
+     "midi": 69
+    },
+    {
+     "start": 4,
+     "length": 0.5,
+     "midi": 67
+    },
+    {
+     "start": 4.5,
+     "length": 0.5,
+     "midi": 64
+    },
+    {
+     "start": 5,
+     "length": 1,
+     "midi": 62
+    },
+    {
+     "start": 6,
+     "length": 2,
+     "midi": 64
+    },
+    {
+     "start": 8.5,
+     "length": 0.5,
+     "midi": 60
+    },
+    {
+     "start": 9,
+     "length": 0.5,
+     "midi": 62
+    },
+    {
+     "start": 9.5,
+     "length": 0.5,
+     "midi": 64
+    },
+    {
+     "start": 10,
+     "length": 1,
+     "midi": 67
+    },
+    {
+     "start": 11,
+     "length": 0.5,
+     "midi": 69
+    },
+    {
+     "start": 11.5,
+     "length": 0.5,
+     "midi": 71
+    },
+    {
+     "start": 12,
+     "length": 3,
+     "midi": 72
+    }
+   ],
+   "loop": false
+  },
+  "sustain": 2
+ }
+}

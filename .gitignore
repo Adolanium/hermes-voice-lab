@@ -6,3 +6,4 @@ release/
 __pycache__/
 *.pyc
 src/generated/
+.claude/

@@ -1137,6 +1137,17 @@ var output = args.get("output") || fail("--output is required");
 var project = newProject();
 if (args.has("project")) project = validateProject(JSON.parse(readFileSync(args.get("project"), "utf8")));
 if (args.has("text")) project = { ...project, mode: "speak", speech: { ...project.speech, text: args.get("text"), phonemes: args.get("phonemes") === "1" } };
+if (args.has("voice")) {
+  const preset = VOICE_PRESETS.find((p) => p.id === args.get("voice"));
+  if (!preset) fail(`unknown voice preset ${args.get("voice")}`);
+  project = { ...project, voice: { ...project.voice, ...preset.voice } };
+}
+if (args.has("patch")) project = { ...project, voice: { ...project.voice, ...validatePatch(JSON.parse(args.get("patch")), "patch") } };
+if (args.has("speed")) {
+  const speed = Number(args.get("speed"));
+  if (!(speed >= 0.4 && speed <= 2.5)) fail("speed must be 0.4\u20132.5");
+  project = { ...project, speech: { ...project.speech, rate: speed } };
+}
 var mode = args.get("mode") || project.mode;
 if (!["play", "speak", "sing"].includes(mode)) fail("mode must be play, speak or sing");
 var rate = Number(args.get("rate") || 48e3);

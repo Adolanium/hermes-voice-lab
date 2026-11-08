@@ -1,0 +1,16 @@
+/* Development preview only: stand-ins for Hermes Desktop theme tokens. */
+:root {
+  --ui-bg-editor: #f7f6f2; --ui-bg-elevated: #ffffff; --ui-bg-tertiary: #efede7; --ui-bg-quaternary: #e7e4dc;
+  --ui-text-primary: #16151a; --ui-text-secondary: #45434d; --ui-text-tertiary: #75727e; --ui-text-quaternary: #a19ea8;
+  --ui-stroke-primary: #cfcbc2; --ui-stroke-secondary: #dedad1; --ui-stroke-tertiary: #ebe8e0;
+  --ui-accent: #5b5bd6; --ui-red: #d64545; --ui-green: #2f9e6e; --ui-yellow: #c99a1d; --ui-orange: #d9772b; --ui-cyan: #2a9bb5;
+  --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", Inter, system-ui, sans-serif; --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+:root[data-theme="dark"] {
+  --ui-bg-editor: #131317; --ui-bg-elevated: #1b1b21; --ui-bg-tertiary: #202027; --ui-bg-quaternary: #282830;
+  --ui-text-primary: #ecebf2; --ui-text-secondary: #bdbbc6; --ui-text-tertiary: #8d8a98; --ui-text-quaternary: #615e6b;
+  --ui-stroke-primary: #3a3944; --ui-stroke-secondary: #2e2d36; --ui-stroke-tertiary: #24232b;
+  --ui-accent: #8f8cff;
+}
+html, body { margin: 0; background: var(--ui-bg-editor); color: var(--ui-text-primary); font-family: var(--font-sans); }
+#root { height: 100vh; }

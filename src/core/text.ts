@@ -150,7 +150,7 @@ export interface Word {
 }
 
 export function phonemize(text: string, lexicon: Lexicon): Word[] {
-  return tokenize(text).map(t => {
+  return tokenize(text).map((t): Word => {
     const known = lexicon.lookup(t.text);
     return known
       ? {text: t.text, phones: known, source: 'dictionary', boundary: t.boundary}

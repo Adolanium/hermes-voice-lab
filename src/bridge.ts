@@ -1,16 +1,21 @@
-export interface VoiceProject {
-  version: 1;
-  name: string;
-  patch: Record<string, number>;
-  events: Array<{time: number; duration: number; params: Record<string, number>}>;
-  text?: string;
-  sequence?: Array<{note: number; vowel: string; enabled: boolean}>;
-  bpm?: number;
-}
+/** Host adapter interface: Hermes Desktop (src/desktop.tsx) or the standalone preview. */
+import type {Mode, Project} from './core/project';
+
+export type UpdateOrigin = 'agent' | 'desktop' | 'remote';
+
 export interface VoiceLabBridge {
-  scope(): {projectId: string; sessionId: string};
-  load(): Promise<VoiceProject | null>;
-  save(project: VoiceProject): Promise<VoiceProject>;
-  render(project: VoiceProject): Promise<{path: string; media: string; metadata: Record<string, unknown>}>;
-  subscribe(listener: (project: VoiceProject) => void): () => void;
+  kind: 'hermes' | 'standalone';
+  /** Human label for where the project is saved. */
+  scopeLabel: string;
+  load(): Promise<Project | null>;
+  save(project: Project): Promise<void>;
+  /** Project changes made elsewhere (agent tools or another window). */
+  subscribe(listener: (project: Project, origin: UpdateOrigin, changed?: string[]) => void): () => void;
+  /** Render with the backend renderer and offer the file for download. */
+  exportWav?(project: Project, mode: Mode): Promise<{path: string; seconds?: number}>;
+  /** Plugin-scoped key/value storage for presets and preferences. */
+  storage: {get<T>(key: string, fallback: T): T; set(key: string, value: unknown): void};
+  /** Save/open project JSON through the host's file door. */
+  files?: {save(name: string, text: string): Promise<string | null>; open(): Promise<string | null>};
+  notify?(message: string, kind?: 'info' | 'error'): void;
 }
