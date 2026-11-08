@@ -122,7 +122,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     const next = segments[i + 1];
     const nv = nextVowel(i) ?? prevVowel(i);
     const vowelLips = nv ? vowelTarget({symbol: nv.symbol, stress: nv.stress}) : SCHWA;
-    const complete = ph.manner === 'stop' || ph.manner === 'nasal' || ph.manner === 'affricate';
+    const complete = ph.manner === 'stop' || ph.manner === 'nasal' || ph.manner === 'affricate' || ph.manner === 'click';
     const closeTau = s.symbol === 'DX' ? 4 : complete ? 9 : 14;
     // Closures aim past contact (engine: contact at 92%); a critically damped
     // move reaches 92% after ~4.2 time constants, so start that early to
@@ -131,7 +131,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     const prevSeg = segments[i - 1];
     const phraseInitial = !prevSeg || prevSeg.symbol === 'SIL';
     const onset = phraseInitial ? Math.max(prevSeg?.start ?? 0, s.start - 0.1) : s.start - ((complete ? 4.2 : 3.5) * closeTau) / 1000;
-    const releaseTau = ph.manner === 'stop' ? 6 : ph.manner === 'fricative' ? 14 : 12;
+    const releaseTau = ph.manner === 'click' ? 3 : ph.manner === 'stop' ? 6 : ph.manner === 'fricative' ? 14 : 12;
     const nextIsSame = (param: ParamName) => next && next.symbol !== 'SIL' && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== undefined;
 
     // Position the tip before it closes.
@@ -159,8 +159,26 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       }
       if (!nextIsSame(param)) {
         const rest = param === 'lipOpen' ? vowelLips.lipOpen ?? 0.6 : 0;
-        at(s.end - (param === 'lipOpen' ? 0.004 : 0.002), param, rest, releaseTau, i);
+        // A click's back seal lets go after the front one has popped.
+        const late = ph.manner === 'click' && param === 'dorsumClose' ? 0.03 : 0;
+        at(s.end - (param === 'lipOpen' ? 0.004 : 0.002) + late, param, rest, late ? 12 : releaseTau, i);
       }
+    }
+    // Non-pulmonic airstreams. A glottal stop or an ejective presses the folds
+    // shut; an ejective then raises the larynx through its closure and lets the
+    // folds go ~35 ms after the oral release. A click pulls the tongue body down
+    // between its two seals until just after they release.
+    if (t.glottal) {
+      at(onset - 0.005, 'glottal', 1, 5, i);
+      at(s.end + (t.larynx ? 0.035 : 0), 'glottal', 0, 6, i);
+    }
+    if (t.larynx) {
+      at(onset + 0.01, 'larynx', 1, 18, i);
+      at(s.end + 0.01, 'larynx', 0, 25, i);
+    }
+    if (t.suction) {
+      at(onset + 0.015, 'suction', 1, 10, i);
+      at(s.end + 0.045, 'suction', 0, 20, i);
     }
     if (t.trill) {
       // The articulator is held near contact and flaps for the segment (engine).

@@ -153,6 +153,7 @@ export interface Word {
 function trillWord(word: string): Phone[] | null {
   if (/^br{2,}$/.test(word)) return [{symbol: 'BR', stress: 0}];
   if (/^r{3,}$/.test(word)) return [{symbol: 'RR', stress: 0}];
+  if (/^tsk$/.test(word)) return [{symbol: 'CD', stress: 0}];
   return null;
 }
 

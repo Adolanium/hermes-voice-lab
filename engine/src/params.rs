@@ -32,7 +32,10 @@ pub const GROWL: usize = 26;
 pub const TWANG: usize = 27;
 pub const PHARYNX: usize = 28;
 pub const TRILL: usize = 29;
-pub const COUNT: usize = 30;
+pub const GLOTTAL: usize = 30;
+pub const LARYNX: usize = 31;
+pub const SUCTION: usize = 32;
+pub const COUNT: usize = 33;
 
 pub struct Spec {
     pub min: f32,
@@ -80,6 +83,9 @@ pub const SPECS: [Spec; COUNT] = [
     s(0.0, 1.0, 0.0, 40.0),       // twang (narrowed epilarynx)
     s(0.75, 1.3, 1.0, 80.0),      // pharynx length relative to the mouth (adult male ≈1.15, child ≈0.85)
     s(0.0, 1.0, 0.0, 15.0),       // trill: the narrowest constriction flaps in the airflow
+    s(0.0, 1.0, 0.0, 6.0),        // glottal closure: the folds pressed shut (glottal stop, ejectives)
+    s(0.0, 1.0, 0.0, 25.0),       // larynx raising: squeezes the pharynx like a piston (ejectives)
+    s(0.0, 1.0, 0.0, 15.0),       // tongue suction: the tongue body pulls down between two oral seals (clicks)
 ];
 
 pub fn clamp(id: usize, value: f32) -> f32 {

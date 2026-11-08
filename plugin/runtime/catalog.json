@@ -260,6 +260,33 @@
    "label": "Trill",
    "unit": "",
    "help": "The narrowest constriction (tongue tip, lips or uvula) flaps in the airflow about 27 times a second."
+  },
+  {
+   "name": "glottal",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Glottal closure",
+   "unit": "",
+   "help": "The vocal folds pressed shut: a glottal stop, and the seal behind an ejective."
+  },
+  {
+   "name": "larynx",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Larynx raise",
+   "unit": "",
+   "help": "The larynx rises like a piston and squeezes the pharynx (ejectives)."
+  },
+  {
+   "name": "suction",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Tongue suction",
+   "unit": "",
+   "help": "The tongue body pulls down between two oral seals (clicks)."
   }
  ],
  "voiceParams": [
@@ -1035,6 +1062,41 @@
    "symbol": "L",
    "ipa": "l",
    "example": "love"
+  },
+  {
+   "symbol": "Q",
+   "ipa": "ʔ",
+   "example": "uh-oh"
+  },
+  {
+   "symbol": "PE",
+   "ipa": "pʼ",
+   "example": "ejective p"
+  },
+  {
+   "symbol": "TE",
+   "ipa": "tʼ",
+   "example": "ejective t"
+  },
+  {
+   "symbol": "KE",
+   "ipa": "kʼ",
+   "example": "ejective k"
+  },
+  {
+   "symbol": "CB",
+   "ipa": "ʘ",
+   "example": "kiss click"
+  },
+  {
+   "symbol": "CD",
+   "ipa": "ǀ",
+   "example": "tsk"
+  },
+  {
+   "symbol": "CA",
+   "ipa": "ǃ",
+   "example": "cork pop"
   },
   {
    "symbol": "RR",

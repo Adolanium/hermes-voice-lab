@@ -35,7 +35,10 @@ var PARAM_NAMES = [
   "growl",
   "twang",
   "pharynx",
-  "trill"
+  "trill",
+  "glottal",
+  "larynx",
+  "suction"
 ];
 var META = {
   pitch: ["Pitch", "Hz", "source", "Fundamental frequency of the vocal folds."],
@@ -67,6 +70,9 @@ var META = {
   growl: ["Growl", "", "source", "Ventricular folds flapping at half the pitch: a rough growl."],
   twang: ["Twang", "", "source", "Narrowed epilarynx: a bright, ringing, nasal-sounding twang."],
   trill: ["Trill", "", "tract", "The narrowest constriction (tongue tip, lips or uvula) flaps in the airflow about 27 times a second."],
+  glottal: ["Glottal closure", "", "internal", "The vocal folds pressed shut: a glottal stop, and the seal behind an ejective."],
+  larynx: ["Larynx raise", "", "internal", "The larynx rises like a piston and squeezes the pharynx (ejectives)."],
+  suction: ["Tongue suction", "", "internal", "The tongue body pulls down between two oral seals (clicks)."],
   pharynx: ["Pharynx", "\xD7", "tract", "Throat length relative to the mouth: longer in adult men (\u22481.15), shorter in children (\u22480.85)."]
 };
 var RANGES = {
@@ -99,7 +105,10 @@ var RANGES = {
   growl: [0, 1, 0],
   twang: [0, 1, 0],
   pharynx: [0.75, 1.3, 1],
-  trill: [0, 1, 0]
+  trill: [0, 1, 0],
+  glottal: [0, 1, 0],
+  larynx: [0, 1, 0],
+  suction: [0, 1, 0]
 };
 var PARAMS = PARAM_NAMES.map((name, id) => {
   const [min, max, def] = RANGES[name];
@@ -322,6 +331,15 @@ var PHONEMES = Object.fromEntries([
   P("CH", "t\u0283", "affricate", false, 115, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "chair"),
   P("JH", "d\u0292", "affricate", true, 95, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "joy"),
   P("L", "l", "approximant", true, 70, { tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3, tongueY: 0.5 }, "love"),
+  // Non-English sounds (not in ARPABET): a glottal stop, ejectives (the larynx is the
+  // piston) and clicks (the tongue body pulls a vacuum between two seals).
+  P("Q", "\u0294", "stop", true, 60, { glottal: 1 }, "uh-oh"),
+  P("PE", "p\u02BC", "stop", false, 95, { lipOpen: 0, glottal: 1, larynx: 1 }, "ejective p"),
+  P("TE", "t\u02BC", "stop", false, 95, { tipPlace: 0.38, tipClose: 1, glottal: 1, larynx: 1 }, "ejective t"),
+  P("KE", "k\u02BC", "stop", false, 95, { dorsumClose: 1, glottal: 1, larynx: 1 }, "ejective k"),
+  P("CB", "\u0298", "click", false, 85, { lipOpen: 0, dorsumClose: 1, suction: 1 }, "kiss click"),
+  P("CD", "\u01C0", "click", false, 85, { tipPlace: 0.05, tipClose: 1, dorsumClose: 1, suction: 1 }, "tsk"),
+  P("CA", "\u01C3", "click", false, 85, { tipPlace: 0.42, tipClose: 1, dorsumClose: 1, suction: 1 }, "cork pop"),
   // Trills (not in ARPABET): a rolled tongue-tip r, a lip trill and a uvular r.
   P("RR", "r", "trill", true, 110, { tipPlace: 0.42, tipClose: 0.9, trill: 1, jaw: 0.35 }, "Spanish perro"),
   P("BR", "\u0299", "trill", true, 160, { lipOpen: 0.04, lipRound: 0.25, trill: 1 }, "brr"),
@@ -553,6 +571,7 @@ function letterToSound(word) {
 function trillWord(word) {
   if (/^br{2,}$/.test(word)) return [{ symbol: "BR", stress: 0 }];
   if (/^r{3,}$/.test(word)) return [{ symbol: "RR", stress: 0 }];
+  if (/^tsk$/.test(word)) return [{ symbol: "CD", stress: 0 }];
   return null;
 }
 function phonemize(text, lexicon2) {
@@ -790,12 +809,12 @@ function articulate(segments, voice) {
     const next = segments[i + 1];
     const nv = nextVowel(i) ?? prevVowel(i);
     const vowelLips = nv ? vowelTarget({ symbol: nv.symbol, stress: nv.stress }) : SCHWA;
-    const complete = ph.manner === "stop" || ph.manner === "nasal" || ph.manner === "affricate";
+    const complete = ph.manner === "stop" || ph.manner === "nasal" || ph.manner === "affricate" || ph.manner === "click";
     const closeTau = s.symbol === "DX" ? 4 : complete ? 9 : 14;
     const prevSeg = segments[i - 1];
     const phraseInitial = !prevSeg || prevSeg.symbol === "SIL";
     const onset = phraseInitial ? Math.max(prevSeg?.start ?? 0, s.start - 0.1) : s.start - (complete ? 4.2 : 3.5) * closeTau / 1e3;
-    const releaseTau = ph.manner === "stop" ? 6 : ph.manner === "fricative" ? 14 : 12;
+    const releaseTau = ph.manner === "click" ? 3 : ph.manner === "stop" ? 6 : ph.manner === "fricative" ? 14 : 12;
     const nextIsSame = (param) => next && next.symbol !== "SIL" && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== void 0;
     const afterCoronalFricative = prevSeg && PHONEMES[prevSeg.symbol]?.manner === "fricative" && PHONEMES[prevSeg.symbol].target.tipPlace !== void 0;
     if (t.tipPlace !== void 0) at(afterCoronalFricative ? Math.max(s.start - 0.07, prevSeg.end - 0.02) : s.start - 0.07, "tipPlace", t.tipPlace, 18, i);
@@ -815,8 +834,21 @@ function articulate(segments, voice) {
       }
       if (!nextIsSame(param)) {
         const rest = param === "lipOpen" ? vowelLips.lipOpen ?? 0.6 : 0;
-        at(s.end - (param === "lipOpen" ? 4e-3 : 2e-3), param, rest, releaseTau, i);
+        const late = ph.manner === "click" && param === "dorsumClose" ? 0.03 : 0;
+        at(s.end - (param === "lipOpen" ? 4e-3 : 2e-3) + late, param, rest, late ? 12 : releaseTau, i);
       }
+    }
+    if (t.glottal) {
+      at(onset - 5e-3, "glottal", 1, 5, i);
+      at(s.end + (t.larynx ? 0.035 : 0), "glottal", 0, 6, i);
+    }
+    if (t.larynx) {
+      at(onset + 0.01, "larynx", 1, 18, i);
+      at(s.end + 0.01, "larynx", 0, 25, i);
+    }
+    if (t.suction) {
+      at(onset + 0.015, "suction", 1, 10, i);
+      at(s.end + 0.045, "suction", 0, 20, i);
     }
     if (t.trill) {
       at(Math.max(onset, s.start - 0.01), "trill", 1, 8, i);

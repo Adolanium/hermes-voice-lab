@@ -8,7 +8,7 @@
 import vowelTable from './vowels.generated.json';
 import type {ParamName, Patch} from './params';
 
-export type Manner = 'vowel' | 'diphthong' | 'stop' | 'nasal' | 'fricative' | 'affricate' | 'approximant' | 'aspirate' | 'trill';
+export type Manner = 'vowel' | 'diphthong' | 'stop' | 'nasal' | 'fricative' | 'affricate' | 'approximant' | 'aspirate' | 'trill' | 'click';
 
 export interface Phoneme {
   symbol: string;
@@ -71,6 +71,15 @@ export const PHONEMES: Record<string, Phoneme> = Object.fromEntries([
   P('CH', 'tʃ', 'affricate', false, 115, {tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3}, 'chair'),
   P('JH', 'dʒ', 'affricate', true, 95, {tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3}, 'joy'),
   P('L', 'l', 'approximant', true, 70, {tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3, tongueY: 0.5}, 'love'),
+  // Non-English sounds (not in ARPABET): a glottal stop, ejectives (the larynx is the
+  // piston) and clicks (the tongue body pulls a vacuum between two seals).
+  P('Q', 'ʔ', 'stop', true, 60, {glottal: 1}, 'uh-oh'),
+  P('PE', 'pʼ', 'stop', false, 95, {lipOpen: 0, glottal: 1, larynx: 1}, 'ejective p'),
+  P('TE', 'tʼ', 'stop', false, 95, {tipPlace: 0.38, tipClose: 1, glottal: 1, larynx: 1}, 'ejective t'),
+  P('KE', 'kʼ', 'stop', false, 95, {dorsumClose: 1, glottal: 1, larynx: 1}, 'ejective k'),
+  P('CB', 'ʘ', 'click', false, 85, {lipOpen: 0, dorsumClose: 1, suction: 1}, 'kiss click'),
+  P('CD', 'ǀ', 'click', false, 85, {tipPlace: 0.05, tipClose: 1, dorsumClose: 1, suction: 1}, 'tsk'),
+  P('CA', 'ǃ', 'click', false, 85, {tipPlace: 0.42, tipClose: 1, dorsumClose: 1, suction: 1}, 'cork pop'),
   // Trills (not in ARPABET): a rolled tongue-tip r, a lip trill and a uvular r.
   P('RR', 'r', 'trill', true, 110, {tipPlace: 0.42, tipClose: 0.9, trill: 1, jaw: 0.35}, 'Spanish perro'),
   P('BR', 'ʙ', 'trill', true, 160, {lipOpen: 0.04, lipRound: 0.25, trill: 1}, 'brr'),

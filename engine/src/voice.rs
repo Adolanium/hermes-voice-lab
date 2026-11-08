@@ -86,6 +86,15 @@ const TWANG_RAISE: f32 = 1.0;
 /// and the area (cm²) the constriction opens to between contacts.
 const TRILL_HZ: f32 = 27.0;
 const TRILL_OPEN: f32 = 0.25;
+/// Ejectives: the fraction of the pharynx's cross-section the rising larynx
+/// takes up as it rises (tuned so an ejective's release is about as strong as
+/// a plain stop's, ~10× its release without the rise).
+const LARYNX_SQUEEZE: f32 = 0.3;
+/// Clicks: how far the cavity between two oral seals widens as the tongue
+/// body pulls down.
+const SUCTION_EXPAND: f32 = 0.25;
+/// An oral section narrower than this (cm²) counts as a seal for a click.
+const CLICK_SEAL: f32 = 0.03;
 
 /// Glottal opening over one cycle (0..1): a raised-cosine opening, then a
 /// closing that is smooth for a lax voice and steepens toward the moment of
@@ -346,7 +355,8 @@ impl Voice {
         let across = (self.lungs as f32 - self.airway.p[0] as f32).max(0.0);
         self.transglottal += (across - self.transglottal) * (1.0 - (-dt / 0.006).exp());
         let adduction = smooth(0.2, 0.75, voicing) * (1.0 - smooth(0.12, 0.3, self.abduction));
-        let target_amp = adduction * smooth(PHONATION_THRESHOLD, 1.8 * PHONATION_THRESHOLD, self.transglottal);
+        // Folds pressed shut (a glottal stop) do not vibrate.
+        let target_amp = adduction * smooth(PHONATION_THRESHOLD, 1.8 * PHONATION_THRESHOLD, self.transglottal) * (1.0 - p[GLOTTAL]);
         // Oscillation builds up and dies away over a few cycles.
         let k = if target_amp > self.voicing_amp { 1.0 - (-dt / 0.008).exp() } else { 1.0 - (-dt / 0.005).exp() };
         self.voicing_amp += (target_amp - self.voicing_amp) * k;
@@ -464,6 +474,33 @@ impl Voice {
                 *a += (flap - *a) * drive;
             }
         }
+        // Ejective: with the folds pressed shut, the larynx rises like a piston
+        // and squeezes the pharynx; the air trapped behind an oral closure is
+        // compressed (the airway turns the volume change into flow).
+        let lx = p[LARYNX];
+        if lx > 0.0 {
+            for a in self.areas[..crate::tract::PORT].iter_mut() {
+                *a *= 1.0 - LARYNX_SQUEEZE * lx;
+            }
+        }
+        // Click: two seals in the mouth (back of the tongue and the tip or the
+        // lips); the tongue body pulls down between them, and the air there
+        // rarefies until the front seal lets go.
+        let sc = p[SUCTION];
+        if sc > 0.0 {
+            let port = crate::tract::PORT;
+            let first = (port + 1..N).find(|&i| self.areas[i] < CLICK_SEAL);
+            let last = (port + 1..N).rev().find(|&i| self.areas[i] < CLICK_SEAL);
+            if let (Some(a), Some(b)) = (first, last) {
+                if b > a + 1 {
+                    for area in self.areas[a + 1..b].iter_mut() {
+                        if *area >= CLICK_SEAL {
+                            *area *= 1.0 + SUCTION_EXPAND * sc;
+                        }
+                    }
+                }
+            }
+        }
         let growl = p[GROWL];
         self.ventricular_phase = (self.ventricular_phase + 0.5 * self.f0 * dt).fract();
         if growl > 0.0 {
@@ -503,7 +540,7 @@ impl Voice {
             self.period_scale = self.period_scale.max(0.3);
         }
         let open = glottal_pulse(self.phase, self.open_quotient, self.speed_quotient, self.sharpness);
-        let ag = self.abduction + self.swing * self.voicing_amp * self.period_amp * open;
+        let ag = (self.abduction + self.swing * self.voicing_amp * self.period_amp * open) * (1.0 - self.p[GLOTTAL]);
         self.glottal_area = ag;
         self.lungs += self.d_lungs;
 

@@ -380,3 +380,31 @@ test('trills flap at about 27 Hz: a lip trill, a rolled r and a uvular r', () =>
   // "brr" in text is a lip trill.
   assert.ok(planSpeech('brrr', lexicon).segments.some(s => s.symbol === 'BR'));
 });
+
+test('ejectives and clicks pop from the larynx and the tongue, not the lungs', () => {
+  const sr = 48000;
+  const release = (text: string, symbol: string, drop?: string) => {
+    const plan = planSpeech(text, lexicon, {phonemes: true});
+    if (drop) {
+      const id = PARAM_NAMES.indexOf(drop as (typeof PARAM_NAMES)[number]);
+      for (let i = 0; i < plan.score.events.length; i += 4) if (plan.score.events[i + 1] === id) plan.score.events[i + 2] = 0;
+    }
+    const seg = plan.segments.find(s => s.symbol === symbol)!;
+    const out = renderScore(engine(sr, 3), plan.score)[0];
+    let peak = 0;
+    for (let i = Math.round((seg.end - 0.005) * sr); i < Math.round((seg.end + 0.02) * sr); i++) peak = Math.max(peak, Math.abs(out[i]));
+    for (const v of out) assert.ok(Number.isFinite(v) && Math.abs(v) < 1, 'bounded');
+    return peak;
+  };
+  // Behind a sealed glottis only the rising larynx can compress the air.
+  assert.ok(release('AA1 TE AA1', 'TE') > 5 * release('AA1 TE AA1', 'TE', 'larynx'), 't-ejective needs the larynx');
+  assert.ok(release('AA1 KE AA1', 'KE') > 2.5 * release('AA1 KE AA1', 'KE', 'larynx'), 'k-ejective needs the larynx');
+  for (const c of ['CD', 'CA', 'CB']) assert.ok(release(`AA1 ${c} AA1`, c) > 3 * release(`AA1 ${c} AA1`, c, 'suction'), `${c} needs the tongue's suction`);
+  // A glottal stop silences the voice for its length.
+  const plan = planSpeech('AH1 Q OW1', lexicon, {phonemes: true});
+  const q = plan.segments.find(s => s.symbol === 'Q')!;
+  const out = renderScore(engine(sr, 3), plan.score)[0];
+  const rms = (a: number, b: number) => { let s = 0; for (let i = Math.round(a * sr); i < Math.round(b * sr); i++) s += out[i] ** 2; return Math.sqrt(s / ((b - a) * sr)); };
+  assert.ok(rms(q.start + 0.025, q.end - 0.005) < 0.25 * rms(q.start - 0.08, q.start - 0.02), 'glottal stop is silent');
+  assert.ok(planSpeech('tsk', lexicon).segments.some(s => s.symbol === 'CD'), '"tsk" is a dental click');
+});

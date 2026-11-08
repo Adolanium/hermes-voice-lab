@@ -6,7 +6,7 @@ export const PARAM_NAMES = [
   'pitch', 'loudness', 'gate', 'tenseness', 'breath', 'voicing', 'vibratoDepth', 'vibratoRate',
   'tongueX', 'tongueY', 'tipPlace', 'tipClose', 'dorsumClose', 'jaw', 'lipOpen', 'lipRound',
   'velum', 'tractLength', 'throat', 'gain', 'humanize', 'space', 'lateral', 'rhotic',
-  'register', 'fry', 'growl', 'twang', 'pharynx', 'trill',
+  'register', 'fry', 'growl', 'twang', 'pharynx', 'trill', 'glottal', 'larynx', 'suction',
 ] as const;
 
 export type ParamName = (typeof PARAM_NAMES)[number];
@@ -54,6 +54,9 @@ const META: Record<ParamName, [string, string, ParamSpec['group'], string]> = {
   growl: ['Growl', '', 'source', 'Ventricular folds flapping at half the pitch: a rough growl.'],
   twang: ['Twang', '', 'source', 'Narrowed epilarynx: a bright, ringing, nasal-sounding twang.'],
   trill: ['Trill', '', 'tract', 'The narrowest constriction (tongue tip, lips or uvula) flaps in the airflow about 27 times a second.'],
+  glottal: ['Glottal closure', '', 'internal', 'The vocal folds pressed shut: a glottal stop, and the seal behind an ejective.'],
+  larynx: ['Larynx raise', '', 'internal', 'The larynx rises like a piston and squeezes the pharynx (ejectives).'],
+  suction: ['Tongue suction', '', 'internal', 'The tongue body pulls down between two oral seals (clicks).'],
   pharynx: ['Pharynx', '×', 'tract', 'Throat length relative to the mouth: longer in adult men (≈1.15), shorter in children (≈0.85).'],
 };
 
@@ -64,7 +67,7 @@ const RANGES: Record<ParamName, [number, number, number]> = {
   tipPlace: [0, 1, 0.35], tipClose: [0, 1, 0], dorsumClose: [0, 1, 0], jaw: [0, 1, 0.62], lipOpen: [0, 1, 0.62],
   lipRound: [0, 1, 0.12], velum: [0, 1, 0], tractLength: [11, 19, 14.2], throat: [0, 1, 0.5], gain: [0, 1, 0.7],
   humanize: [0, 1, 0.45], space: [0, 1, 0.18], lateral: [0, 1, 0], rhotic: [0, 1, 0],
-  register: [0, 1, 0], fry: [0, 1, 0], growl: [0, 1, 0], twang: [0, 1, 0], pharynx: [0.75, 1.3, 1], trill: [0, 1, 0],
+  register: [0, 1, 0], fry: [0, 1, 0], growl: [0, 1, 0], twang: [0, 1, 0], pharynx: [0.75, 1.3, 1], trill: [0, 1, 0], glottal: [0, 1, 0], larynx: [0, 1, 0], suction: [0, 1, 0],
 };
 
 export const PARAMS: readonly ParamSpec[] = PARAM_NAMES.map((name, id) => {

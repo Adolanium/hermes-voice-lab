@@ -16,7 +16,7 @@ const VOICE_KEYS = new Set<ParamName>(['pitch', 'loudness', 'tenseness', 'breath
 
 export const MANNER_COLORS: Record<string, string> = {
   vowel: 'var(--hvl-accent)', diphthong: 'var(--hvl-accent)', stop: 'var(--hvl-bad)', nasal: 'var(--ui-purple, #9b59d0)',
-  fricative: 'var(--hvl-warm)', affricate: 'var(--hvl-warm)', approximant: 'var(--hvl-good)', aspirate: 'var(--hvl-fg4)', trill: 'var(--hvl-good)',
+  fricative: 'var(--hvl-warm)', affricate: 'var(--hvl-warm)', approximant: 'var(--hvl-good)', aspirate: 'var(--hvl-fg4)', trill: 'var(--hvl-good)', click: 'var(--hvl-bad)',
 };
 
 interface PlayProps {
