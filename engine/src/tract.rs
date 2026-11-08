@@ -1,9 +1,6 @@
-//! Articulatory area function and the Kelly–Lochbaum waveguide.
-//!
-//! The oral tract is a chain of `N` cylindrical sections from glottis (0) to
-//! lips (N-1). A wave moves one section per tick, so section length is
-//! `c / fs_internal` and tract length is set by the internal clock. A nasal
-//! tube joins the oral tract through a velum-controlled three-port junction.
+//! Articulatory area function: the cross-section of the oral tract, from
+//! glottis (section 0) to lips (N−1), computed from the articulator
+//! parameters, plus the fixed nasal passage. The acoustics live in `airway`.
 
 use crate::params::*;
 
@@ -114,8 +111,10 @@ pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
 
     // Tip place: 0 at the upper incisors, ~0.4 alveolar ridge (1 cm behind),
     // ~0.85 postalveolar (1.8 cm), so sibilant front cavities differ.
-    let tip_center = lerp(TEETH as f32 - 0.3, TEETH as f32 - 6.0, p[TIP_PLACE]).round() as i32;
-    let dorsum_center = (lerp(0.62, 0.74, tx) * N as f32).round() as i32;
+    // Constriction centres are continuous: a seal that hopped from one
+    // section to the next would release the air trapped between them at once.
+    let tip_center = lerp(TEETH as f32 - 0.3, TEETH as f32 - 6.0, p[TIP_PLACE]);
+    let dorsum_center = lerp(0.62, 0.74, tx) * N as f32;
     let tip_close = closure(p[TIP_CLOSE]);
     let dorsum_close = closure(p[DORSUM_CLOSE]);
     let lip_area = lip_aperture(p[LIP_OPEN]).powf(1.35) * (5.2 - 3.7 * p[LIP_ROUND]) * (0.8 + 0.3 * jaw);
@@ -147,11 +146,14 @@ pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
             a *= 1.0 - 0.22 * p[VELUM];
         }
         // Dorsum closure (velar stops and nasal) and tip closure (coronals).
-        let dd = (i as i32 - dorsum_center) as f32;
-        a *= 1.0 - dorsum_close * (-(dd / 1.6).powi(2)).exp();
-        let td = (i as i32 - tip_center) as f32;
-        // Flat-topped profile: a tip constriction spans about three sections (1 cm).
-        let tg = (-(td / 1.6).powi(4)).exp();
+        // Flat-topped profiles (the tongue presses along a stretch of the
+        // roof), so a complete closure seals whole sections wherever its
+        // centre lies, and moves continuously.
+        let dd = i as f32 - dorsum_center;
+        a *= 1.0 - dorsum_close * (1.3 * (-(dd / 1.6).powi(2)).exp()).min(1.0);
+        let td = i as f32 - tip_center;
+        // A tip constriction spans about three sections (1 cm).
+        let tg = (1.25 * (-(td / 1.6).powi(4)).exp()).min(1.0);
         let lateral = p[LATERAL] * 0.25 * tg;
         // The tip/blade forms its channel against the palate whatever the
         // tongue body is doing, so its area is absolute, not a fraction of
@@ -174,7 +176,7 @@ pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
         }
     }
     shape.length_cm = p[TRACT_LEN] + 1.1 * p[LIP_ROUND];
-    shape.nasal_area = 1.5 * p[VELUM];
+    shape.nasal_area = 0.5 * p[VELUM];
     shape.coronal = (tip_min - shape.min_area).abs() < 1e-4 && p[TIP_CLOSE] > 0.5 && p[TIP_PLACE] > 0.1;
     // Air escapes through the nose when the oral closure lies in front of the port.
     let upstream = areas[7..=PORT].iter().copied().fold(f32::MAX, f32::min);
@@ -194,286 +196,4 @@ pub fn nasal_areas() -> [f32; NASAL_N] {
         *v = lerp(1.1, 2.6, smoothstep(0.0, 0.25, u)) * (1.0 - 0.6 * smoothstep(0.7, 1.0, u));
     }
     a
-}
-
-/// Kelly–Lochbaum waveguide with nasal side branch, using power-normalised
-/// travelling waves (w = p·√A). Each junction is then a rotation, which
-/// conserves energy even while areas change, so closing and reopening a
-/// section cannot pump up hidden pressure and release it as a click.
-pub struct Waveguide {
-    pub right: [f32; N],
-    pub left: [f32; N],
-    reflection: [f32; N],
-    transmission: [f32; N],
-    damping: [f32; N],
-    root_area: [f32; N],
-    /// Per-tick increments that glide the coefficients to the latest area
-    /// function over one control period (see `set_areas_ramped`).
-    d_reflection: [f32; N],
-    d_transmission: [f32; N],
-    d_damping: [f32; N],
-    d_root_area: [f32; N],
-    d_coupling: f32,
-    ramp_left: u32,
-    /// Section of a turbulent jet's exit and the extra per-tick loss it
-    /// adds just downstream (set before `set_areas_ramped`).
-    pub jet_at: usize,
-    pub jet_loss: f32,
-    pub areas: [f32; N],
-    pub nasal_right: [f32; NASAL_N],
-    pub nasal_left: [f32; NASAL_N],
-    nasal_reflection: [f32; NASAL_N],
-    nasal_transmission: [f32; NASAL_N],
-    nasal_areas: [f32; NASAL_N],
-    pub nasal_coupling: f32,
-    pub glottal_reflection: f32,
-    lip_lp: f32,
-    nose_lp: f32,
-    lip_coeff: f32,
-    nose_coeff: f32,
-}
-
-impl Waveguide {
-    pub fn new() -> Self {
-        let nasal_areas = nasal_areas();
-        let mut nasal_reflection = [0.0; NASAL_N];
-        let mut nasal_transmission = [1.0; NASAL_N];
-        for i in 0..NASAL_N - 1 {
-            nasal_reflection[i] = scatter(nasal_areas[i], nasal_areas[i + 1]);
-            nasal_transmission[i] = (1.0 - nasal_reflection[i] * nasal_reflection[i]).max(0.0).sqrt();
-        }
-        Self {
-            right: [0.0; N],
-            left: [0.0; N],
-            reflection: [0.0; N],
-            transmission: [1.0; N],
-            damping: [0.999; N],
-            root_area: [1.7; N],
-            d_reflection: [0.0; N],
-            d_transmission: [0.0; N],
-            d_damping: [0.0; N],
-            d_root_area: [0.0; N],
-            d_coupling: 0.0,
-            ramp_left: 0,
-            jet_at: N,
-            jet_loss: 0.0,
-            areas: [3.0; N],
-            nasal_right: [0.0; NASAL_N],
-            nasal_left: [0.0; NASAL_N],
-            nasal_reflection,
-            nasal_transmission,
-            nasal_areas,
-            nasal_coupling: 0.0,
-            glottal_reflection: 0.9,
-            lip_lp: 0.0,
-            nose_lp: 0.0,
-            lip_coeff: 0.3,
-            nose_coeff: 0.3,
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.right = [0.0; N];
-        self.left = [0.0; N];
-        self.nasal_right = [0.0; NASAL_N];
-        self.nasal_left = [0.0; NASAL_N];
-        self.lip_lp = 0.0;
-        self.nose_lp = 0.0;
-    }
-
-    /// Install a new area function immediately. `rate` is the internal tick rate.
-    pub fn set_areas(&mut self, areas: &[f32; N], nasal_area: f32, rate: f32) {
-        self.set_areas_ramped(areas, nasal_area, rate, 0);
-    }
-
-    /// Install a new area function, gliding the junction coefficients to it
-    /// linearly over `ticks` ticks. Stepping the coefficients at control rate
-    /// makes every step of a closing constriction scatter the energy trapped
-    /// behind it as a small impulse; near closure these merge into a click.
-    /// Interpolating (k, t) pairs along a chord keeps k² + t² ≤ 1 (passive).
-    pub fn set_areas_ramped(&mut self, areas: &[f32; N], nasal_area: f32, rate: f32, ticks: u32) {
-        // Finish any glide in progress so the new one starts from its end.
-        if self.ramp_left > 0 {
-            let n = self.ramp_left as f32;
-            for i in 0..N {
-                self.reflection[i] += n * self.d_reflection[i];
-                self.transmission[i] += n * self.d_transmission[i];
-                self.damping[i] += n * self.d_damping[i];
-                self.root_area[i] += n * self.d_root_area[i];
-            }
-            self.nasal_coupling += n * self.d_coupling;
-        }
-        self.areas = *areas;
-        let inv = if ticks > 0 { 1.0 / ticks as f32 } else { 0.0 };
-        let glide = |cur: &mut f32, d: &mut f32, target: f32| {
-            if ticks > 0 {
-                *d = (target - *cur) * inv;
-            } else {
-                *cur = target;
-                *d = 0.0;
-            }
-        };
-        glide(&mut self.nasal_coupling, &mut self.d_coupling, nasal_area);
-        for i in 0..N {
-            let (k, t) = if i < N - 1 {
-                let k = scatter(areas[i], areas[i + 1]);
-                (k, (1.0 - k * k).max(0.0).sqrt())
-            } else {
-                (0.0, 1.0)
-            };
-            glide(&mut self.reflection[i], &mut self.d_reflection[i], k);
-            glide(&mut self.transmission[i], &mut self.d_transmission[i], t);
-            glide(&mut self.root_area[i], &mut self.d_root_area[i], areas[i].max(0.0).sqrt());
-            // Wall and viscous losses grow as the section narrows.
-            let loss = 0.00022 + 0.00034 / areas[i].max(0.05).sqrt();
-            let mut damp = (1.0 - loss * 106_000.0 / rate).clamp(0.9, 0.99995);
-            // A jet leaving a constriction dissipates sound in front of it,
-            // which keeps the small front cavity of a fricative from ringing.
-            if i > self.jet_at && i <= self.jet_at + 2 {
-                damp *= 1.0 - self.jet_loss.clamp(0.0, 0.5) * 106_000.0 / rate;
-            }
-            glide(&mut self.damping[i], &mut self.d_damping[i], damp);
-        }
-        self.ramp_left = ticks;
-        // A piston of radius a radiates efficiently above roughly c/(2πa);
-        // below that most of the wave reflects (inverted) back into the tube.
-        let cutoff = |area: f32| {
-            let radius = (area.max(0.01) / std::f32::consts::PI).sqrt();
-            (0.9 * SOUND_SPEED / (2.0 * std::f32::consts::PI * radius)).clamp(1500.0, 0.45 * rate)
-        };
-        let coeff = |hz: f32| 1.0 - (-2.0 * std::f32::consts::PI * hz / rate).exp();
-        self.lip_coeff = coeff(cutoff(areas[N - 1]));
-        self.nose_coeff = coeff(cutoff(NOSTRIL_AREA));
-    }
-
-    /// One tick. `source` is the glottal volume-flow input; `noise` and
-    /// `noise2` are pressure sources (index, value) injected as series dipoles.
-    /// Returns (lip volume velocity, nostril volume velocity); radiated
-    /// pressure is their time derivative.
-    #[inline]
-    pub fn tick(&mut self, source: f32, noise_at: usize, noise: f32, noise2_at: usize, noise2: f32) -> (f32, f32) {
-        if self.ramp_left > 0 {
-            self.ramp_left -= 1;
-            for i in 0..N {
-                self.reflection[i] += self.d_reflection[i];
-                self.transmission[i] += self.d_transmission[i];
-                self.damping[i] += self.d_damping[i];
-                self.root_area[i] += self.d_root_area[i];
-            }
-            self.nasal_coupling += self.d_coupling;
-        }
-        let mut nr = [0.0f32; N];
-        let mut nl = [0.0f32; N];
-        // A volume-velocity source u enters as a pressure wave ρc·u/A, i.e. a
-        // normalised wave u/√A (constants folded into gains).
-        nr[0] = self.left[0] * self.glottal_reflection + source / self.root_area[0].max(0.3);
-        for i in 0..N - 1 {
-            let k = self.reflection[i];
-            let t = self.transmission[i];
-            let a = self.right[i];
-            let b = self.left[i + 1];
-            nr[i + 1] = t * a - k * b;
-            nl[i] = k * a + t * b;
-        }
-        // Three-port junction between sections PORT and PORT+1, evaluated in
-        // pressure waves and converted back.
-        let an = self.nasal_coupling;
-        let entering = if an > 1e-4 {
-            let (s1, s2, sn) = (self.root_area[PORT].max(0.032), self.root_area[PORT + 1].max(0.032), an.sqrt());
-            let (a1, a2) = (s1 * s1, s2 * s2);
-            let p1 = self.right[PORT] / s1;
-            let p2 = self.left[PORT + 1] / s2;
-            let pn = self.nasal_left[0] / sn;
-            let p = 2.0 * (a1 * p1 + a2 * p2 + an * pn) / (a1 + a2 + an);
-            nl[PORT] = (p - p1) * s1;
-            nr[PORT + 1] = (p - p2) * s2;
-            (p - pn) * sn
-        } else {
-            0.0
-        };
-        let nose = self.nasal_step(entering);
-        // Lip radiation: low frequencies reflect (inverted), highs escape.
-        let incident = self.right[N - 1];
-        self.lip_lp += self.lip_coeff * (incident - self.lip_lp);
-        let reflected = -0.96 * self.lip_lp;
-        nl[N - 1] = reflected;
-        // Volume velocity leaving the lips: √A·(w⁺ − w⁻).
-        let mouth = self.root_area[N - 1] * (incident - reflected);
-
-        for (at, value) in [(noise_at, noise), (noise2_at, noise2)] {
-            if value != 0.0 && at < N {
-                // Jet turbulence radiates mostly downstream of the constriction.
-                // A pressure source p enters as p·√A; capping A keeps the
-                // level from depending on how wide the cavity at the obstacle is.
-                let s = self.root_area[at].min(1.0);
-                nr[at] += 0.8 * value * s;
-                nl[at] -= 0.2 * value * s;
-            }
-        }
-        for i in 0..N {
-            self.right[i] = (nr[i] * self.damping[i]).clamp(-60.0, 60.0);
-            self.left[i] = (nl[i] * self.damping[i]).clamp(-60.0, 60.0);
-        }
-        (mouth, nose)
-    }
-
-    /// Advance the nasal tube; returns nostril volume velocity.
-    fn nasal_step(&mut self, entering: f32) -> f32 {
-        let mut nr = [0.0f32; NASAL_N];
-        let mut nl = [0.0f32; NASAL_N];
-        nr[0] = entering;
-        for i in 0..NASAL_N - 1 {
-            let k = self.nasal_reflection[i];
-            let t = self.nasal_transmission[i];
-            let a = self.nasal_right[i];
-            let b = self.nasal_left[i + 1];
-            nr[i + 1] = t * a - k * b;
-            nl[i] = k * a + t * b;
-        }
-        let incident = self.nasal_right[NASAL_N - 1];
-        self.nose_lp += self.nose_coeff * (incident - self.nose_lp);
-        let reflected = -0.94 * self.nose_lp;
-        nl[NASAL_N - 1] = reflected;
-        for i in 0..NASAL_N {
-            self.nasal_right[i] = (nr[i] * 0.9935).clamp(-60.0, 60.0);
-            self.nasal_left[i] = (nl[i] * 0.9935).clamp(-60.0, 60.0);
-        }
-        self.nasal_areas[NASAL_N - 1].sqrt() * (incident - reflected)
-    }
-
-    /// Scale applied to a pressure source injected in section `i`.
-    #[inline]
-    pub fn injection_scale(&self, i: usize) -> f32 {
-        self.root_area[i.min(N - 1)].min(1.0)
-    }
-
-    /// Acoustic pressure (normalised units) in section `i`.
-    #[inline]
-    pub fn pressure_at(&self, i: usize) -> f32 {
-        (self.right[i] + self.left[i]) / self.root_area[i].max(0.1)
-    }
-
-    pub fn nasal_area_profile(&self) -> &[f32; NASAL_N] {
-        &self.nasal_areas
-    }
-
-    /// Volume velocity currently leaving lips and nostrils (for analysis).
-    pub fn outflow(&self) -> f32 {
-        self.root_area[N - 1] * self.right[N - 1] + self.nasal_areas[NASAL_N - 1].sqrt() * self.nasal_right[NASAL_N - 1]
-    }
-}
-
-/// Pressure-wave reflection coefficient at a junction from area a to area b.
-#[inline]
-pub fn scatter(a: f32, b: f32) -> f32 {
-    let sum = a + b;
-    if sum < 1e-6 {
-        0.0
-    } else {
-        ((a - b) / sum).clamp(-1.0, 1.0)
-    }
-}
-
-pub fn internal_rate(length_cm: f32) -> f32 {
-    N as f32 * SOUND_SPEED / length_cm.clamp(9.0, 22.0)
 }

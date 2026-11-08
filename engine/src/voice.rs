@@ -1,26 +1,40 @@
-//! The complete voice: LF glottal source, simplified aerodynamics, the
-//! articulatory waveguide, resampling, room and output protection, driven by
-//! live parameter changes or a sample-accurate score.
+//! The complete voice: lungs, a vibrating glottis, the airway (a lossy
+//! acoustic transmission line carrying both airflow and sound), turbulence
+//! noise driven by the actual flow, resampling, room and output protection,
+//! driven by live parameter changes or a sample-accurate score.
 
+use crate::airway::{self, Airway};
 use crate::dsp::{Biquad, Dynamics, Resampler, Rng, Room};
-use crate::glottis::LfShape;
 use crate::params::{self, *};
-use crate::tract::{self, Shape, Waveguide, N, TEETH};
+use crate::tract::{self, Shape, N, TEETH};
 
 pub const MAX_BLOCK: usize = 4096;
 pub const MAX_EVENTS: usize = 65_536;
 const CONTROL: u32 = 32;
-/// Pitch at which the source level is calibrated (default voice).
-const F0_REF: f32 = 210.0;
 /// Overall level calibration so the default patch peaks well below 0 dBFS.
 const MASTER: f32 = 15.0;
-/// Stop-release transient level relative to the frication source.
-const BURST_LEVEL: f32 = 0.1;
-/// Minimum transglottal pressure (fraction of full lung pressure) for voicing.
-const PHONATION_THRESHOLD: f32 = 0.1;
-/// Per-tick sound absorption by a fully developed jet (at full lung pressure).
-const JET_LOSS: f32 = 0.12;
-const WALL_LEVEL: f32 = 0.025;
+/// Radiated pressure per unit rate of change of outflow (cm³/s²), before MASTER.
+const RADIATE: f64 = 2.5e-8;
+/// Share of the soft walls' volume velocity that radiates through the skin.
+const WALL_RADIATION: f64 = 0.05;
+/// Lung pressure at full effort (dyn/cm²; ≈10 cmH₂O).
+const LUNG_FULL: f32 = 10_000.0;
+/// Transglottal pressure needed to set the folds vibrating (≈2.5 cmH₂O).
+const PHONATION_THRESHOLD: f32 = 2_450.0;
+/// Posterior gap of the glottis that never closes (cm²).
+const CHINK: f32 = 0.012;
+/// Peak vibratory opening of the glottis at default effort (cm²).
+const GLOTTIS_SWING: f32 = 0.11;
+/// Turbulence: critical and saturating Reynolds numbers, and source gains
+/// (dyn/cm² per (Re² − Re_c²)) for the constriction jet, the jet striking
+/// the teeth (sibilants) and the glottis (aspiration).
+const RE_CRITICAL: f64 = 1_800.0;
+const RE_SATURATE: f64 = 12_000.0;
+const GAIN_JET: f64 = 4.0e-6;
+const GAIN_TEETH: f64 = 9.0e-6;
+const GAIN_GLOTTIS: f64 = 3.0e-6;
+/// Turbulence starts about 1 cm downstream of the constriction's exit.
+const JET_OFFSET_CM: f64 = 1.0;
 
 #[derive(Clone, Copy, Default)]
 pub struct Event {
@@ -61,73 +75,93 @@ pub const STATE_NASAL_SHARE: usize = 21;
 pub const STATE_CLOSED: usize = 22;
 /// Sections reported by `energy` (oral, then nasal).
 pub const ENERGY_LEN: usize = N + crate::tract::NASAL_N;
+/// Points in the captured glottal-flow cycle (display).
+const PULSE_POINTS: usize = 96;
+
+/// Glottal opening over one cycle (0..1): a raised-cosine opening, then a
+/// closing that is smooth for a lax voice and steepens toward the moment of
+/// contact for a pressed one; closed for the rest of the cycle.
+#[inline]
+pub fn glottal_pulse(phase: f32, open_quotient: f32, speed_quotient: f32, sharpness: f32) -> f32 {
+    let t_open = open_quotient * speed_quotient / (1.0 + speed_quotient);
+    if phase < t_open {
+        0.5 * (1.0 - (std::f32::consts::PI * phase / t_open).cos())
+    } else if phase < open_quotient {
+        let x = (phase - t_open) / (open_quotient - t_open);
+        let soft = 0.5 * (1.0 + (std::f32::consts::PI * x).cos());
+        let firm = (0.5 * std::f32::consts::PI * x).cos();
+        soft + (firm - soft) * sharpness
+    } else {
+        0.0
+    }
+}
 
 pub struct Voice {
     pub out_rate: f32,
     params: [params::Smoothed; COUNT],
     pub p: [f32; COUNT],
-    pub wg: Waveguide,
+    pub airway: Airway,
     pub areas: [f32; N],
     pub shape: Shape,
     int_rate: f32,
     resampler: Resampler,
     room: Room,
     dynamics: Dynamics,
-    f0_comp: f32,
     rng: Rng,
-    lf: LfShape,
-    lf_rd: f32,
-    rd_target: f32,
-    phase: f64,
+    phase: f32,
     period_scale: f32,
     period_amp: f32,
     vib_phase: f32,
     drift: f32,
     drift_velocity: f32,
     f0: f32,
-    oral_pressure: f32,
-    closed: bool,
-    burst: f32,
-    burst_decay: f32,
-    burst_gain: f32,
-    burst_index: usize,
-    burst_filter: Biquad,
-    burst_lp: f32,
+    // Glottis and lungs.
+    lungs: f64,
+    d_lungs: f64,
+    abduction: f32,
+    swing: f32,
+    open_quotient: f32,
+    speed_quotient: f32,
+    sharpness: f32,
+    transglottal: f32,
+    voicing_amp: f32,
+    glottal_area: f32,
+    pulse: [f32; PULSE_POINTS],
+    // Noise.
+    jet_branch: usize,
+    jet_at: usize,
+    jet_filter: Biquad,
+    jet_tilt: Biquad,
+    teeth_filter: Biquad,
+    teeth_tilt: Biquad,
+    teeth_weight: f64,
+    jet_weight: f64,
+    asp_filter: Biquad,
+    /// One-pole pre-tilt states: the radiation derivative adds +6 dB/octave,
+    /// real turbulence falls off above a few kHz.
+    tilt: [f64; 3],
+    tilt_coeff: f64,
     frication: f32,
     aspiration: f32,
-    voicing_amp: f32,
-    leak: f32,
-    noise_index: usize,
-    noise_gain: f32,
-    asp_filter: Biquad,
-    fric_filter: Biquad,
-    fric_tilt: Biquad,
-    flat_filter: Biquad,
-    flat_tilt: Biquad,
-    flat_lp: f32,
+    // Output.
+    out_prev: f64,
     dc: Biquad,
     counter: u32,
     frac: f32,
     pub out_l: Vec<f32>,
     pub out_r: Vec<f32>,
     pub state: [f32; STATE_LEN],
-    /// Smoothed sound-wave amplitude per section, for display.
+    /// Smoothed sound-pressure amplitude per section, for display.
     pub energy: [f32; ENERGY_LEN],
+    pressure_dc: [f32; ENERGY_LEN],
     airflow: f32,
+    mouth_mean: f32,
+    nose_mean: f32,
     nasal_share: f32,
-    flow_now: f32,
-    radiation_prev: f32,
-    asp_lp: f32,
-    fric_lp: f32,
-    src_x1: f32,
-    src_y1: f32,
-    src_r: f32,
-    wall_lp1: f32,
-    wall_lp2: f32,
-    wall_coeff: f32,
-    wall_drive: f32,
-    sibilant: bool,
-    tilt_coeff: f32,
+    oral_pressure: f32,
+    closed: bool,
+    /// A parameter jumped: install the next shape at once (no air pumping).
+    snap: bool,
     sum_sq: f32,
     sum_n: u32,
     peak: f32,
@@ -156,18 +190,14 @@ impl Voice {
             out_rate,
             params: params_arr,
             p,
-            wg: Waveguide::new(),
+            airway: Airway::new(),
             areas: [1.0; N],
             shape: Shape::default(),
             int_rate: 100_000.0,
             resampler: Resampler::new(out_rate),
             room: Room::new(out_rate),
             dynamics: Dynamics::new(out_rate),
-            f0_comp: 1.0,
             rng: Rng::new(seed),
-            lf: LfShape::from_rd(1.5),
-            lf_rd: 1.5,
-            rd_target: 1.5,
             phase: 0.0,
             period_scale: 1.0,
             period_amp: 1.0,
@@ -175,26 +205,31 @@ impl Voice {
             drift: 0.0,
             drift_velocity: 0.0,
             f0: 210.0,
-            oral_pressure: 0.0,
-            closed: false,
-            burst: 0.0,
-            burst_decay: 0.999,
-            burst_gain: 0.0,
-            burst_index: N - 1,
-            burst_filter: Biquad::default(),
-            burst_lp: 0.0,
+            lungs: 0.0,
+            d_lungs: 0.0,
+            abduction: CHINK,
+            swing: 0.0,
+            open_quotient: 0.65,
+            speed_quotient: 1.8,
+            sharpness: 0.3,
+            transglottal: 0.0,
+            voicing_amp: 0.0,
+            glottal_area: 0.0,
+            pulse: [0.0; PULSE_POINTS],
+            jet_branch: N,
+            jet_at: N,
+            jet_filter: Biquad::default(),
+            jet_tilt: Biquad::default(),
+            teeth_filter: Biquad::default(),
+            teeth_tilt: Biquad::default(),
+            teeth_weight: 0.0,
+            jet_weight: 1.0,
+            asp_filter: Biquad::default(),
+            tilt: [0.0; 3],
+            tilt_coeff: 0.05,
             frication: 0.0,
             aspiration: 0.0,
-            voicing_amp: 0.0,
-            leak: 0.05,
-            noise_index: N - 1,
-            noise_gain: 1.0,
-            asp_filter: Biquad::default(),
-            fric_filter: Biquad::default(),
-            fric_tilt: Biquad::default(),
-            flat_filter: Biquad::default(),
-            flat_tilt: Biquad::default(),
-            flat_lp: 0.0,
+            out_prev: 0.0,
             dc: Biquad::default(),
             counter: 0,
             frac: 0.0,
@@ -202,21 +237,14 @@ impl Voice {
             out_r: vec![0.0; MAX_BLOCK],
             state: [0.0; STATE_LEN],
             energy: [0.0; ENERGY_LEN],
+            pressure_dc: [0.0; ENERGY_LEN],
             airflow: 0.0,
+            mouth_mean: 0.0,
+            nose_mean: 0.0,
             nasal_share: 0.0,
-            flow_now: 0.0,
-            radiation_prev: 0.0,
-            asp_lp: 0.0,
-            fric_lp: 0.0,
-            src_x1: 0.0,
-            src_y1: 0.0,
-            src_r: 0.998,
-            wall_lp1: 0.0,
-            wall_lp2: 0.0,
-            wall_coeff: 0.02,
-            wall_drive: 0.0,
-            sibilant: false,
-            tilt_coeff: 0.05,
+            oral_pressure: 0.0,
+            closed: false,
+            snap: true,
             sum_sq: 0.0,
             sum_n: 0,
             peak: 0.0,
@@ -232,6 +260,8 @@ impl Voice {
         };
         v.dc.highpass(35.0, 0.707, out_rate);
         v.control();
+        let (areas, nasal) = (v.areas, v.shape.nasal_area);
+        v.airway.set_areas_ramped(&areas, nasal, 0);
         v
     }
 
@@ -248,6 +278,7 @@ impl Voice {
             let v = params::clamp(id, value);
             self.params[id].jump(v);
             self.p[id] = v;
+            self.snap = true;
         }
     }
 
@@ -262,137 +293,72 @@ impl Voice {
             self.params[i].step(dt);
             self.p[i] = params::clamp(i, self.params[i].value);
         }
-        let p = &self.p;
-        self.shape = tract::area_function(p, &mut self.areas);
-        self.int_rate = tract::internal_rate(self.shape.length_cm);
+        let p = self.p;
+        self.shape = tract::area_function(&p, &mut self.areas);
+        self.int_rate = airway::internal_rate(self.shape.length_cm);
         self.resampler.design(self.int_rate);
-        // Jet losses use the previous step's pressure (one control period behind).
-        let jet_speed = self.oral_pressure.max(0.0).sqrt() * smooth(0.6, 0.08, self.shape.min_area);
-        self.wg.jet_at = self.shape.min_index;
-        self.wg.jet_loss = JET_LOSS * jet_speed;
-        self.wg.set_areas_ramped(&self.areas, self.shape.nasal_area, self.int_rate, CONTROL);
+        self.airway.set_length(self.shape.length_cm);
+        // A jump (score start, preset load) installs the shape at once; the
+        // walls did not move, so it must not pump air.
+        let ticks = if self.snap { 0 } else { CONTROL };
+        self.snap = false;
+        self.airway.set_areas_ramped(&self.areas, self.shape.nasal_area, ticks);
 
-        // Aerodynamics: two orifices in series (glottis, supraglottal path).
-        let lung = p[LOUDNESS].powf(1.25) * p[GATE];
+        // Lungs: ramp to the new pressure over the control period (a stepped
+        // pressure would buzz at the control rate).
+        let lungs = (LUNG_FULL * p[LOUDNESS].powf(1.25) * p[GATE]) as f64;
+        self.d_lungs = (lungs - self.lungs) / CONTROL as f64;
+
+        // Glottis: resting (abducted) area and vibratory swing. Voiceless
+        // consonants pull the folds apart; breathiness widens the gap.
         let voicing = p[VOICING];
-        // Mean glottal area (cm²): ~0.05 while phonating, ~0.35 fully
-        // abducted for voiceless consonants.
-        let glottal_area = 0.045 + 0.3 * (1.0 - voicing).powf(1.5) + 0.07 * p[BREATH];
-        let path = self.shape.path_area.max(1e-3);
-        let inv_g = 1.0 / (glottal_area * glottal_area);
-        let inv_p = 1.0 / (path * path);
-        let target = lung * inv_p / (inv_g + inv_p);
-        // Pressure behind a constriction rises as glottal flow fills the
-        // cavity (and its yielding walls): slowly through adducted, vibrating
-        // folds, quickly through an open glottis. Release is fast.
-        let tau = if target > self.oral_pressure { 0.004 + 0.0035 / glottal_area } else { 0.005 };
-        self.oral_pressure += (target - self.oral_pressure) * (1.0 - (-dt / tau).exp());
-        let po = self.oral_pressure.max(0.0);
+        self.abduction = CHINK + 0.34 * (1.0 - voicing).powf(1.5) + 0.05 * p[BREATH];
+        // The folds vibrate only when adducted and when the pressure across
+        // them is above threshold: they stop at a pause, and when pressure
+        // builds behind a voiced closure.
+        let across = (self.lungs as f32 - self.airway.p[0] as f32).max(0.0);
+        self.transglottal += (across - self.transglottal) * (1.0 - (-dt / 0.006).exp());
+        let adduction = smooth(0.2, 0.75, voicing) * (1.0 - smooth(0.12, 0.3, self.abduction));
+        let target_amp = adduction * smooth(PHONATION_THRESHOLD, 1.8 * PHONATION_THRESHOLD, self.transglottal);
+        // Oscillation builds up and dies away over a few cycles.
+        let k = if target_amp > self.voicing_amp { 1.0 - (-dt / 0.008).exp() } else { 1.0 - (-dt / 0.005).exp() };
+        self.voicing_amp += (target_amp - self.voicing_amp) * k;
+        // Thinner, stiffer folds at high pitch open less; more effort opens more.
+        self.swing = GLOTTIS_SWING * (0.55 + 0.65 * p[LOUDNESS]) * (210.0 / self.f0.max(60.0)).powf(0.35).clamp(0.6, 1.5);
+        // Voice quality: tenseness shortens the open phase, skews it and makes
+        // the closure firmer.
+        let t = p[TENSENESS];
+        self.open_quotient = (0.82 - 0.4 * t + 0.1 * p[BREATH]).clamp(0.35, 0.95);
+        self.speed_quotient = 1.4 + 1.6 * t;
+        self.sharpness = (0.1 + 0.75 * t).clamp(0.0, 1.0);
 
-        // Display telemetry: mean airflow, how much leaves through the nose,
-        // and the sound-wave amplitude in each section (smoothed ~15 ms).
-        let flow = lung.max(0.0).sqrt() / (inv_g + inv_p).sqrt();
-        self.airflow = (flow / 0.3).min(1.5);
-        let an = self.shape.nasal_area;
-        self.nasal_share = if an < 1e-3 {
-            0.0
-        } else if self.shape.min_index > tract::PORT && self.shape.min_area < 0.004 {
-            1.0
-        } else {
-            let oral = self.areas[tract::PORT + 1..].iter().copied().fold(f32::MAX, f32::min).max(0.0);
-            an / (an + oral)
-        };
-        let k = 1.0 - (-dt / 0.015).exp();
-        for i in 0..N {
-            let e = (self.wg.right[i] * self.wg.right[i] + self.wg.left[i] * self.wg.left[i]).sqrt();
-            self.energy[i] += (e - self.energy[i]) * k;
-        }
-        for i in 0..tract::NASAL_N {
-            let e = (self.wg.nasal_right[i] * self.wg.nasal_right[i] + self.wg.nasal_left[i] * self.wg.nasal_left[i]).sqrt();
-            self.energy[N + i] += (e - self.energy[N + i]) * k;
-        }
-
-        // Stop release: an abrupt opening after pressure has built up.
-        let closed = self.shape.path_area < 0.004;
-        if self.closed && !closed && po > 0.12 {
-            self.burst = (po * 1.6).min(2.0);
-            // Fresh filter state: the response type changes with place.
-            self.burst_filter.reset();
-            self.burst_lp = 0.0;
-            // The transient is shaped by the cavity in front of the release:
-            // none for the lips (weak, flat), a short one for the tongue tip
-            // (high, rising), a longer one for the dorsum (compact, mid).
-            // It is injected just in front of the release point.
-            let (kind, decay_ms) = if self.shape.min_index >= N - 3 {
-                self.burst_filter.lowpass(4500.0, 0.6, self.int_rate);
-                self.burst_index = N - 1;
-                (0.35, 3.5)
-            } else if p[TIP_CLOSE] >= p[DORSUM_CLOSE] {
-                self.burst_filter.highpass(3200.0, 0.75, self.int_rate);
-                self.burst_index = TEETH;
-                (1.0, 4.5)
-            } else {
-                // Compact peak at the front-cavity resonance: low before back
-                // vowels (dorsum far back), high before front vowels.
-                self.burst_filter.bandpass(1200.0 + 1800.0 * p[TONGUE_X], 1.4, self.int_rate);
-                self.burst_index = (self.shape.min_index + 1).min(N - 1);
-                (6.0, 9.0)
-            };
-            self.burst_gain = kind;
-            self.burst_decay = (-1.0 / (decay_ms * 1e-3 * self.int_rate)).exp();
-        }
-        self.closed = closed;
-
-        // A jet becomes turbulent once its Reynolds number (∝ √(A·ΔP))
-        // passes a critical value; above it the dipole source strength goes
-        // as U³/A^2.5 = √A·ΔP^1.5 (Stevens 1971). So, for the same lung
-        // pressure, a narrow constriction that takes most of the pressure
-        // drop is far noisier than a vowel constriction behind an open glottis.
-        let ac = self.shape.min_area.max(1e-3);
-        let re2 = ac * po;
-        self.frication = smooth(0.004, 0.02, re2) * 5.0 * ac.sqrt() * po * po.sqrt();
-        if self.shape.coronal {
-            self.noise_index = TEETH;
-            // A postalveolar channel feeds a long, rounded front cavity whose
-            // strong low resonance needs less source to sound as loud.
-            self.noise_gain = 1.15 - 0.59 * smooth(0.18, 0.85, p[TIP_PLACE]);
-        } else {
-            self.noise_index = (self.shape.min_index + 1).min(N - 1);
-            self.noise_gain = if self.shape.min_index >= N - 3 { 0.9 } else { 0.19 };
-        }
-        let drop = (lung - po).max(0.0);
-        // Aspiration: the same law at the glottis. While the folds vibrate
-        // the mean opening is too small for a turbulent jet (breathiness is
-        // added per cycle in tick()).
-        let ug2 = glottal_area * drop;
-        self.aspiration = smooth(0.04, 0.1, ug2) * 4.2 * glottal_area.sqrt() * drop * drop.sqrt();
-        let adduction = smooth(0.2, 0.75, voicing);
-        // The folds only vibrate above a phonation-threshold pressure drop, so
-        // voicing stops cleanly when the lungs relax at a pause or when
-        // pressure behind a voiced closure has built up.
-        self.voicing_amp = adduction * drop.sqrt() * smooth(PHONATION_THRESHOLD, 2.5 * PHONATION_THRESHOLD, drop);
-        self.leak = 0.03 + 0.24 * p[BREATH];
-
-        // Fricative noise colour: brighter and narrower for sibilants.
-        // Sibilants: a jet striking the teeth gives a band-limited, high
-        // spectrum (lower and wider for postalveolar). Other fricatives are
-        // broadband and weak.
-        // Each colour has its own filter state (re-purposing one filter's
-        // state for another response would ring when the source moves).
-        self.sibilant = self.noise_index == TEETH;
-        let center = 7600.0 - 4000.0 * p[TIP_PLACE];
-        self.fric_filter.bandpass(center, 1.1, self.int_rate);
-        self.fric_tilt.highpass(center * 0.55, 0.7, self.int_rate);
-        self.flat_filter.bandpass(3800.0, 0.5, self.int_rate);
-        self.flat_tilt.lowpass(11_000.0, 0.6, self.int_rate);
-        self.asp_filter.bandpass(1800.0, 0.35, self.int_rate);
-        self.tilt_coeff = 1.0 - (-2.0 * std::f32::consts::PI * 1400.0 / self.int_rate).exp();
-        self.src_r = (-2.0 * std::f32::consts::PI * 40.0 / self.int_rate).exp();
-        self.wall_coeff = 1.0 - (-2.0 * std::f32::consts::PI * 350.0 / self.int_rate).exp();
-
-        // Voice quality: tenseness and effort lower Rd (brighter, firmer).
-        let rd = 1.8 - 2.0 * p[TENSENESS] - 0.4 * (p[LOUDNESS] - 0.6);
-        self.rd_target = rd.clamp(0.3, 2.7);
+        // Turbulence sources: where the jet is, and whether it hits the teeth.
+        self.jet_at = self.shape.min_index;
+        // The jet leaves the narrowest section through its downstream branch.
+        self.jet_branch = (self.shape.min_index + 1).min(N);
+        let offset = (JET_OFFSET_CM / self.airway.dx).round() as usize;
+        self.jet_at = (self.jet_branch + offset).min(N);
+        // A coronal channel aims its jet at the incisors: the obstacle source
+        // dominates sibilants. Weighted by how narrow the channel is.
+        // The shorter jet of an alveolar groove strikes the incisors harder
+        // than the wider postalveolar one, so /s/ is about as loud as /ʃ/.
+        let place = 5.0 - 5.6 * p[TIP_PLACE];
+        self.teeth_weight = if self.shape.coronal { (smooth(0.6, 0.12, self.shape.min_area) * place) as f64 } else { 0.0 };
+        // A jet with no obstacle in front of it (dental /θ ð/) is a weak
+        // source; the lips' own jet (/f v/) meets the lower lip and teeth.
+        let dental = p[TIP_CLOSE] > 0.5 && p[TIP_PLACE] < 0.1 && !self.shape.coronal;
+        let labial = self.shape.min_index >= N - 3;
+        self.jet_weight = if dental { 0.22 } else if labial { 4.0 } else { 1.0 };
+        let center = 7200.0 - 3900.0 * p[TIP_PLACE];
+        // Obstacle source: a broad hump around the place's characteristic
+        // frequency (higher for a short front cavity); the cavity in front
+        // sets the actual peak.
+        self.teeth_filter.bandpass(center, 0.9, self.int_rate);
+        self.teeth_tilt.lowpass(center * 1.6, 0.7, self.int_rate);
+        self.jet_filter.highpass(400.0, 0.5, self.int_rate);
+        self.jet_tilt.lowpass(6000.0, 0.6, self.int_rate);
+        self.asp_filter.bandpass(1500.0, 0.45, self.int_rate);
+        self.tilt_coeff = 1.0 - (-2.0 * std::f64::consts::PI * 1500.0 / self.int_rate as f64).exp();
 
         // Pitch with vibrato and slow drift (cents).
         let h = p[HUMANIZE];
@@ -402,11 +368,27 @@ impl Voice {
         self.drift += (self.drift_velocity - self.drift) * (dt * 1.8).min(1.0);
         let cents = vib + 14.0 * h * self.drift;
         self.f0 = p[PITCH] * 2f32.powf(cents / 1200.0);
-        // Radiated level grows with the rate of flow change, i.e. with f0 for a
-        // fixed flow pulse. Stiffer, thinner folds at high pitch pass smaller
-        // pulses: at constant effort the peak flow derivative (hence level)
-        // stays roughly constant with pitch.
-        self.f0_comp = (F0_REF / self.f0.max(1.0)).powf(1.0).clamp(0.35, 1.4);
+
+        // Display telemetry.
+        let mouth = self.airway.u[N] as f32;
+        let nose = self.airway.un[crate::tract::NASAL_N] as f32;
+        let km = 1.0 - (-dt / 0.03).exp();
+        self.mouth_mean += (mouth - self.mouth_mean) * km;
+        self.nose_mean += (nose - self.nose_mean) * km;
+        let total = self.mouth_mean.max(0.0) + self.nose_mean.max(0.0);
+        self.nasal_share = if total > 5.0 { self.nose_mean.max(0.0) / total } else { 0.0 };
+        self.airflow = ((self.airway.u[0] as f32).max(0.0) / 900.0).min(1.5) * 0.3 + self.airflow * 0.7;
+        let behind = self.shape.min_index.saturating_sub(1);
+        let po = (self.airway.p[behind] as f32 / LUNG_FULL).max(0.0);
+        self.oral_pressure += (po - self.oral_pressure) * km;
+        self.closed = self.shape.path_area < 0.004;
+        let k = 1.0 - (-dt / 0.015).exp();
+        for i in 0..ENERGY_LEN {
+            let pr = if i < N { self.airway.p[i] } else { self.airway.pn[i - N] } as f32;
+            self.pressure_dc[i] += (pr - self.pressure_dc[i]) * 0.02;
+            let e = (pr - self.pressure_dc[i]).abs() * 1e-3;
+            self.energy[i] += (e - self.energy[i]) * k;
+        }
     }
 
     #[inline]
@@ -416,75 +398,62 @@ impl Voice {
         }
         self.counter = self.counter.wrapping_add(1);
         let f0 = self.f0 * self.period_scale;
-        self.phase += (f0 / self.int_rate) as f64;
+        self.phase += f0 / self.int_rate;
         if self.phase >= 1.0 {
             self.phase -= self.phase.floor();
             let h = self.p[HUMANIZE];
             self.period_scale = 1.0 + 0.0065 * h * self.rng.gauss();
-            self.period_amp = 1.0 + 0.055 * h * self.rng.gauss();
-            if (self.rd_target - self.lf_rd).abs() > 0.008 {
-                self.lf_rd = self.rd_target;
-                self.lf = LfShape::from_rd(self.lf_rd as f64);
-            }
+            self.period_amp = 1.0 + 0.05 * h * self.rng.gauss();
         }
-        let flow = self.lf.flow(self.phase) as f32;
-        self.flow_now = flow;
-        let pulse = flow * (1.0 - self.leak) + self.leak;
-        let glottal = self.voicing_amp * self.f0_comp * self.period_amp * pulse;
-        let white = self.rng.uniform();
-        // Noise sources are pre-tilted (one-pole low-pass) so that, after the
-        // radiation derivative, their spectra fall off as real turbulence does.
-        self.asp_lp += self.tilt_coeff * (self.asp_filter.process(white) - self.asp_lp);
-        let asp = self.asp_lp * 6.0
-            * (self.p[BREATH] * self.p[BREATH] * 0.02 * self.voicing_amp * (0.1 + flow) + self.aspiration * 0.022);
-        // The waveguide carries only the acoustic (AC) part of the glottal
-        // flow; mean airflow is handled by the quasi-static aerodynamics.
-        // Without this, DC flow would stop and restart abruptly at every
-        // closure, which radiates as a click, and pile up behind a closure.
-        let raw = glottal * 0.9 + asp;
-        let source = raw - self.src_x1 + self.src_r * self.src_y1;
-        self.wall_drive = source;
-        self.src_x1 = raw;
-        self.src_y1 = source;
+        let open = glottal_pulse(self.phase, self.open_quotient, self.speed_quotient, self.sharpness);
+        let ag = self.abduction + self.swing * self.voicing_amp * self.period_amp * open;
+        self.glottal_area = ag;
+        self.lungs += self.d_lungs;
 
-        let mut fric = 0.0;
-        let mut burst = 0.0;
-        if self.frication > 0.0 {
-            let white = self.rng.uniform();
-            let sib = self.fric_tilt.process(self.fric_filter.process(white));
-            let flat = self.flat_tilt.process(self.flat_filter.process(white));
-            // Pre-tilt so the radiation derivative leaves the intended shape.
-            self.fric_lp += self.tilt_coeff * (sib - self.fric_lp);
-            self.flat_lp += self.tilt_coeff * (flat - self.flat_lp);
-            // The obstacle source's strength should not depend on how far the
-            // tip profile happens to narrow the section at the teeth (which
-            // varies with the vowel context), so normalise the injection there.
-            let n = if self.sibilant {
-                self.fric_lp * 9.0 * 0.85 / self.wg.injection_scale(TEETH).max(0.3)
-            } else {
-                self.flat_lp * 5.0
-            };
-            fric = n * self.frication * 0.05 * self.noise_gain;
+        // Turbulence, from the flow of the previous step: a dipole source
+        // ∝ Re² − Re_c² (above the critical Reynolds number) downstream of
+        // each jet, injected as a series pressure source.
+        let w = &self.airway;
+        let excess = |re: f64| ((re.min(RE_SATURATE)).powi(2) - RE_CRITICAL * RE_CRITICAL).max(0.0);
+        let jet = excess(w.reynolds(self.jet_branch, 0.0));
+        // The glottis is a slit (length ≫ width): hydraulic diameter 2A/ℓ, so Re = 2u/(ℓν).
+        let glot = excess(2.0 * w.u[0].abs() / (crate::airway::GLOTTIS_LENGTH * crate::airway::NU));
+        let downstream = w.u[self.jet_branch] >= 0.0;
+        let n1 = self.rng.uniform();
+        let n2 = self.rng.uniform();
+        let n3 = self.rng.uniform();
+        let raw = [
+            self.jet_tilt.process(self.jet_filter.process(n1)) as f64,
+            self.teeth_tilt.process(self.teeth_filter.process(n2)) as f64,
+            self.asp_filter.process(n3) as f64,
+        ];
+        for k in 0..3 {
+            self.tilt[k] += self.tilt_coeff * (raw[k] - self.tilt[k]);
         }
-        if self.burst > 1e-4 {
-            let shaped = self.burst_filter.process(self.rng.uniform());
-            self.burst_lp += self.tilt_coeff * (shaped - self.burst_lp);
-            burst = self.burst_lp * self.burst * self.burst_gain * BURST_LEVEL;
-            self.burst *= self.burst_decay;
-        }
-        // The open glottis absorbs more energy than the closed one.
-        self.wg.glottal_reflection = 0.92 - 0.45 * flow * self.voicing_amp.min(1.0) - 0.7 * (1.0 - self.p[VOICING]);
-        let (mouth, nose) = self.wg.tick(source, self.noise_index, fric, self.burst_index, burst);
-        let flow = mouth + nose;
-        let radiated = flow - self.radiation_prev;
-        self.radiation_prev = flow;
-        // Soft tissue of the neck and cheeks is set vibrating by the glottal
-        // pulses and passes on only low frequencies. Inaudible under an open
-        // vowel, it is the low murmur that keeps b, d and g voiced while the
-        // mouth is sealed.
-        self.wall_lp1 += self.wall_coeff * (self.wall_drive - self.wall_lp1);
-        self.wall_lp2 += self.wall_coeff * (self.wall_lp1 - self.wall_lp2);
-        radiated + WALL_LEVEL * self.wall_lp2
+        // Pre-tilting cuts the level; restore it at the tilt corner.
+        let (jet_noise, teeth_noise, asp_noise) = (self.tilt[0] * 4.0, self.tilt[1] * 6.0, self.tilt[2] * 2.5);
+        let tw = self.teeth_weight;
+        let sign = if downstream { 1.0 } else { -1.0 };
+        self.airway.inject = [
+            (if downstream { self.jet_at } else { self.jet_branch.saturating_sub(4) }, sign * GAIN_JET * self.jet_weight * (1.0 - 0.7 * tw.min(1.0)) * jet * jet_noise),
+            (TEETH + 1, sign * GAIN_TEETH * tw * jet * teeth_noise),
+            // A breathy voice's open posterior gap carries its own turbulent
+            // jet, which the single-slit Reynolds number underrates.
+            (2, GAIN_GLOTTIS * (1.0 + 60.0 * (self.p[BREATH] as f64).powi(3)) * glot * asp_noise),
+        ];
+        // Display: frication at a consonant constriction (the turbulence of
+        // /h/ air through an open vowel tract is not a fricative's).
+        self.frication = (jet / 6.4e7) as f32 * smooth(0.5, 0.2, self.shape.min_area);
+        self.aspiration = (glot / 6.4e7) as f32;
+
+        let (mouth, nose) = self.airway.step(ag as f64, self.lungs);
+        let slot = ((self.phase * PULSE_POINTS as f32) as usize).min(PULSE_POINTS - 1);
+        self.pulse[slot] = self.airway.u[0] as f32;
+        // Radiated sound: the rate of change of the air leaving the body.
+        let out = mouth + nose + WALL_RADIATION * self.airway.wall_flow;
+        let radiated = (out - self.out_prev) / self.airway.dt * RADIATE;
+        self.out_prev = out;
+        radiated as f32
     }
 
     /// Render `count` output frames into out_l/out_r.
@@ -505,7 +474,8 @@ impl Voice {
             let space = self.p[SPACE];
             let (wl, wr) = self.room.process(dry * space);
             let (l, r) = (dry + 0.5 * wl, dry + 0.5 * wr);
-            let (l, r) = if l.is_finite() && r.is_finite() {
+            // A runaway (far beyond any physical level) is reset, not passed on.
+            let (l, r) = if l.is_finite() && r.is_finite() && l.abs() < 1e3 && r.abs() < 1e3 {
                 let (l, r) = self.dynamics.process(l, r);
                 (soft_clip(l), soft_clip(r))
             } else {
@@ -524,25 +494,17 @@ impl Voice {
     }
 
     fn recover(&mut self) {
-        self.wg.reset();
+        self.airway.reset();
         self.resampler.reset();
         self.room.reset();
         self.dynamics.reset();
         self.dc.reset();
-        self.asp_filter.reset();
-        self.fric_filter.reset();
-        self.fric_tilt.reset();
-        self.flat_filter.reset();
-        self.flat_tilt.reset();
-        self.flat_lp = 0.0;
-        self.burst_filter.reset();
-        self.burst_lp = 0.0;
-        self.src_x1 = 0.0;
-        self.src_y1 = 0.0;
-        self.wall_lp1 = 0.0;
-        self.wall_lp2 = 0.0;
-        self.oral_pressure = 0.0;
-        self.burst = 0.0;
+        for f in [&mut self.jet_filter, &mut self.jet_tilt, &mut self.teeth_filter, &mut self.teeth_tilt, &mut self.asp_filter] {
+            f.reset();
+        }
+        self.out_prev = 0.0;
+        self.lungs = 0.0;
+        self.voicing_amp = 0.0;
         self.resets += 1;
     }
 
@@ -564,15 +526,16 @@ impl Voice {
         self.sum_sq = 0.0;
         self.sum_n = 0;
         self.peak = 0.0;
-        s[STATE_RD] = self.lf_rd;
-        s[STATE_FLOW] = self.flow_now;
+        // Equivalent Rd of the current source settings, for display.
+        s[STATE_RD] = (1.8 - 2.0 * self.p[TENSENESS] - 0.4 * (self.p[LOUDNESS] - 0.6)).clamp(0.3, 2.7);
+        s[STATE_FLOW] = ((self.glottal_area - self.abduction) / self.swing.max(1e-3)).clamp(0.0, 1.0);
         s[STATE_PLAYING] = if self.playing { 1.0 } else { 0.0 };
         s[STATE_POSITION] = if self.playing { (self.frame - self.start_frame) as f32 / self.out_rate } else { 0.0 };
         s[STATE_RESETS] = self.resets as f32;
         s[STATE_ASPIRATION] = self.aspiration;
-        s[STATE_BURST] = self.burst;
+        s[STATE_BURST] = 0.0;
         s[STATE_SCORE_LENGTH] = self.end_frame as f32 / self.out_rate;
-        s[STATE_NOISE_INDEX] = self.noise_index as f32;
+        s[STATE_NOISE_INDEX] = self.jet_at as f32;
         s[STATE_AIRFLOW] = self.airflow;
         s[STATE_NASAL_SHARE] = self.nasal_share;
         s[STATE_CLOSED] = if self.closed { 1.0 } else { 0.0 };
@@ -650,11 +613,15 @@ impl Voice {
         self.playing
     }
 
-    /// Sample the current LF flow shape at `out.len()` phases (display).
+    /// The last cycle of glottal airflow, normalised to 0..1, at `out.len()`
+    /// points (display).
     pub fn glottal_shape(&self, out: &mut [f32]) {
+        let (lo, hi) = self.pulse.iter().fold((f32::MAX, f32::MIN), |(a, b), &v| (a.min(v), b.max(v)));
+        let span = (hi - lo).max(1e-6);
         let n = out.len().max(1);
         for (i, v) in out.iter_mut().enumerate() {
-            *v = self.lf.flow(i as f64 / n as f64) as f32;
+            let k = (i * PULSE_POINTS / n).min(PULSE_POINTS - 1);
+            *v = (self.pulse[k] - lo) / span;
         }
     }
 }

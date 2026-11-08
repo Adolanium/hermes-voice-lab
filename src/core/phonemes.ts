@@ -66,8 +66,8 @@ export const PHONEMES: Record<string, Phoneme> = Object.fromEntries([
   P('DH', 'ð', 'fricative', true, 50, {tipPlace: 0, tipClose: 0.794}, 'this'),
   P('S', 's', 'fricative', false, 110, {tipPlace: 0.18, tipClose: 0.834, jaw: 0.3}, 'see'),
   P('Z', 'z', 'fricative', true, 85, {tipPlace: 0.18, tipClose: 0.828, jaw: 0.3}, 'zoo'),
-  P('SH', 'ʃ', 'fricative', false, 115, {tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55, jaw: 0.3}, 'she'),
-  P('ZH', 'ʒ', 'fricative', true, 90, {tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55, jaw: 0.3}, 'vision'),
+  P('SH', 'ʃ', 'fricative', false, 115, {tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55, jaw: 0.3}, 'she'),
+  P('ZH', 'ʒ', 'fricative', true, 90, {tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55, jaw: 0.3}, 'vision'),
   P('CH', 'tʃ', 'affricate', false, 115, {tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3}, 'chair'),
   P('JH', 'dʒ', 'affricate', true, 95, {tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3}, 'joy'),
   P('L', 'l', 'approximant', true, 70, {tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3, tongueY: 0.5}, 'love'),
@@ -79,8 +79,8 @@ export const PHONEMES: Record<string, Phoneme> = Object.fromEntries([
 
 /** Released friction phase of affricates. */
 export const AFFRICATE_RELEASE: Record<string, Patch> = {
-  CH: {tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55},
-  JH: {tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55},
+  CH: {tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55},
+  JH: {tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55},
 };
 
 export const VOWEL_SYMBOLS = Object.values(PHONEMES).filter(p => p.manner === 'vowel' || p.manner === 'diphthong').map(p => p.symbol);

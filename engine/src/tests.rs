@@ -210,13 +210,24 @@ fn closure_builds_pressure_and_releases_a_burst() {
     render(&mut v, 0.12);
     let po = v.state[5];
     assert!(po > 0.3, "oral pressure {po}");
+    // While sealed only the walls murmur; the release lets the compressed air
+    // out at once: a transient well above the closure (it emerges from the
+    // airway, there is no burst generator).
+    let closed = peak(&mut v, 0.02);
     v.set(LIP_OPEN, 0.7, 6.0);
-    let mut max_burst = 0.0f32;
-    for _ in 0..40 {
-        v.render(48);
-        max_burst = max_burst.max(v.state[17]);
+    let burst = peak(&mut v, 0.02);
+    assert!(burst > 4.0 * closed && burst > 0.02, "burst {burst} vs closure {closed}");
+}
+
+fn peak(v: &mut Voice, seconds: f32) -> f32 {
+    let mut m = 0.0f32;
+    let mut left = (seconds * v.out_rate) as usize;
+    while left > 0 {
+        let n = v.render(left.min(256));
+        m = v.out_l[..n].iter().fold(m, |a, x| a.max(x.abs()));
+        left -= n;
     }
-    assert!(max_burst > 0.1, "burst {max_burst}");
+    m
 }
 
 #[test]

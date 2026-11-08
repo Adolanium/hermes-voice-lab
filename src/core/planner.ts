@@ -10,7 +10,7 @@
 import {compileScore, type Score, type ScoreEvent} from './engine';
 import {clampParam, defaultPatch, PARAM_ID, type ParamName, type Patch, VOICE_PARAMS, midiToHz} from './params';
 import {AFFRICATE_RELEASE, isVowel, PHONEMES, SCHWA, vowelTarget, type Phone} from './phonemes';
-import {phonemize, parsePhonemeInput, syllabify, type Boundary, type Lexicon, type Word} from './text';
+import {phonemize, parsePhonemeInput, reduceFunctionWords, syllabify, type Boundary, type Lexicon, type Word} from './text';
 
 export interface Segment {
   symbol: string; // ARPABET or 'SIL'
@@ -104,8 +104,10 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
   anchors.sort((a, b) => a.time - b.time);
   anchors.forEach((a, k) => {
     const gap = k ? a.time - anchors[k - 1].time : 0.15;
-    const tau = a.tau ?? Math.min(48, Math.max(14, gap * 1000 * 0.3));
-    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - ((a.lead ?? LEAD_SCALE) * tau) / 1000);
+    // Vowel targets are reached, not grazed: a quick move (12–24 ms) that
+    // starts about four time constants ahead gets ~90% of the way there.
+    const tau = a.tau ?? Math.min(24, Math.max(12, gap * 1000 * 0.18));
+    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - ((a.lead ?? 4) * tau) / 1000);
     for (const [name, value] of Object.entries(a.target)) {
       if (['tongueX', 'tongueY', 'jaw', 'throat', 'rhotic', 'lipOpen', 'lipRound'].includes(name)) at(start, name as ParamName, value!, tau, a.seg);
     }
@@ -168,7 +170,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       // Anticipatory lowering, but not into a preceding obstruent (it would
       // vent its pressure through the nose).
       const afterObstruent = prevSeg && ['stop', 'fricative', 'affricate'].includes(PHONEMES[prevSeg.symbol]?.manner);
-      at(afterObstruent ? s.start - 0.012 : s.start - 0.06, 'velum', 1, afterObstruent ? 12 : 22, i);
+      at(afterObstruent ? s.start - 0.012 : s.start - 0.035, 'velum', 1, afterObstruent ? 10 : 12, i);
       if (!(next && PHONEMES[next.symbol]?.target.velum)) {
         // Before an obstruent the velopharyngeal port must be sealed when the
         // obstruent starts (or pressure leaks out of the nose and /g/ in
@@ -184,7 +186,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       // behind a narrowing tip would hiss); fricatives slightly before the
       // constriction is reached.
       const closing = ph.manner === 'stop' || ph.manner === 'affricate';
-      at(phraseInitial ? onset : closing ? s.start : s.start - 0.012, 'voicing', 0, 7, i);
+      at(phraseInitial ? onset : closing ? s.start : s.start - 0.02, 'voicing', 0, 7, i);
       const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === 'S';
       const aspirated = ph.manner === 'stop' && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === 'SIL' || ['R', 'L', 'W', 'Y'].includes(next.symbol));
       // Voice onset time after release; adduction takes ~12 ms to reach the
@@ -192,7 +194,13 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       const vot = ph.manner === 'stop' ? (aspirated ? 0.055 : 0.015) : ph.manner === 'affricate' ? 0.02 : 0.0;
       const following = next && next.symbol !== 'SIL' && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
       // After a fricative the folds adduct as the constriction opens (no gap).
-      if (!following) at(s.end + (ph.manner === "fricative" || ph.manner === "aspirate" ? -0.02 : vot - 0.012), "voicing", 1, 8, i);
+      // Fricatives keep the glottis open to just past their end: voicing that
+      // starts inside the frication weakens it and makes it sound voiced.
+      // Before a pause the folds stay apart until the breath has stopped, so
+      // a final consonant releases into silence ("cat", not "cat-uh").
+      const final = !next || next.symbol === 'SIL';
+      if (final) at(s.end + 0.09, 'voicing', 1, 20, i);
+      else if (!following) at(s.end + (ph.manner === "fricative" ? 0.005 : ph.manner === "aspirate" ? -0.02 : vot - 0.012), "voicing", 1, 8, i);
     } else if (phraseInitial && (ph.manner === 'stop' || ph.manner === 'affricate')) {
       // Utterance-initial /b d g/ in English are short-lag, not prevoiced:
       // the folds are apart but not vibrating during the closure; voicing
@@ -386,7 +394,7 @@ export function planSpeech(input: string, lexicon: Lexicon, opts: SpeechOptions 
     if (errors.length) plan.warnings.push(`Unknown phoneme tokens ignored: ${errors.slice(0, 8).join(', ')}`);
     return plan;
   }
-  const words = phonemize(input, lexicon);
+  const words = reduceFunctionWords(phonemize(input, lexicon));
   const plan = planWords(words, opts);
   const guessed = words.filter(w => w.source === 'rules').map(w => w.text);
   if (guessed.length) plan.warnings.push(`Pronunciation guessed by rules: ${guessed.slice(0, 8).join(', ')}`);

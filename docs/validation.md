@@ -6,7 +6,7 @@ Tested on 2026-11-08 on macOS 27.2 (arm64). Hermes Desktop was the official app 
 
 | Suite | Command | Result |
 |---|---|---|
-| Rust engine (13 tests) | `npm run test:engine` | pass |
+| Rust engine (14 tests) | `npm run test:engine` | pass |
 | Node core (14 tests) | `npm test` | pass |
 | Types | `npm run typecheck` | pass |
 | Hermes manifest/security/desktop-surface lint | `hermes plugins validate <installed path>` | pass |
@@ -56,28 +56,40 @@ Engine test `closure_stops_airflow_and_sound_in_front_and_nose_takes_over` pins 
 
 ## Listening and intelligibility
 
-The author could not listen to audio in this environment. Speech quality was judged from spectrograms, level measurements and an automatic proxy. Research tooling renders ten fixed sentences with `runtime/render.mjs`, transcribes them with a local Whisper `base.en` model, and computes the word error rate (WER). This measures machine intelligibility, not naturalness or human perception, and Whisper is noisy: identical audio has scored 0.376–0.431 across reruns. Decisions also used a larger set of 60 sentences × 2 seeds.
+The author could not listen to audio in this environment. Speech quality was judged from spectrograms, level and spectrum measurements, and an automatic proxy: research tooling renders fixed sentences with `runtime/render.mjs`, transcribes them with a local Whisper model (greedy decoding), and computes the word error rate (WER). A sentence's errors are capped at its word count, so one hallucinated run-on can't dominate. This measures machine intelligibility, not naturalness or human perception. Run to run, it varies by about ±2 points.
 
-| Build | Mean WER (10 sentences) |
-|---|---|
-| First complete engine | 0.774 |
-| After intelligibility work (closures, gesture precedence, VOT, bursts, sibilants, tempo, leveler) | 0.376 |
-| Released (softer Signature source) | 0.36–0.39 across runs |
+The judge set has 30 sentences: the 10 below, 10 Harvard sentences (IEEE 1969), and 10 original semantically unpredictable sentences dense in sibilants, affricates, nasals and stops.
 
-Released transcripts. Rows are from one run; the eighth sentence replaced an earlier benchmark wording, and the earlier rows above used the old one.
+| Build | 30 sentences, small.en | 10 sentences below, base.en |
+|---|---|---|
+| v0.2 (Kelly–Lochbaum waveguide, LF flow source) | 49.1% | 38.5% |
+| Airway transmission line, area-driven glottis, Reynolds-number turbulence | 48.7% | |
+| + vowel targets reached (quick vowel moves) | 47.3% | |
+| + glottis open through voiceless fricatives | 44.2% | |
+| + final consonants release into silence | 43.4% | |
+| + weak forms of function words | 39.8% | |
+| + lossy nasal passages (murmur 10–13 dB below vowels) | 29.6% | 10.4% |
+| + breathiness from the glottal gap, sibilant balance (released) | **31.4%** | **12.4%** |
+
+What each step fixed:
+- **Airway.** The old engine was buzzy and muffled at once: F2 and F3 sat 10–15 dB below natural values, while 4–8 kHz carried about 10 dB too much. In the new engine a held /ɑ/ has F2 −6 dB and F3 −29 dB relative to F1, against about −6 and −26 in natural female speech. The airway alone did not change the score, but every later step built on it.
+- **Fricative levels re vowel (released).** s −7.4, ʃ −6.0, tʃ −5.3, z −11, h −10.6, v −19, f −21, θ −22 dB, with peaks at 5.9 kHz (s) and 2.8 kHz (ʃ).
+- **Nasals.** In v0.2 the nasal murmur was as loud as /l/, so "nine" was heard as "line" and "noon" as "loom".
+
+Current transcripts of the 10 sentences (base.en):
 
 | WER | Sentence | Whisper heard |
 |---|---|---|
-| 0.11 | The quick brown fox jumps over the lazy dog. | The quick brown fox clumps over the lazy dog. |
-| 0.29 | Please call me when you get home. | Please call me when you're back home. |
-| 0.75 | She sells sea shells by the sea shore. | She sells, she sells, I'll say sure |
+| 0.33 | The quick brown fox jumps over the lazy dog. | But weak brown fucks jumps over the lazy dog. |
+| 0.14 | Please call me when you get home. | Please follow me when you get home. |
+| 0.38 | She sells sea shells by the sea shore. | She sells seashells by the sea shower. |
 | 0.00 | What time is it now? | What time is it now? |
-| 0.57 | I would like a cup of tea. | I would like to top out the |
-| 0.12 | Open the window and let the light in. | Open the window and let the light in it. |
-| 0.71 | Seven green birds sat on the fence. | Sell and drink their bread on the fence. |
-| 0.38 | My voice is shaped by breath and math. | My life is shaped by breath of love. |
+| 0.00 | I would like a cup of tea. | I would like a cup of tea. |
+| 0.00 | Open the window and let the light in. | Open the window and let the light in. |
+| 0.14 | Seven green birds sat on the fence. | Seven green birds sit on the fence. |
+| 0.25 | My voice is shaped by breath and math. | My voice is shaped by breath of mess. |
 | 0.00 | Good morning, how are you today? | Good morning. How are you today? |
-| 0.67 | We will meet at the old bridge at noon. | We will lay that little bridge up low. |
+| 0.00 | We will meet at the old bridge at noon. | We will meet at the old bridge at noon. |
 
 **Levels.** Speech renders at RMS ≈ 0.08–0.10. A C4–E4–G4–C5 sung test went from RMS 0.29 / peak 1.0 to RMS 0.10–0.12 / peak ≤ 0.67 once the pitch-compensated source, a slow leveler and a 2 ms look-ahead limiter (ceiling 0.8) were in place. Through the real tool registry, sung and spoken renders peak at 0.42–0.43.
 
@@ -85,11 +97,11 @@ Released transcripts. Rows are from one run; the eighth sentence replaced an ear
 
 | Preset | F0 (Hz) | H1–H2 (dB) | H1–A3 (dB) | HNR (dB) |
 |---|---|---|---|---|
-| Signature | 212 | 0.0 | 23.4 | 14.7 |
-| Warm | 194 | 3.9 | 26.7 | 13.9 |
-| Bright | 238 | −7.9 | 12.2 | 15.3 |
-| Airy | 222 | 1.2 | 22.8 | 8.4 |
-| Lyric | 331 | −12.6 | 13.3 | 16.4 |
-| Alto | 176 | 5.2 | 28.3 | 14.2 |
+| Signature | 212 | 3.4 | 28.2 | 15.0 |
+| Warm | 194 | 5.0 | 31.4 | 14.6 |
+| Bright | 238 | −0.2 | 25.6 | 15.8 |
+| Airy | 222 | 6.5 | 40.6 | 9.9 |
+| Lyric | 329 | −5.4 | 18.9 | 16.5 |
+| Alto | 176 | 3.8 | 28.3 | 14.5 |
 
-The intelligibility work made the source firmer (Signature H1–H2 −4.8 dB). The released presets soften it again without hurting the WER proxy. Pitch and tract length set the perceived size independently of these source measures.
+Measured on the airway engine. The glottal flow now comes out of the interaction of an area-driven glottis with the tract, so H1–H2 and tilt follow the vowel and the preset. Pitch and tract length set the perceived size independently of these source measures.

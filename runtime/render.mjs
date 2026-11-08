@@ -243,18 +243,18 @@ function renderScore(engine2, score2, patch = {}, tail = 0.6) {
 
 // src/core/vowels.generated.json
 var vowels_generated_default = {
-  IY: { params: { tongueX: 1, tongueY: 0.901, jaw: 0.43, lipOpen: 1, lipRound: 0, throat: 0.208 }, model: [419, 2564, 3144], target: [437, 2761, 3372] },
-  IH: { params: { tongueX: 1, tongueY: 0.641, jaw: 0.39, lipOpen: 0.866, lipRound: 0, throat: 0.222 }, model: [478, 2339, 2921], target: [483, 2365, 3053] },
-  EY: { params: { tongueX: 0.999, tongueY: 0.72, jaw: 0.566, lipOpen: 1, lipRound: 0, throat: 0 }, model: [515, 2382, 2893], target: [536, 2530, 3047] },
-  EH: { params: { tongueX: 0.999, tongueY: 0.207, jaw: 0.797, lipOpen: 1, lipRound: 0, throat: 0 }, model: [686, 1932, 3002], target: [731, 2058, 2979] },
-  AE: { params: { tongueX: 0.999, tongueY: 0.479, jaw: 0.997, lipOpen: 1, lipRound: 0, throat: 0 }, model: [618, 2139, 2886], target: [669, 2349, 2972] },
-  AA: { params: { tongueX: 0.045, tongueY: 6e-3, jaw: 1, lipOpen: 1, lipRound: 0, throat: 0 }, model: [858, 1363, 2756], target: [936, 1551, 2815] },
-  AO: { params: { tongueX: 0, tongueY: 0.101, jaw: 0.839, lipOpen: 0.636, lipRound: 0.332, throat: 0 }, model: [752, 1163, 2707], target: [781, 1136, 2824] },
-  OW: { params: { tongueX: 0.157, tongueY: 0.204, jaw: 0.494, lipOpen: 0.462, lipRound: 0.738, throat: 0.447 }, model: [555, 1032, 2835], target: [555, 1035, 2828] },
-  UH: { params: { tongueX: 0.051, tongueY: 0.778, jaw: 0.364, lipOpen: 0.359, lipRound: 0.577, throat: 0.153 }, model: [518, 1227, 2844], target: [519, 1225, 2827] },
-  UW: { params: { tongueX: 0, tongueY: 0.801, jaw: 0.268, lipOpen: 0.347, lipRound: 0.909, throat: 0.183 }, model: [458, 1106, 2748], target: [459, 1105, 2735] },
-  AH: { params: { tongueX: 0.274, tongueY: 0, jaw: 0.65, lipOpen: 0.914, lipRound: 0, throat: 0.375 }, model: [751, 1403, 2971], target: [753, 1426, 2933] },
-  ER: { params: { tongueX: 1, tongueY: 0.058, jaw: 0.386, lipOpen: 0.578, lipRound: 0.517, throat: 0, rhotic: 1 }, model: [524, 1577, 1980], target: [523, 1588, 1929] }
+  IY: { params: { tongueX: 1, tongueY: 0.833, jaw: 0.132, lipOpen: 1, lipRound: 0, throat: 0.404 }, model: [419, 2553, 2941], target: [437, 2761, 3372] },
+  IH: { params: { tongueX: 1, tongueY: 0.7, jaw: 0.377, lipOpen: 0.935, lipRound: 0, throat: 0.293 }, model: [477, 2330, 2874], target: [483, 2365, 3053] },
+  EY: { params: { tongueX: 0.978, tongueY: 0.799, jaw: 0.549, lipOpen: 1, lipRound: 0, throat: 0.059 }, model: [509, 2371, 2791], target: [536, 2530, 3047] },
+  EH: { params: { tongueX: 1, tongueY: 0.278, jaw: 0.775, lipOpen: 1, lipRound: 0, throat: 0 }, model: [673, 1880, 2915], target: [731, 2058, 2979] },
+  AE: { params: { tongueX: 1, tongueY: 0.564, jaw: 0.951, lipOpen: 1, lipRound: 0, throat: 0 }, model: [604, 2097, 2785], target: [669, 2349, 2972] },
+  AA: { params: { tongueX: 0.756, tongueY: 0, jaw: 0.998, lipOpen: 1, lipRound: 0, throat: 0 }, model: [788, 1542, 3185], target: [936, 1551, 2815] },
+  AO: { params: { tongueX: 5e-3, tongueY: 0.126, jaw: 0.807, lipOpen: 0.756, lipRound: 0.299, throat: 0 }, model: [757, 1152, 2737], target: [781, 1136, 2824] },
+  OW: { params: { tongueX: 0, tongueY: 0.71, jaw: 0.533, lipOpen: 0.372, lipRound: 0.776, throat: 3e-3 }, model: [551, 1042, 2867], target: [555, 1035, 2828] },
+  UH: { params: { tongueX: 0.139, tongueY: 0.778, jaw: 0.359, lipOpen: 0.392, lipRound: 0.562, throat: 0.278 }, model: [518, 1226, 2839], target: [519, 1225, 2827] },
+  UW: { params: { tongueX: 0.043, tongueY: 0.824, jaw: 0.257, lipOpen: 0.352, lipRound: 0.896, throat: 0.399 }, model: [458, 1105, 2737], target: [459, 1105, 2735] },
+  AH: { params: { tongueX: 0.767, tongueY: 0, jaw: 0.762, lipOpen: 0.72, lipRound: 0.183, throat: 0 }, model: [736, 1437, 3108], target: [753, 1426, 2933] },
+  ER: { params: { tongueX: 8e-3, tongueY: 1, jaw: 0.423, lipOpen: 0.574, lipRound: 0.37, throat: 0, rhotic: 0.85 }, model: [519, 1584, 1941], target: [523, 1588, 1929] }
 };
 
 // src/core/phonemes.ts
@@ -294,8 +294,8 @@ var PHONEMES = Object.fromEntries([
   P("DH", "\xF0", "fricative", true, 50, { tipPlace: 0, tipClose: 0.794 }, "this"),
   P("S", "s", "fricative", false, 110, { tipPlace: 0.18, tipClose: 0.834, jaw: 0.3 }, "see"),
   P("Z", "z", "fricative", true, 85, { tipPlace: 0.18, tipClose: 0.828, jaw: 0.3 }, "zoo"),
-  P("SH", "\u0283", "fricative", false, 115, { tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55, jaw: 0.3 }, "she"),
-  P("ZH", "\u0292", "fricative", true, 90, { tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55, jaw: 0.3 }, "vision"),
+  P("SH", "\u0283", "fricative", false, 115, { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55, jaw: 0.3 }, "she"),
+  P("ZH", "\u0292", "fricative", true, 90, { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55, jaw: 0.3 }, "vision"),
   P("CH", "t\u0283", "affricate", false, 115, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "chair"),
   P("JH", "d\u0292", "affricate", true, 95, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "joy"),
   P("L", "l", "approximant", true, 70, { tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3, tongueY: 0.5 }, "love"),
@@ -305,8 +305,8 @@ var PHONEMES = Object.fromEntries([
   P("HH", "h", "aspirate", false, 65, { voicing: 0 }, "hat")
 ].map((p) => [p.symbol, p]));
 var AFFRICATE_RELEASE = {
-  CH: { tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55 },
-  JH: { tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55 }
+  CH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 },
+  JH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 }
 };
 var VOWEL_SYMBOLS = Object.values(PHONEMES).filter((p) => p.manner === "vowel" || p.manner === "diphthong").map((p) => p.symbol);
 var CONSONANT_SYMBOLS = Object.values(PHONEMES).filter((p) => !VOWEL_SYMBOLS.includes(p.symbol)).map((p) => p.symbol);
@@ -529,6 +529,63 @@ function phonemize(text, lexicon2) {
     return known ? { text: t.text, phones: known, source: "dictionary", boundary: t.boundary } : { text: t.text, phones: letterToSound(t.text), source: "rules", boundary: t.boundary };
   }).filter((w) => w.phones.length > 0);
 }
+var WEAK = {
+  a: "AH0",
+  an: "AH0 N",
+  the: "DH AH0",
+  of: "AH0 V",
+  to: "T AH0",
+  for: "F ER0",
+  from: "F R AH0 M",
+  at: "AH0 T",
+  and: "AH0 N D",
+  as: "AH0 Z",
+  but: "B AH0 T",
+  or: "ER0",
+  than: "DH AH0 N",
+  that: "DH AH0 T",
+  can: "K AH0 N",
+  was: "W AH0 Z",
+  were: "W ER0",
+  are: "ER0",
+  am: "AH0 M",
+  has: "HH AH0 Z",
+  had: "HH AH0 D",
+  have: "HH AH0 V",
+  some: "S AH0 M",
+  them: "DH AH0 M",
+  her: "HH ER0",
+  his: "HH IH0 Z",
+  him: "IH0 M",
+  your: "Y ER0",
+  you: "Y UW0",
+  we: "W IY0",
+  he: "HH IY0",
+  she: "SH IY0",
+  me: "M IY0",
+  my: "M AY0",
+  by: "B AY0",
+  is: "IH0 Z",
+  in: "IH0 N",
+  on: "AA0 N",
+  with: "W IH0 DH",
+  be: "B IY0",
+  do: "D UW0",
+  does: "D AH0 Z",
+  will: "W IH0 L",
+  would: "W UH0 D",
+  should: "SH UH0 D",
+  could: "K UH0 D",
+  there: "DH ER0",
+  us: "AH0 S"
+};
+function reduceFunctionWords(words) {
+  return words.map((w) => {
+    const weak = WEAK[w.text.toLowerCase()];
+    if (!weak || w.source !== "dictionary" || w.boundary !== "word") return w;
+    return { ...w, phones: weak.split(" ").map((t) => parsePhone(t)) };
+  });
+}
 function parsePhonemeInput(text) {
   const words = [];
   const errors = [];
@@ -624,7 +681,6 @@ function syllabify(phones) {
 }
 
 // src/core/planner.ts
-var LEAD_SCALE = 2.4;
 function voiceDefaults(voice) {
   const all = { ...defaultPatch(), ...voice };
   return all;
@@ -686,8 +742,8 @@ function articulate(segments, voice) {
   anchors.sort((a, b) => a.time - b.time);
   anchors.forEach((a, k) => {
     const gap = k ? a.time - anchors[k - 1].time : 0.15;
-    const tau = a.tau ?? Math.min(48, Math.max(14, gap * 1e3 * 0.3));
-    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - (a.lead ?? LEAD_SCALE) * tau / 1e3);
+    const tau = a.tau ?? Math.min(24, Math.max(12, gap * 1e3 * 0.18));
+    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - (a.lead ?? 4) * tau / 1e3);
     for (const [name, value] of Object.entries(a.target)) {
       if (["tongueX", "tongueY", "jaw", "throat", "rhotic", "lipOpen", "lipRound"].includes(name)) at(start, name, value, tau, a.seg);
     }
@@ -736,7 +792,7 @@ function articulate(segments, voice) {
     }
     if (t.velum) {
       const afterObstruent = prevSeg && ["stop", "fricative", "affricate"].includes(PHONEMES[prevSeg.symbol]?.manner);
-      at(afterObstruent ? s.start - 0.012 : s.start - 0.06, "velum", 1, afterObstruent ? 12 : 22, i);
+      at(afterObstruent ? s.start - 0.012 : s.start - 0.035, "velum", 1, afterObstruent ? 10 : 12, i);
       if (!(next && PHONEMES[next.symbol]?.target.velum)) {
         const obstruent = next && ["stop", "fricative", "affricate"].includes(PHONEMES[next.symbol]?.manner);
         if (obstruent) at(s.end - 0.035, "velum", 0, 9, i);
@@ -745,12 +801,14 @@ function articulate(segments, voice) {
     }
     if (!ph.voiced) {
       const closing = ph.manner === "stop" || ph.manner === "affricate";
-      at(phraseInitial ? onset : closing ? s.start : s.start - 0.012, "voicing", 0, 7, i);
+      at(phraseInitial ? onset : closing ? s.start : s.start - 0.02, "voicing", 0, 7, i);
       const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === "S";
       const aspirated = ph.manner === "stop" && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === "SIL" || ["R", "L", "W", "Y"].includes(next.symbol));
       const vot = ph.manner === "stop" ? aspirated ? 0.055 : 0.015 : ph.manner === "affricate" ? 0.02 : 0;
       const following = next && next.symbol !== "SIL" && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
-      if (!following) at(s.end + (ph.manner === "fricative" || ph.manner === "aspirate" ? -0.02 : vot - 0.012), "voicing", 1, 8, i);
+      const final = !next || next.symbol === "SIL";
+      if (final) at(s.end + 0.09, "voicing", 1, 20, i);
+      else if (!following) at(s.end + (ph.manner === "fricative" ? 5e-3 : ph.manner === "aspirate" ? -0.02 : vot - 0.012), "voicing", 1, 8, i);
     } else if (phraseInitial && (ph.manner === "stop" || ph.manner === "affricate")) {
       at(onset, "voicing", 0.15, 10, i);
       at(s.end - 6e-3, "voicing", 1, 6, i);
@@ -897,7 +955,7 @@ function planSpeech(input, lexicon2, opts = {}) {
     if (errors.length) plan2.warnings.push(`Unknown phoneme tokens ignored: ${errors.slice(0, 8).join(", ")}`);
     return plan2;
   }
-  const words = phonemize(input, lexicon2);
+  const words = reduceFunctionWords(phonemize(input, lexicon2));
   const plan = planWords(words, opts);
   const guessed = words.filter((w) => w.source === "rules").map((w) => w.text);
   if (guessed.length) plan.warnings.push(`Pronunciation guessed by rules: ${guessed.slice(0, 8).join(", ")}`);

@@ -3,6 +3,7 @@
 //! One WebAssembly instance owns one voice. The same exports drive live
 //! AudioWorklet playback, offline browser export and Node rendering.
 
+pub mod airway;
 pub mod analysis;
 pub mod dsp;
 pub mod glottis;

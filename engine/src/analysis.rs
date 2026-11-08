@@ -1,8 +1,9 @@
-//! Modeled tract response. Freezes an area function, drives the same digital
-//! waveguide with an impulse, and measures the spectrum of its response. The
+//! Modeled tract response. Freezes an area function, drives the same airway
+//! model with an impulse, and measures the spectrum of its response. The
 //! resulting peaks are the exact resonances of the synthesized system.
 
-use crate::tract::{internal_rate, Waveguide, N};
+use crate::airway::{internal_rate, Airway};
+use crate::tract::N;
 
 pub const FFT_SIZE: usize = 8192;
 pub const RESPONSE_BINS: usize = 256;
@@ -18,15 +19,17 @@ pub struct Response {
 
 pub fn tract_response(areas: &[f32; N], nasal_area: f32, length_cm: f32) -> Response {
     let rate = internal_rate(length_cm);
-    let mut wg = Waveguide::new();
-    wg.set_areas(areas, nasal_area, rate);
+    let mut air = Airway::new();
+    air.set_length(length_cm);
+    air.set_areas_ramped(areas, nasal_area, 0);
     let mut re = vec![0.0f32; FFT_SIZE];
     let mut im = vec![0.0f32; FFT_SIZE];
     for (i, slot) in re.iter_mut().enumerate().take(FFT_SIZE / 2) {
-        wg.tick(if i == 0 { 1.0 } else { 0.0 }, 0, 0.0, 0, 0.0);
-        // Volume velocity arriving at the lips and nostrils: the tract's
-        // volume-velocity transfer function, without the radiation tilt.
-        *slot = wg.outflow();
+        // A volume-velocity impulse into the closed glottis; the volume
+        // velocity leaving lips and nostrils is the tract's transfer
+        // function, without the radiation tilt.
+        let (mouth, nose) = air.step_driven(if i == 0 { 1.0 } else { 0.0 });
+        *slot = (mouth + nose) as f32;
     }
     fft(&mut re, &mut im);
     let bin_hz = rate / FFT_SIZE as f32;

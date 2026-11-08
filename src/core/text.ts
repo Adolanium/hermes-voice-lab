@@ -159,6 +159,29 @@ export function phonemize(text: string, lexicon: Lexicon): Word[] {
 }
 
 /**
+ * Weak forms of English function words, as spoken inside a phrase: the vowel
+ * reduces and the word is unstressed ("of" [əv], "to" [tə], "for" [fɚ]).
+ * A word at the end of a phrase keeps its strong form ("what's it for?").
+ */
+const WEAK: Record<string, string> = {
+  a: 'AH0', an: 'AH0 N', the: 'DH AH0', of: 'AH0 V', to: 'T AH0', for: 'F ER0', from: 'F R AH0 M',
+  at: 'AH0 T', and: 'AH0 N D', as: 'AH0 Z', but: 'B AH0 T', or: 'ER0', than: 'DH AH0 N', that: 'DH AH0 T',
+  can: 'K AH0 N', was: 'W AH0 Z', were: 'W ER0', are: 'ER0', am: 'AH0 M', has: 'HH AH0 Z', had: 'HH AH0 D',
+  have: 'HH AH0 V', some: 'S AH0 M', them: 'DH AH0 M', her: 'HH ER0', his: 'HH IH0 Z', him: 'IH0 M',
+  your: 'Y ER0', you: 'Y UW0', we: 'W IY0', he: 'HH IY0', she: 'SH IY0', me: 'M IY0', my: 'M AY0', by: 'B AY0',
+  is: 'IH0 Z', in: 'IH0 N', on: 'AA0 N', with: 'W IH0 DH', be: 'B IY0', do: 'D UW0', does: 'D AH0 Z', will: 'W IH0 L',
+  would: 'W UH0 D', should: 'SH UH0 D', could: 'K UH0 D', there: 'DH ER0', us: 'AH0 S',
+};
+
+export function reduceFunctionWords(words: Word[]): Word[] {
+  return words.map(w => {
+    const weak = WEAK[w.text.toLowerCase()];
+    if (!weak || w.source !== 'dictionary' || w.boundary !== 'word') return w;
+    return {...w, phones: weak.split(' ').map(t => parsePhone(t)!)};
+  });
+}
+
+/**
  * Direct phoneme input: ARPABET tokens separated by spaces; words separated
  * by "/" or "|"; punctuation , . ? ! as standalone tokens marks boundaries.
  */
