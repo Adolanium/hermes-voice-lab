@@ -73,7 +73,7 @@ A Liljencrants–Fant glottal source (with jitter, shimmer, drift, vibrato and b
 ## Limits
 
 - English only. Pronunciation comes from the CMU dictionary plus fallback letter-to-sound rules; unknown words are flagged as guessed. ARPABET input gives exact control.
-- Speech is intelligible for many short phrases but sounds robotic. On an automatic proxy (ten fixed sentences transcribed by Whisper `base.en`), the word error rate is 0.36: four sentences come back exactly or nearly so, while /s/–/ʃ/ sequences, some nasals and velars, and /ɑ/ vs /ʌ/ remain weak. This is not a human listening test; see `docs/validation.md`.
+- Speech is intelligible for many short phrases but sounds robotic. On an automatic proxy (ten fixed sentences transcribed by Whisper `base.en`), the word error rate is about 0.36–0.39: four sentences come back exactly or nearly so, while /s/–/ʃ/ sequences, some nasals and velars, and /ɑ/ vs /ʌ/ remain weak. This is not a human listening test; see `docs/validation.md`.
 - A held sung note fades by about 5 dB over its first ~0.6 s as the output leveler settles.
 - The area-function geometry is a compact original parametric model, not measured anatomy. The cutaway is a stylized view of the modeled articulators.
 - Not yet implemented: MIDI input, beatboxing, other species, duets and 3D views.

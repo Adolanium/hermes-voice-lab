@@ -51,9 +51,9 @@ The author could not listen to audio in this environment. Speech quality was jud
 |---|---|
 | First complete engine | 0.774 |
 | After intelligibility work (closures, gesture precedence, VOT, bursts, sibilants, tempo, leveler) | 0.376 |
-| Released (softer Signature source) | 0.360, identical on two runs |
+| Released (softer Signature source) | 0.36–0.39 across runs |
 
-Released transcripts (reference → heard):
+Released transcripts. Rows are from one run; the eighth sentence replaced an earlier benchmark wording, and the earlier rows above used the old one.
 
 | WER | Sentence | Whisper heard |
 |---|---|---|
@@ -64,7 +64,7 @@ Released transcripts (reference → heard):
 | 0.57 | I would like a cup of tea. | I would like to top out the |
 | 0.12 | Open the window and let the light in. | Open the window and let the light in it. |
 | 0.71 | Seven green birds sat on the fence. | Sell and drink their bread on the fence. |
-| 0.38 | My voice is made of air and math. | My voice is made of a bleh |
+| 0.38 | My voice is shaped by breath and math. | My life is shaped by breath of love. |
 | 0.00 | Good morning, how are you today? | Good morning. How are you today? |
 | 0.67 | We will meet at the old bridge at noon. | We will lay that little bridge up low. |
 
