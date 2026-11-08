@@ -1,64 +1,70 @@
 # Hermes Voice Lab
 
-A local vocal instrument for Hermes Desktop. A Rust pressure-wave tube model produces the sound. The same WebAssembly engine runs inside an AudioWorklet for playback and Node for WAV rendering. No cloud TTS, recorded voice, GPU, or neural model is used.
+A vocal synthesizer for Hermes Desktop built on a physical model of the voice. A side-profile portrait of Nous Girl is the instrument: drag her jaw, lips and tongue and the sound changes, because the drawing and the sound come from the same articulatory parameters. Hermes can play it too: ask for a breathier voice, a different vowel, a spoken line or a short song, and the controls move in front of you.
 
-This is an early instrument with an original feminine synthetic voice target. Voice quality and speech intelligibility still need listening evaluation. It is not an official Nous voice.
+![Voice Lab in Hermes Desktop](docs/media/voice-lab-native.png)
 
-## Install
+Everything is synthesized locally by a Rust engine compiled to WebAssembly: a glottal source drives a simulated vocal tract. There are no recordings, no neural or cloud TTS and no network calls. The default voice is an original adult feminine character voice, clear, warm and slightly breathy. It is a fictional voice for the character and not an official Nous voice.
 
-Use the release archive from `npm run package`. It includes the compiled desktop module and WASM; users do not need Rust or npm. Node 22 or later must be available on the gateway machine for agent-side WAV rendering.
+## What you can do
 
-Extract the archive's `hermes-voice-lab` folder into your chosen Hermes profile's `plugins` directory. Enable the agent plugin using Hermes' plugin controls and enable Voice Lab under Desktop **Capabilities → Plugins**. Open **Voice Lab** from the sidebar or command palette. Desktop and gateway must both have the unified package if they run on different machines. No sound starts until a user presses a playback control.
-
-For an isolated development installation, use a separate `HERMES_HOME`, enable the plugin there, and launch Desktop with that same home. Keep your normal profile separate. The development host revision and actual test coverage are listed in `docs/validation.md`.
-
-## Instrument
-
-- Drag the portrait's articulation handles or use the labeled tongue, jaw, and lip controls. The cutaway is a stylized display of modeled articulation, not medical anatomy.
-- Choose a vowel, adjust pitch independently of the tract shape, and change breath or vibrato.
-- Play keyboard notes or the note sequence. Timing is scheduled by sample frame inside the audio processor.
-- Save and load a project. Hermes projects are scoped to the active conversation; standalone preview patches are downloaded and imported as JSON files.
-- Export a mono 16-bit PCM WAV rendered by the same engine.
-- Enter a short phrase from the supported lexicon or explicit phoneme tokens. Unknown words are reported. This is experimental gesture synthesis with no general grapheme-to-phoneme model or intelligibility guarantee.
-
-The avatar interprets Nous Girl with new SVG paths. Its mouth responds to articulation. Waveform and spectrum displays use the actual output analyser. See `NOTICE.md` for character attribution and scientific sources.
+- **Play.** Hold a vowel, shape it on the portrait or the vowel pad, and play notes from the on-screen or computer keyboard (A–; keys, Z/X for octaves). Pitch, effort, tension (glottal pulse shape), breath, vibrato and humanize are independent of the tract shape: jaw, lips, rounding, tongue tip and back, velum (nasal), rhotic bunching, throat width and tract length.
+- **Speak.** Type a short English phrase or ARPABET phonemes. The planner turns words into overlapping articulator gestures with stress, durations and intonation. A gesture score shows the planned trajectories, and the current phone is highlighted while it plays.
+- **Sing.** Write lyrics and draw notes on a piano roll. Each note takes the next syllable. Onset consonants are placed before the beat so vowels land on it, and a lone `-` holds the previous vowel across notes. Long notes get delayed vibrato.
+- **See it.** The cutaway shows the modeled mouth, tongue, throat and nasal path. The airway panel draws the area function the engine is using, the spectrum overlays the measured output on the modeled tract resonances (F1–F4), and the waveform and glottal-pulse panels show the output and the LF pulse. Panels are labeled *measured* or *model*.
+- **Keep it.** Projects save with each conversation. Voice presets save per plugin. Projects can be saved to and opened from a folder you grant, and WAV export (48 kHz stereo) uses the same engine.
 
 ## Ask Hermes
 
-`voice_lab_patch` updates a project for the active session. Supply `session_id`, `project_id` such as `main`, and a `patch`, for example `{"breath":0.3,"pitch":220}`. The tool can also accept a complete project with timed events. `voice_lab_render` renders the saved project and returns a standard `MEDIA:` WAV attachment. Desktop receives scoped update events; playback remains user initiated.
+The agent tools take structured instructions. The engine does all timing and synthesis.
 
-A project uses this shape:
+| Tool | Does |
+|---|---|
+| `voice_lab_get` | Current voice, shape, phrase and song, plus parameter ranges, presets and vowels |
+| `voice_lab_set_voice` | Change the voice (e.g. `{"breath": 0.6, "tenseness": 0.3}`), apply a preset, hold a vowel (`"vowel": "UW"`), optionally render a preview |
+| `voice_lab_perform` | Speak a phrase, or sing a melody (`"melody": "E4:0.5 G4:0.5 A4:1 r:0.5 C5:2"`, `"lyrics": "o-pen the light"`) and return a WAV |
+| `voice_lab_render` | Render the project, or a variation with temporary overrides, to WAV |
 
-```json
-{"version":1,"name":"Warm vowel","patch":{"pitch":205,"breath":0.16},"events":[{"time":0,"duration":0.8,"params":{"tongueX":0.58,"jaw":0.44}},{"time":0.8,"duration":0.8,"params":{"pitch":230,"lip":0.2}}]}
-```
+Calls are scoped to the active conversation, so edits appear in that conversation's Voice Lab, where a toast offers to play them. Renders come back as normal Hermes media. Desktop shows them in a Voice Lab audio card with the rendered waveform. In Hermes builds with Tool Search, these plugin tools are discovered through `tool_search`/`tool_call` like other plugin tools.
 
-Parameters are `tongueX`, `tongueY`, `jaw`, `lip`, `breath`, `vibrato`, `gain`, `gate`, `voicing`, `frication`, and `nasal`, all 0–1. `pitch` is 80–400 Hz. Geometry controls alter a synthetic tract area function, not a captured person's anatomy. Source pulse shape, tract length, damping, radiation and breath noise jointly define the character.
+**Read-aloud (optional).** The plugin registers a `voice-lab` TTS provider. Set `tts.provider: voice-lab` in a profile's `config.yaml` to hear replies in the character voice; voices are the presets (`signature`, `warm`, `bright`, `airy`, `lyric`, `alto`). It is English only and clearly less natural than neural TTS, so it is opt-in.
 
-## Build and test
+## Install
 
-```sh
+1. Download `hermes-voice-lab-<version>.tar.gz` from Releases, or build it (below).
+2. Extract `hermes-voice-lab/` into your profile's plugins folder (`$HERMES_HOME/plugins/`).
+3. Enable the agent side with `hermes plugins enable hermes-voice-lab`, then restart the gateway so the plugin's routes mount.
+4. In Hermes Desktop, open **Capabilities → Plugins**, enable **Voice Lab**, and open it from the sidebar or the command palette (**Open Voice Lab**).
+
+You need neither Rust nor npm: the package ships the compiled WebAssembly engine, the desktop bundle and the Node renderer. Agent-side rendering uses Node 20+, which the Hermes runtime provides. Sound starts only after you press a play control.
+
+## Build from source
+
+```bash
 npm ci
-# Rust 1.98.0 is pinned for reproducible engine builds.
-rustup target add wasm32-unknown-unknown
-node scripts/build-engine.mjs
-npm run build
-npm test
-npm run typecheck
-npm run dev
-npm run package
+rustup target add wasm32-unknown-unknown    # Rust 1.98, pinned in rust-toolchain.toml
+node scripts/build-engine.mjs              # engine → runtime/voice_lab_engine.wasm
+node scripts/build.mjs                     # Node runtime + desktop/plugin.js
+npm test && npm run test:engine && npm run typecheck
+node scripts/package.mjs                   # release/hermes-voice-lab-<ver>.tar.gz
+HERMES_HOME=/path/to/test-home node scripts/install-dev.mjs
 ```
 
-The build embeds the compiled WASM and worklet source in `desktop/plugin.js`, leaving only supported Hermes SDK and React imports. `npm run dev` is a standalone development preview, not proof of installed-host compatibility.
+`npm run dev` starts a standalone browser preview of the instrument. It is a development aid only and does not prove Hermes compatibility. `npm run calibrate` refits the vowel targets (see `docs/architecture.md`). Offline render example:
 
-Render a project without a browser:
-
-```sh
-node scripts/render.mjs --project /absolute/project.json --output /absolute/voice.wav
+```bash
+node runtime/render.mjs --text "Good morning." --voice warm --output /tmp/hello.wav
 ```
 
-## Current limits
+## How it works
 
-The tube geometry is an intentionally small acoustic model. English articulation is a restricted original lexicon and a subset of ARPABET-style tokens without stress digits. It does not model all consonants or detailed coarticulation. The default voice has not been validated as natural or intelligible by listeners. Read-aloud/TTS-provider registration is deferred until that quality threshold is met and the current provider extension API is verified. Duets, beatboxing, animal voices, and 3D rendering are not implemented.
+A Liljencrants–Fant glottal source (with jitter, shimmer, drift, vibrato and breath noise) drives a 44-section power-normalized Kelly–Lochbaum waveguide with a nasal branch. Turbulence noise and stop bursts come from a simple aerodynamic model of pressure and flow through the constrictions. Tract length is continuous, set by the waveguide's internal clock and resampled to the host rate. Articulators move with critically damped dynamics, so live playback, the Desktop export and agent renders all follow the same sample-accurate score. Details: [docs/architecture.md](docs/architecture.md). Test coverage and host verification: [docs/validation.md](docs/validation.md).
 
-See `docs/architecture.md`, `docs/validation.md`, and `NOTICE.md` for details.
+## Limits
+
+- English only. Pronunciation comes from the CMU dictionary plus fallback letter-to-sound rules; unknown words are flagged as guessed. ARPABET input gives exact control.
+- Speech is intelligible for many phrases but robotic, and some consonant clusters remain unclear. See the measured intelligibility proxy in `docs/validation.md`.
+- The area-function geometry is a compact original parametric model, not measured anatomy. The cutaway is a stylized view of the modeled articulators.
+- Not yet implemented: MIDI input, beatboxing, other species, duets and 3D views.
+
+See [NOTICE.md](NOTICE.md) for the dictionary license, character attribution and scientific sources.

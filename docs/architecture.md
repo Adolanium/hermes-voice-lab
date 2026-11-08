@@ -1,17 +1,61 @@
 # Architecture
 
-`engine/src/lib.rs` owns all sample generation. Its 44 oral sections propagate opposing pressure waves through an area function controlled by tongue position, tongue height, jaw and lips. Area discontinuities scatter waves. A 28-section nasal side branch joins the oral tract at a three-way pressure-continuity junction. The internal clock is 104 kHz, corresponding to an approximately 14.5 cm oral tract at 343 m/s. Geometry is an original synthetic proxy, not measured anatomy.
+```
+            ┌──────────── Hermes Desktop (renderer) ────────────┐
+ user ───▶  │ desktop/plugin.js  (React UI, portrait rig, scopes)│
+            │   ├─ AudioWorklet ── engine.wasm  (live voice)     │
+            │   ├─ main-thread engine.wasm (model analysis)      │
+            │   └─ ctx.rest / plugin events ───────────┐         │
+            └──────────────────────────────────────────┼─────────┘
+                                                       ▼
+            ┌──────────── Hermes gateway (Python) ─────────────────┐
+ Hermes ──▶ │ __init__.py tools ─┐                                 │
+ (LLM)      │ dashboard/plugin_api.py ─┤ voice_backend.py         │
+            │ tts.py (voice-lab)  ─────┘   ├ per-conversation JSON │
+            │                              └ node runtime/render.mjs ─▶ engine.wasm (offline)
+            └──────────────────────────────────────────────────────┘
+```
 
-An asymmetric glottal flow pulse, aspiration, local constriction noise, radiation filtering and distributed loss feed the tract. Pitch does not change its length or area function. The default target combines a 205 Hz fundamental, shorter tract, smooth pulse closure and modest aspiration. It is a fictional voice design target, not a validated adult voice classification.
+One engine (Rust → `runtime/voice_lab_engine.wasm`) and one planner (TypeScript, `src/core`) serve live playback, Desktop export and agent renders. The language model only sends structured values: parameters, text, notes. Planning, timing and samples are local.
 
-Parameters are smoothed in the Rust engine. Output is guarded against non-finite values and soft bounded. Supported sample rates are 8–192 kHz; pitch tests cover 44.1, 48 and 96 kHz. Linear resampling and a simple rolloff are practical compromises, not a high-order reconstruction filter.
+## Engine (`engine/src`)
 
-`audio/engine.js` wraps the raw WASM ABI and validates input. `Timeline` schedules sample-frame boundaries and is shared by `audio/voice-worklet.js` and `audio/offline.js`. Worklet blocks use reusable output views. Sparse visual messages copy tract geometry and actual smoothed parameters to the main thread. React, file access and language planning never run in the audio callback.
+| Module | Role |
+|---|---|
+| `params.rs` | 24 parameters with ranges, defaults and response times. Critically damped second-order smoothing (exact solution). |
+| `glottis.rs` | Liljencrants–Fant flow derivative shaped by Rd (Fant 1995 regressions). α and ε are solved once per period with fixed iteration counts. Injected as normalized flow. |
+| `tract.rs` | Parametric area function from the articulators, plus a power-normalized Kelly–Lochbaum waveguide (44 oral sections, 30 nasal sections, three-port velum junction, aperture-dependent lip and nostril radiation). |
+| `voice.rs` | Aerodynamics, noise sources, vibrato/jitter/shimmer/drift, resampling, room, output protection, and the score player. |
+| `analysis.rs` | The modeled transfer function: drive the same waveguide with an impulse and take the FFT. Peaks are the exact resonances of the synthesized system. |
+| `bin/calibrate.rs` | Nelder–Mead fit of vowel articulations to adult-female mean F1–F3 (Hillenbrand et al. 1995), with priors that keep the portrait plausible. Writes `src/core/vowels.generated.json`. |
 
-`audio/planner.js` contains a small original lexicon and gesture rules. Vowels hold tract targets, fricatives add noise, stops use a constriction and short release, and nasal tokens open the side branch. These are approximate gestures. Unknown words or phonemes reject the score. Lyric planning assigns one word to each note and extends vowel gestures. No external dictionary is bundled.
+**Tract length.** Every tick a wave moves one section, so section length = c / f_internal. The internal clock is `f = N·c / L`, roughly 80–140 kHz. Changing L (size, lip protrusion) therefore changes the tract length continuously, without resizing arrays. An 8th-order Butterworth and cubic interpolation convert to the host rate.
 
-The React instrument receives an optional `VoiceLabBridge`. In Desktop, the adapter imports only the public SDK and React, registers a route/navigation item, pins the conversation/profile for each mounted instrument, and uses scoped REST/event APIs. The backend validates parameters and stores projects through Hermes' plugin storage. Render commands invoke Node with an argument array, never a shell, and return a normal WAV media attachment. User exports use the host's captured authenticated file download action.
+**Why power-normalized junctions.** With pressure-wave junctions, a section that closes (a stop or nasal closure) can store large pressure that comes back out as a click when it reopens. Normalized waves (w = p·√A) make each junction a rotation that preserves energy while areas change, which removed those clicks.
 
-The build embeds the worklet text and WASM bytes into one desktop ESM file because disk plugins cannot resolve arbitrary relative imports. Audio starts on a user gesture. Note release and Stop silence the voice; Disable audio closes its context. Unmount on navigation, plugin disable or reload closes audio and removes listeners/timers. Agent edits update controls but do not autoplay. Multiple windows therefore require separate explicit playback gestures.
+**Aerodynamics.** The glottis and the narrowest supraglottal path (including the nose when the velum is open) act as two orifices in series. Intraoral pressure follows them with a short time constant. Turbulence ∝ max(0, A·ΔP − θ), saturating. It is injected just downstream of the constriction, or at the teeth for coronal sibilants with a band-limited spectrum. A release after built-up pressure produces a burst. Voicing amplitude follows the transglottal pressure drop, so voicing dies naturally during closures.
 
-The SVG portrait has new editable paths, direct articulation handles, an optional stylized cutaway, and a mouth driven by the engine's smoothed state. The airflow dash animation is illustrative and slowed. The waveform and spectrum read a real AnalyserNode; they are not acoustic calibration readouts.
+**Real-time safety.** Render work is bounded per sample. Buffers and score storage (65,536 events) are allocated at construction. Any non-finite sample resets the filters and is counted in telemetry; the tests assert it never happens.
+
+**ABI.** Plain `extern "C"` functions over linear memory: `engine_init/set/jump/render`, output, parameter, area and state pointers, score staging/load/play/stop, `analyze` and `shape_from_params`. `src/core/engine.ts` wraps them and checks parameter-table parity at load.
+
+## Planner (`src/core`)
+
+- `text.ts`: normalization (numbers, punctuation → boundaries), a CMUdict-derived lexicon (front-coded, gzip, decoded lazily), original fallback letter-to-sound rules, ARPABET input and syllabification.
+- `phonemes.ts`: ARPABET inventory. Vowel targets come from calibration; consonants constrain only the articulators they use.
+- `planner.ts`: phones → timed segments (inherent durations with stress, cluster and phrase-final rules) → events on independent tiers. The tongue body follows a vowel-to-vowel trajectory with dorsal consonants superimposed; tip, lips, dorsum, velum and glottis gestures are local. Intonation has declination, accents on stressed syllables, a final fall or a question rise. Singing aligns vowel onsets to note starts, places codas before the next note, glides pitch for legato and delays vibrato on long notes.
+- `project.ts`: the project document (voice, held shape, phrase, song) with validation shared by the UI and the renderer. The Python backend mirrors the structural checks using `runtime/catalog.json`.
+
+## Desktop (`src/desktop.tsx`, `src/ui`)
+
+- The plugin is one ESM file importing only `@hermes/plugin-sdk`, `react` and `react/jsx-runtime`. WASM, lexicon and worklet source are embedded. The worklet is loaded from a blob URL that is revoked after `addModule`.
+- Audio starts only on a user gesture. A `BroadcastChannel` silences other windows when one starts sounding. Unmount, disable and reload close the AudioContext, disconnect nodes, release listeners and stop telemetry.
+- The project is scoped to the focused conversation (stored id, then runtime id, then a scratch project). Writes check that the conversation hasn't changed. Edits save after a short debounce. Agent edits arrive as plugin events, are filtered by conversation, profile and client, highlight the changed controls and offer playback.
+- `TOOL_MEDIA_RENDERER_AREA` draws this package's own tool output as a Voice Lab audio card. Its waveform comes from the plugin's `/peaks` route, which reads the rendered WAV.
+- Styling uses only Hermes theme tokens, so the portrait's ink follows the theme (light: black ink on paper; dark: the white-ink variant).
+
+## Agent side (`__init__.py`, `voice_backend.py`, `tts.py`)
+
+- Tools default to the active conversation (`HERMES_SESSION_ID`) and refuse other conversations. IDs are validated against path traversal. Projects are written atomically under `plugin-data/hermes-voice-lab/sessions/<id>/`.
+- Rendering runs `node runtime/render.mjs` with a fixed argument list and a timeout, writes 48 kHz stereo WAVs under the conversation's `renders/` folder, and returns a standalone `MEDIA:` line.
+- `tts.py` registers the opt-in `voice-lab` provider (`synthesize` → WAV; `stream` → 24 kHz PCM).

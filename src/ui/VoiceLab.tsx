@@ -257,8 +257,10 @@ export default function VoiceLab({bridge}: Props) {
     onVoice(voice);
     setToast({text: `Voice preset “${builtin?.name ?? user?.name}” applied.`});
   };
-  const savePreset = () => {
-    const name = window.prompt('Name this voice preset', project.name)?.trim();
+  const [naming, setNaming] = useState<string | null>(null);
+  const savePreset = (raw: string) => {
+    const name = raw.trim().slice(0, 60);
+    setNaming(null);
     if (!name) return;
     const voice = Object.fromEntries(VOICE_PARAMS.map(k => [k, project.voice[k]])) as Patch;
     const next = [...userPresets.filter(p => p.name !== name), {name, voice}].slice(-40);
@@ -364,7 +366,15 @@ export default function VoiceLab({bridge}: Props) {
               <optgroup label="Built-in">{VOICE_PRESETS.map(p => <option key={p.id} value={p.id}>{p.name} — {p.description}</option>)}</optgroup>
               {userPresets.length > 0 && <optgroup label="Saved">{userPresets.map(p => <option key={p.name} value={`user:${p.name}`}>{p.name}</option>)}</optgroup>}
             </select>
-            <button className="hvl-btn" onClick={savePreset} title="Save the current voice as a preset">{Icon.save} Preset</button>
+            {naming === null ? (
+              <button className="hvl-btn" onClick={() => setNaming(project.name)} title="Save the current voice as a preset">{Icon.save} Preset</button>
+            ) : (
+              <form className="hvl-row" style={{gap: 4}} onSubmit={e => { e.preventDefault(); savePreset(naming); }}>
+                <input className="hvl-input" autoFocus value={naming} maxLength={60} aria-label="Preset name" style={{width: 150}}
+                  onChange={e => setNaming(e.target.value)} onKeyDown={e => e.key === 'Escape' && setNaming(null)} />
+                <button className="hvl-btn is-primary" type="submit">Save</button>
+              </form>
+            )}
             <button className="hvl-btn is-ghost" onClick={openProjectFile} title="Open a project file">{Icon.upload}</button>
             <button className="hvl-btn is-ghost" onClick={saveProjectFile} title="Save the project as a file">{Icon.save}</button>
             <button className="hvl-btn is-primary" onClick={exportWav} disabled={!!busy || !loaded}>{Icon.download} {busy || 'Export WAV'}</button>
