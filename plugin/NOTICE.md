@@ -11,6 +11,19 @@ The voice engine's approach and the demo act's format were inspired by Jameson H
 - opening speed limits on the articulators;
 - several speech-timing rules.
 
+Version 0.3's feature set also follows that project's feature list and architecture notes. These features were written in our own code:
+- beatbox pads and a step sequencer;
+- a bestiary of a songbird, a seal, an alligator and an elephant;
+- duets;
+- male and child bodies;
+- falsetto, fry, growl (ventricular folds) and twang (epilarynx);
+- trills, ejectives and clicks;
+- IPA input, Web MIDI, live singing from the keyboard and a consonant chart;
+- a recording chain;
+- golden tests.
+
+The mechanisms for ejectives (a sealed glottis and a rising larynx) and clicks (two oral seals and a lowering tongue body), and the sung-phrase details (onset consonants at the new note's pitch, phrase breaths, a firmer singing voice), follow the approach its documentation describes. The songbird (van der Pol labia rather than its normal-form model) and the elephant (driven lips into a delay-line trunk) are different models of our own.
+
 The lounge-singer format of the demo videos also comes from its demo: spoken asides, scat, a beatbox break and a closing joke. The lines, melodies and jokes are ours.
 
 No code was copied. A few published physical constants in `engine/src/airway.rs` and `engine/src/voice.rs` have the same values as in that project. They are the air density, sound speed and viscosity, the soft-wall mass, resistance and stiffness, and the critical Reynolds number, and come from the literature cited below (Flanagan 1972; Ishizaka, French and Flanagan 1975).
