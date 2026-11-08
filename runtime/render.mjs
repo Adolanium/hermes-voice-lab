@@ -730,7 +730,11 @@ function articulate(segments, voice) {
     }
     if (t.velum) {
       at(s.start - 0.06, "velum", 1, 22, i);
-      if (!(next && PHONEMES[next.symbol]?.target.velum)) at(s.end + 0.01, "velum", 0, 25, i);
+      if (!(next && PHONEMES[next.symbol]?.target.velum)) {
+        const obstruent = next && ["stop", "fricative", "affricate"].includes(PHONEMES[next.symbol]?.manner);
+        if (obstruent) at(s.end - 0.035, "velum", 0, 9, i);
+        else at(s.end + 0.01, "velum", 0, 25, i);
+      }
     }
     if (!ph.voiced) {
       const closing = ph.manner === "stop" || ph.manner === "affricate";

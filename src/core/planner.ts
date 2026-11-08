@@ -166,7 +166,14 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     // Velum: anticipatory lowering, raise after.
     if (t.velum) {
       at(s.start - 0.06, 'velum', 1, 22, i);
-      if (!(next && PHONEMES[next.symbol]?.target.velum)) at(s.end + 0.01, 'velum', 0, 25, i);
+      if (!(next && PHONEMES[next.symbol]?.target.velum)) {
+        // Before an obstruent the velopharyngeal port must be sealed when the
+        // obstruent starts (or pressure leaks out of the nose and /g/ in
+        // "green" after /n/ becomes [ŋ]); before vowels it can lag.
+        const obstruent = next && ['stop', 'fricative', 'affricate'].includes(PHONEMES[next.symbol]?.manner);
+        if (obstruent) at(s.end - 0.035, 'velum', 0, 9, i);
+        else at(s.end + 0.01, 'velum', 0, 25, i);
+      }
     }
     // Glottis.
     if (!ph.voiced) {
