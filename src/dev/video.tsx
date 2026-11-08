@@ -43,6 +43,8 @@ interface Setup {
   tail: number;
   /** Song time (s) at which the cutaway fades in; undefined = always on. */
   revealAt?: number;
+  /** Song time (s) at which it fades out again for the finale. */
+  hideAt?: number;
 }
 
 const DEFAULT: Setup = {
@@ -53,6 +55,7 @@ const DEFAULT: Setup = {
   preroll: 0.5,
   tail: 1.2,
   revealAt: 0.25 + 7.6 * (60 / 132),
+  hideAt: 0.25 + 19.6 * (60 / 132),
 };
 
 let frames: Frame[] = [];
@@ -142,8 +145,10 @@ function View() {
     minIndex: airway.minIndex, minArea: airway.minArea, sounding: p.gate > 0.05,
   });
   const line = lyricLine(stage);
-  // Plain face for the scat intro, then look inside from "my tongue..." onward.
-  const reveal = setup.revealAt === undefined ? 1 : Math.min(1, Math.max(0, (fr.time - setup.revealAt) / 0.35));
+  // Plain face for the scat intro, then look inside for tongue, lips and nose...
+  // ...and back to her face for the big finish.
+  const fade = (at: number | undefined) => (at === undefined ? 0 : Math.min(1, Math.max(0, (fr.time - at) / 0.35)));
+  const reveal = setup.revealAt === undefined ? 1 : fade(setup.revealAt) * (1 - fade(setup.hideAt));
   return (
     <div className="hvl-root hvl-video">
       <style>{CSS + VIDEO_CSS}</style>

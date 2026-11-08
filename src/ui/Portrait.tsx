@@ -8,11 +8,14 @@
  * optional cutaway is a stylised midsagittal view of the modelled
  * articulators, not medical anatomy.
  */
-import React, {useCallback, useRef} from 'react';
+import React, {useCallback, useMemo, useRef} from 'react';
 import type {ParamName} from '../core/params';
 import {AirwayLife, type AirwayState} from './AirwayLife';
 import {FloatingWords, headMotion, type StageState} from './stage';
-import {ART_FIGURE, ART_INK, ART_SIZE, ART_TONE} from './art/nousGirlArt';
+import {ART_FIGURE, ART_INK, ART_TONE} from './art/nousGirlArt';
+import {lineY, mouthShapes, prepare, warpPath, warpPoint, type FacePose} from './faceRig';
+
+const FACE = {figure: prepare(ART_FIGURE), tone: prepare(ART_TONE), ink: prepare(ART_INK)};
 
 export interface Pose {
   tongueX: number;
@@ -148,15 +151,9 @@ const WINDOW = 'M 270 292 C 300 282 350 280 384 286 C 404 292 414 312 404 330 C 
  */
 const RIG_TO_ART = {a: 2.66, d: 2.645, e: 2, f: -216};
 const rigToArt = ([x, y]: Pt): Pt => [RIG_TO_ART.a * x + RIG_TO_ART.e, RIG_TO_ART.d * y + RIG_TO_ART.f];
-const ART_PIVOT = rigToArt(PIVOT);
-/** Lower face that rotates with the jaw: chin, jawline and lower lip (art space). */
-const JAW_REGION = 'M 790 702 L 1034 685 L 1058 681 L 1140 681 L 1140 842 L 1040 848 L 990 822 L 880 815 L 790 830 Z';
-/** Mouth interior revealed between the lips as the jaw opens (art space). */
-const MOUTH = 'M 1026 686 L 1060 680 L 1082 688 L 1074 716 L 1030 704 Z';
 
 /** Neck pivot for head motion and the mouth exit for floating words (art space). */
 const NECK: Pt = [780, 1080];
-const MOUTH_EXIT: Pt = [1084, 702];
 
 export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDragEnd, stage, viewBox, cutawayOpacity}: Props) {
   const g = rig(pose);
@@ -216,18 +213,30 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   const jaw = `rotate(${g.jawDeg.toFixed(2)} ${PIVOT[0]} ${PIVOT[1]})`;
   const tongueRot = `rotate(${g.tongueDeg.toFixed(2)} ${PIVOT[0]} ${PIVOT[1]})`;
   const ul = g.upperLip;
-  // The visible mouth follows the lip gap (lips can close with the jaw open).
-  // On stage the lower face swings further, cartoon style.
-  // On stage the whole lower face follows the jaw (cartoon style); the lips still shut for b, p, m.
-  const mouthDeg = stage ? 0.1 + g.jawDeg * clamp01(g.lipGap / 9) : 0.1 + 3.4 * clamp01(g.lipGap / 16);
+  // Face rig: the chin follows the jaw, the lower lip its own gap (so the lips can
+  // shut with the jaw open), and rounding pushes the lips out. Bigger on stage.
+  // The jaw matches the cutaway's jaw; lips are livelier while singing on stage.
+  const show = stage?.singing ? 1.3 : 0.9;
+  const lipDeg = (Math.atan((g.lipGap * RIG_TO_ART.d * show) / 360) * 180) / Math.PI;
+  const face: FacePose = {
+    jaw: Math.max(g.jawDeg - 0.6, lipDeg * 0.7),
+    lip: lipDeg,
+    pout: g.protrude * RIG_TO_ART.a * show,
+  };
+  const q = (v: number) => Math.round(v * 20) / 20;
+  const key = `${q(face.jaw)}|${q(face.lip)}|${q(face.pout)}`;
+  const warped = useMemo(() => {
+    const k: FacePose = {jaw: q(face.jaw), lip: q(face.lip), pout: q(face.pout)};
+    return {figure: warpPath(FACE.figure, k), tone: warpPath(FACE.tone, k), ink: warpPath(FACE.ink, k), mouth: mouthShapes(k)};
+  }, [key]);
   const head = headMotion(stage);
   const headTransform = `translate(0 ${head.dy.toFixed(1)}) rotate(${head.deg.toFixed(2)} ${NECK[0]} ${NECK[1]})`;
   const mouthOut = ((): Pt => {
     const r = (head.deg * Math.PI) / 180;
-    const [x, y] = [MOUTH_EXIT[0] - NECK[0], MOUTH_EXIT[1] + mouthDeg * 3 - NECK[1]];
+    const lower = warpPoint(1064, lineY(1064) + 4.5, face);
+    const [x, y] = [(1066 + lower[0]) / 2 + 8 - NECK[0], (lineY(1064) + lower[1]) / 2 - NECK[1]];
     return [NECK[0] + x * Math.cos(r) - y * Math.sin(r), NECK[1] + x * Math.sin(r) + y * Math.cos(r) + head.dy];
   })();
-  const artJaw = `rotate(${mouthDeg.toFixed(2)} ${ART_PIVOT[0].toFixed(1)} ${ART_PIVOT[1].toFixed(1)})`;
   const handle = (kind: string, at: Pt, label: string, r = 8) => (
     <g className="hvl-handle" onPointerDown={begin(kind)} aria-label={label}>
       <title>{label}</title>
@@ -238,16 +247,10 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   );
   const tongueAt = rotate(g.dorsum, g.tongueDeg);
   const tipAt = rotate(g.tip, g.tongueDeg);
-  const chinRig: Pt = [(1046 - RIG_TO_ART.e) / RIG_TO_ART.a, (808 - RIG_TO_ART.f) / RIG_TO_ART.d];
-  const chin = rotate(chinRig, mouthDeg * 0.9);
-  const lipsAt: Pt = [(1092 - RIG_TO_ART.e) / RIG_TO_ART.a, (686 - RIG_TO_ART.f) / RIG_TO_ART.d + mouthDeg * 0.8];
-  const art = (
-    <>
-      <path d={ART_FIGURE} fill={S.skin} />
-      <path d={ART_TONE} className="hvl-art-tone" />
-      <path d={ART_INK} fill={S.ink} fillRule="evenodd" />
-    </>
-  );
+  const artToRig = ([x, y]: Pt): Pt => [(x - RIG_TO_ART.e) / RIG_TO_ART.a, (y - RIG_TO_ART.f) / RIG_TO_ART.d];
+  const chin = artToRig(warpPoint(1046, 808, face));
+  const lipsAt = artToRig(warpPoint(1086, 700, face));
+  const m = warped.mouth;
 
   return (
     <svg ref={svg} viewBox={viewBox ?? '40 20 1290 1230'} className={`hvl-portrait ${stage ? 'is-stage' : ''}`} onPointerMove={move} onPointerUp={end} onPointerCancel={end}
@@ -257,12 +260,7 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
           <stop offset="0" stopColor="var(--hvl-accent)" stopOpacity="0.16" />
           <stop offset="1" stopColor="var(--hvl-accent)" stopOpacity="0" />
         </radialGradient>
-        <mask id="hvl-static" maskUnits="userSpaceOnUse" x="0" y="0" width={ART_SIZE} height={ART_SIZE}>
-          <rect width={ART_SIZE} height={ART_SIZE} fill="white" />
-          <path d={JAW_REGION} fill="black" />
-        </mask>
-        <clipPath id="hvl-jaw"><path d={JAW_REGION} /></clipPath>
-        <clipPath id="hvl-figure"><path d={ART_FIGURE} /></clipPath>
+        {m && <clipPath id="hvl-mouth"><path d={m.cavity} /></clipPath>}
         <filter id="hvl-feather" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="7" /></filter>
         <mask id="hvl-window" maskUnits="userSpaceOnUse" x="200" y="230" width="260" height="300">
           <path d={WINDOW} fill="white" filter="url(#hvl-feather)" />
@@ -273,13 +271,19 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
       <circle cx="860" cy="640" r="560" fill="none" stroke="var(--hvl-accent)" strokeOpacity="0.45" strokeWidth="2" strokeDasharray="2 16" />
 
       <g transform={headTransform}>
-      {/* Portrait: static art, then the lower face on the jaw */}
-      <g mask="url(#hvl-static)">{art}</g>
-      <g clipPath="url(#hvl-figure)">
-        <path d={JAW_REGION} fill={S.skin} stroke={S.skin} strokeWidth="8" strokeLinejoin="round" />
-        <path d={MOUTH} fill={S.ink} />
-      </g>
-      <g transform={artJaw}><g clipPath="url(#hvl-jaw)">{art}</g></g>
+      {/* Portrait: the artwork, bent by the face rig, with the open mouth over it */}
+      <path d={warped.figure} fill={S.skin} />
+      <path d={warped.tone} className="hvl-art-tone" />
+      <path d={warped.ink} fill={S.ink} fillRule="evenodd" />
+      {m && (
+        <g className="hvl-mouth">
+          <path d={m.cavity} className="hvl-mouth-cavity" />
+          <g clipPath="url(#hvl-mouth)">
+            <path d={m.tongue} className="hvl-mouth-tongue" />
+            <path d={m.teeth} className="hvl-mouth-teeth" />
+          </g>
+        </g>
+      )}
 
       <g ref={rigGroup} transform={`matrix(${RIG_TO_ART.a} 0 0 ${RIG_TO_ART.d} ${RIG_TO_ART.e} ${RIG_TO_ART.f})`}>
         {/* Cutaway: stylised midsagittal view of the modelled articulators */}
@@ -310,8 +314,8 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
           {/* Her outline stays visible through the lens */}
           <g mask="url(#hvl-window)" className="hvl-xray">
             <g transform={`matrix(${1 / RIG_TO_ART.a} 0 0 ${1 / RIG_TO_ART.d} ${-RIG_TO_ART.e / RIG_TO_ART.a} ${-RIG_TO_ART.f / RIG_TO_ART.d})`}>
-              <g mask="url(#hvl-static)"><path d={ART_INK} fill={S.ink} fillRule="evenodd" /></g>
-              <g transform={artJaw}><g clipPath="url(#hvl-jaw)"><path d={ART_INK} fill={S.ink} fillRule="evenodd" /></g></g>
+              <path d={warped.ink} fill={S.ink} fillRule="evenodd" />
+              {m && <path d={m.cavity} className="hvl-mouth-cavity" />}
             </g>
           </g>
         </g>

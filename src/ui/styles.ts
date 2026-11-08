@@ -105,6 +105,9 @@ export const CSS = `
 .hvl-karaoke span.is-past { color: var(--hvl-fg2); }
 .hvl-karaoke span.is-now { color: var(--hvl-accent); transform: scale(1.12) translateY(-1px); }
 .hvl-root[data-dark] .hvl-portrait-disc { fill: #eceaf1; }
+.hvl-mouth-cavity { fill: #2a1b22; }
+.hvl-mouth-tongue { fill: #a8566c; }
+.hvl-mouth-teeth { fill: #fbfaf6; }
 .hvl-art-tone { fill: color-mix(in oklab, var(--hvl-ink) 38%, var(--hvl-skin)); }
 .hvl-xray { opacity: .5; pointer-events: none; }
 .hvl-cutaway { opacity: 0; transition: opacity .3s ease; pointer-events: none; }
