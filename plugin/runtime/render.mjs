@@ -870,6 +870,7 @@ function syllabify(phones) {
 }
 
 // src/core/planner.ts
+var SPEECH_GESTURE_TAU = 0.75;
 function voiceDefaults(voice) {
   const all = { ...defaultPatch(), ...voice };
   return all;
@@ -882,9 +883,9 @@ function preamble(voice) {
   for (const [k, v] of Object.entries(rest)) ev.push([0, k, v, 0]);
   return ev;
 }
-function articulate(segments, voice, withPreamble = true) {
+function articulate(segments, voice, withPreamble = true, gestureTau = 1) {
   const tagged = [];
-  const at = (t, name, value, tau, seg = -1) => tagged.push({ t: Math.max(0, t), name, value: clampParam(name, value), tau, seg, order: tagged.length });
+  const at = (t, name, value, tau, seg = -1) => tagged.push({ t: Math.max(0, t), name, value: clampParam(name, value), tau: tau * gestureTau, seg, order: tagged.length });
   const holds = [];
   const vowelIdx = segments.map((s, i) => isVowel(s.symbol) ? i : -1).filter((i) => i >= 0);
   const nextVowel = (i) => segments[vowelIdx.find((v) => v > i) ?? -1];
@@ -1051,7 +1052,7 @@ function resolveGestures(tagged, holds, ev) {
   ev.sort((a, b) => a[0] - b[0]);
   return ev;
 }
-var TEMPO = 1.25;
+var TEMPO = 1.05;
 function durationOf(seg, prev, next, final, rate2) {
   const ph = PHONEMES[seg.symbol];
   let d = ph.duration;
@@ -1101,7 +1102,7 @@ function planWords(words, opts = {}) {
     segments.push({ symbol: "SIL", stress: 0, start: t, end: t + 0.25, word: -1 });
     t += 0.25;
   }
-  const events = articulate(segments, voice);
+  const events = articulate(segments, voice, true, SPEECH_GESTURE_TAU);
   events.push(...intonation(segments, voice.pitch, expression), ...dynamics(segments, voice.loudness));
   events.sort((a, b) => a[0] - b[0]);
   return { score: compileScore(events, t + 0.1), segments, words, warnings: [] };
