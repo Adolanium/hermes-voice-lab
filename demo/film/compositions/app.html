@@ -1,0 +1,69 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; overflow: hidden; background: var(--color-accent, #2152f4); }
+    /* The whole Hermes window, every pixel of it, as a card on Hermes blue. The takes are 1906×1080 inside
+       7 px of white padding, so the card is 1906 wide and the video sits 7 px left. */
+    #app-win { position: absolute; left: 0; top: 0; width: 1906px; height: 1080px; overflow: hidden; border-radius: 20px;
+      background: #ffffff; transform-origin: 0 0; box-shadow: 0 30px 80px rgba(10, 20, 80, 0.35), 0 4px 14px rgba(10, 20, 80, 0.2); }
+    .app-take { position: absolute; left: -7px; top: 0; width: 1920px; height: 1080px; }
+    /* Captions live in the band under the window and never cover it. */
+    .app-cap { position: absolute; left: 0; top: 963px; width: 1920px; height: 117px; display: flex; align-items: center; justify-content: center;
+      font-family: "Inter", sans-serif; font-weight: 700; font-size: 42px; letter-spacing: -0.01em; color: #ffffff; white-space: nowrap; }
+    .app-cap .app-word { display: inline-block; margin: 0 0.13em; }
+    .app-cap .app-key { color: #ffe27a; }
+  </style>
+  <div id="root" data-composition-id="app" data-width="1920" data-height="1080">
+    <div id="app-win">
+      <!-- Hermes Agent: a new session, the request, the agent's reply with its Voice Lab card, the click into Voice Lab. -->
+      <video id="app-ask" class="app-take clip" src="assets/agent.mp4" muted playsinline data-start="0" data-duration="11.9" data-media-start="2.4" data-track-index="0"></video>
+      <!-- She sings the agent's song live in Voice Lab. -->
+      <video id="app-sing" class="app-take clip" src="assets/agent.mp4" muted playsinline data-start="11.9" data-duration="9.95" data-media-start="18.0" data-track-index="0"></video>
+      <!-- The physics: a held vowel, the tongue tip sealing (3×), silence, the velum lowering (4.8×), a hum. -->
+      <video id="app-phys-a" class="app-take clip" src="assets/physics.mp4" muted playsinline data-start="21.85" data-duration="2.6" data-media-start="13.4" data-track-index="0"></video>
+      <video id="app-phys-b" class="app-take clip" src="assets/physics.mp4" muted playsinline data-start="24.45" data-duration="1.9" data-media-start="16.0" data-playback-rate="3" data-track-index="0"></video>
+      <video id="app-phys-c" class="app-take clip" src="assets/physics.mp4" muted playsinline data-start="26.35" data-duration="2.2" data-media-start="21.7" data-track-index="0"></video>
+      <video id="app-phys-d" class="app-take clip" src="assets/physics.mp4" muted playsinline data-start="28.55" data-duration="2.0" data-media-start="23.9" data-playback-rate="4.8" data-track-index="0"></video>
+      <video id="app-phys-e" class="app-take clip" src="assets/physics.mp4" muted playsinline data-start="30.55" data-duration="4.0" data-media-start="33.5" data-track-index="0"></video>
+    </div>
+    <div id="app-cap-ask" class="app-cap clip" data-start="2.3" data-duration="3.4" data-track-index="1">
+      <span class="app-word">Ask</span> <span class="app-word">Hermes:</span> <span class="app-word app-key">“Sing</span> <span class="app-word app-key">me</span> <span class="app-word app-key">something</span> <span class="app-word app-key">silly</span> <span class="app-word app-key">about</span> <span class="app-word app-key">your</span> <span class="app-word app-key">mouth!”</span>
+    </div>
+    <div id="app-cap-reply" class="app-cap clip" data-start="7.35" data-duration="3.5" data-track-index="1">
+      <span class="app-word">It</span> <span class="app-word">writes</span> <span class="app-word">a</span> <span class="app-word">song</span> <span class="app-word">and</span> <span class="app-word">hands</span> <span class="app-word">it</span> <span class="app-word">to</span> <span class="app-word app-key">Voice</span> <span class="app-word app-key">Lab.</span>
+    </div>
+    <div id="app-cap-sing" class="app-cap clip" data-start="13.9" data-duration="5.8" data-track-index="1">
+      <span class="app-word">Sung</span> <span class="app-word">live</span> <span class="app-word">by</span> <span class="app-word">a</span> <span class="app-word app-key">simulated</span> <span class="app-word app-key">throat,</span> <span class="app-word app-key">tongue</span> <span class="app-word">and</span> <span class="app-word app-key">lips.</span>
+    </div>
+    <div id="app-cap-hold" class="app-cap clip" data-start="22.0" data-duration="4.2" data-track-index="1">
+      <span class="app-word">Hold</span> <span class="app-word">a</span> <span class="app-word">vowel.</span> <span class="app-word">Then</span> <span class="app-word">move</span> <span class="app-word">her</span> <span class="app-word app-key">tongue</span> <span class="app-word">yourself.</span>
+    </div>
+    <div id="app-cap-seal" class="app-cap clip" data-start="26.45" data-duration="2.0" data-track-index="1">
+      <span class="app-word">Seal</span> <span class="app-word">the</span> <span class="app-word">tongue:</span> <span class="app-word app-key">silence.</span>
+    </div>
+    <div id="app-cap-hum" class="app-cap clip" data-start="30.8" data-duration="2.85" data-track-index="1">
+      <span class="app-word">Open</span> <span class="app-word">the</span> <span class="app-word">nose:</span> <span class="app-word app-key">a</span> <span class="app-word app-key">hum.</span>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    const win = "#app-win";
+    // The window's resting place: the whole app, scaled to leave a caption band below.
+    const REST = { scale: 0.86, x: 140, y: 34 };
+    tl.set(win, { ...REST, opacity: 0 }, 0);
+    // The window appears under the title's wordmark, which lands exactly on the app's own.
+    tl.to(win, { opacity: 1, duration: 0.4, ease: "power2.out" }, 0.1);
+    // Captions: per word, then out with a short blur.
+    const caps = [["#app-cap-ask", 2.3, 5.5], ["#app-cap-reply", 7.35, 10.65], ["#app-cap-sing", 13.9, 19.5],
+      ["#app-cap-hold", 22.0, 26.0], ["#app-cap-seal", 26.45, 28.25], ["#app-cap-hum", 30.8, 33.45]];
+    for (const [id, start, end] of caps) {
+      gsap.utils.toArray(`${id} .app-word`).forEach((w, i) =>
+        tl.fromTo(w, { opacity: 0, y: 14, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.22, ease: "power3.out" }, start + 0.04 + i * 0.06));
+      tl.to(`${id} .app-word`, { opacity: 0, filter: "blur(8px)", duration: 0.18, stagger: 0.02, ease: "power2.in" }, end);
+    }
+    // Dive through her mouth into the act: the mouth sits at (903, 425) inside the window.
+    const S = 6.5;
+    tl.to(win, { scale: S, x: 960 - S * 903, y: 540 - S * 425, borderRadius: 0, filter: "blur(14px)", duration: 0.8, ease: "power3.in" }, 33.75);
+    tl.to("#root", { opacity: 0, duration: 0.2, ease: "none" }, 34.35);
+    window.__timelines["app"] = tl;
+  </script>
+</template>

@@ -1,0 +1,25 @@
+{
+  "_note": "Film timeline in seconds. media = time inside the source clip; film = time in the demo. Read by build_audio.py and mirrored in index.html / compositions/app.html. The app scene starts at app.film (app-local 0).",
+  "fps": 30,
+  "act": {"src": "assets/act.mp4", "preroll": 0.5},
+  "cold": {"film": [0.0, 3.2], "media": 8.55},
+  "title": {"film": [3.2, 6.2], "stab": 2.6},
+  "app": {"film": 5.35, "window": {"scale": 0.86, "x": 140, "y": 34}},
+  "ask": {"src": "assets/agent.mp4", "film": [5.35, 17.25], "media": 2.4},
+  "sing": {"src": "assets/agent.mp4", "film": [17.25, 27.2], "media": 18.0, "downbeat_media": 20.32},
+  "physics": {
+    "src": "assets/physics.mp4",
+    "pieces": [
+      {"film": 27.2, "media": [13.4, 16.0], "rate": 1},
+      {"film": 29.8, "media": [16.0, 21.7], "rate": 3},
+      {"film": 31.7, "media": [21.7, 23.9], "rate": 1, "caption": "Seal the tongue: silence."},
+      {"film": 33.9, "media": [23.9, 33.5], "rate": 4.8},
+      {"film": 35.9, "media": [33.5, 37.5], "rate": 1, "caption": "Open the nose: a hum."}
+    ],
+    "seal_film": 31.97,
+    "hum_film": 36.17
+  },
+  "zoom": {"film": [39.1, 39.9]},
+  "show": {"film": 39.7},
+  "end": {"seconds": 5.0}
+}

@@ -8,3 +8,14 @@ __pycache__/
 src/generated/
 .claude/
 .test-build/
+# Demo film: generated or bulky media (see demo/README.md to rebuild)
+demo/out/
+demo/film/.hyperframes/
+demo/film/renders/
+demo/film/assets/*.mp4
+demo/film/assets/*.webm
+demo/film/assets/*.wav
+demo/film/assets/fonts/
+docs/media/.*.hf-transaction-*/
+demo/film/.thumbnails/
+demo/film/.waveform-cache/

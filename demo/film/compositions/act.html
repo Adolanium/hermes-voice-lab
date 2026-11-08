@@ -1,0 +1,16 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; overflow: hidden; background: #f1efe9; }
+    #act-video { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; }
+  </style>
+  <div id="root" data-composition-id="act" data-width="1920" data-height="1080">
+    <!-- "Boop Bop, Live!" as rendered (frame-accurate from the engine); its voice and band are in the soundtrack. -->
+    <video id="act-video" class="clip" src="assets/act.mp4" muted playsinline data-start="0" data-duration="41.11" data-media-start="0" data-track-index="0"></video>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // Arriving from the dive: the stage settles from slightly large and soft.
+    tl.fromTo("#act-video", { scale: 1.12, filter: "blur(10px)" }, { scale: 1, filter: "blur(0px)", duration: 0.7, ease: "expo.out" }, 0);
+    window.__timelines["act"] = tl;
+  </script>
+</template>

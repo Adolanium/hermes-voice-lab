@@ -63,8 +63,8 @@ export function flyingWords(s: StageState, mouth: Pt, right = Infinity) {
     const rise = -dist * Math.sin(heading) + 70 * a * a;
     const loud = /!$/.test(c.text) || held > 0.5;
     const size = (loud ? 92 : 62) * (0.65 + 0.35 * fit);
-    // Bold capitals are about 0.68 em wide: keep the whole word in frame.
-    const width = 0.68 * size * pop * swell * c.text.length;
+    // Heavy capitals run about 0.8 em wide: keep the whole word in frame.
+    const width = 0.8 * size * pop * swell * c.text.length;
     if (a <= life) out.push({
       key: i,
       text: c.text.toUpperCase(),

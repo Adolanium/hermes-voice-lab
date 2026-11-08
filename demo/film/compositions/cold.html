@@ -1,0 +1,18 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; overflow: hidden; background: #f1efe9; }
+    #cold-act { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; }
+    #cold-flood { position: absolute; inset: 0; background: var(--color-accent, #2152f4); clip-path: circle(0px at 1345px 595px); }
+  </style>
+  <div id="root" data-composition-id="cold" data-width="1920" data-height="1080">
+    <!-- The act, from the scat's drum pickup to "BAH!" (sound comes from the soundtrack). -->
+    <video id="cold-act" class="clip" src="assets/act.mp4" muted playsinline data-start="0" data-duration="3.2" data-media-start="8.55" data-track-index="0"></video>
+    <!-- The band's stab floods the frame Hermes blue, opening from her mouth. -->
+    <div id="cold-flood" class="clip" data-start="2.7" data-duration="0.5" data-track-index="1"></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#cold-flood", { clipPath: "circle(0px at 1345px 595px)" }, { clipPath: "circle(2300px at 1345px 595px)", duration: 0.48, ease: "power3.in" }, 2.7);
+    window.__timelines["cold"] = tl;
+  </script>
+</template>

@@ -155,7 +155,6 @@ function View() {
         <Portrait pose={pose} airway={airway} cutaway={reveal > 0} cutawayOpacity={reveal} labels={false} speaking={singing} stage={stage} viewBox="-760 -110 2560 1440" />
       </div>
       <header className="v-title">
-        <div className="v-kicker">Hermes Voice Lab · live physical voice</div>
         <h1>{setup.title}</h1>
         <div className="v-sub">Every sound comes from a simulated throat, tongue, lips and nose. No samples.</div>
       </header>
@@ -179,7 +178,7 @@ const VIDEO_CSS = `
 .v-portrait .hvl-portrait { width: ${W}px; height: ${H}px; max-height: none; aspect-ratio: auto; }
 .v-title { position: absolute; left: 72px; top: 56px; color: #18171c; }
 .v-kicker { font: 650 18px var(--hvl-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--hvl-accent); }
-.v-title h1 { margin: 10px 0 8px; font: 850 64px/1 var(--hvl-sans); letter-spacing: -.02em; }
+.v-title h1 { margin: 0 0 8px; font: 850 64px/1 var(--hvl-sans); letter-spacing: -.02em; }
 .v-sub { font: 500 21px var(--hvl-sans); color: #5a5763; max-width: 560px; line-height: 1.35; }
 .v-now { position: absolute; left: 72px; top: 330px; width: 300px; padding: 20px 24px; border-radius: 18px; background: rgba(255,255,255,.72);
   border: 1px solid rgba(24,23,28,.08); box-shadow: 0 10px 40px rgba(24,23,28,.06); }

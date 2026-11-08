@@ -156,7 +156,7 @@ const DEFAULT_VIEWBOX = '40 20 1290 1230';
 /** Right edge of the visible frame (art units), with a small margin. */
 const frameRight = (viewBox = DEFAULT_VIEWBOX) => {
   const [x, , w] = viewBox.split(/\s+/).map(Number);
-  return x + w - 24;
+  return x + w - 48;
 };
 
 /** Neck pivot for head motion and the mouth exit for floating words (art space). */

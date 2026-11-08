@@ -1,0 +1,37 @@
+<template>
+  <style>
+    @font-face { font-family: "Collapse"; src: url("assets/fonts/Collapse-Bold.woff2") format("woff2"); font-weight: 700; }
+    #root { position: absolute; inset: 0; overflow: hidden; }
+    #title-ground { position: absolute; inset: 0; background: var(--color-accent, #2152f4); }
+    .title-line { position: absolute; left: 0; width: 1920px; font-family: "Collapse", serif; font-weight: 700; color: #ffffff; white-space: nowrap; line-height: 1; }
+    /* Centred over the wordmark, which sits right of centre like the app's own start screen. */
+    #title-setup { left: 460px; width: 1183px; top: 214px; text-align: center; font-size: 104px; letter-spacing: 0.01em; }
+    /* Sized and placed to sit exactly on the app's own wordmark inside the window card (x 462–1645, y 402–546). */
+    #title-brand { left: 460.5px; top: 402px; width: auto; font-size: 170.6px; letter-spacing: 2.6px; }
+    .title-word { display: inline-block; }
+  </style>
+  <div id="root" data-composition-id="title" data-width="1920" data-height="1080">
+    <div id="title-ground" class="clip" data-start="0" data-duration="3.0" data-track-index="0"></div>
+    <div id="title-setup" class="title-line clip" data-start="0" data-duration="2.5" data-track-index="1">
+      <span class="title-word">SHE</span> <span class="title-word">SINGS</span> <span class="title-word">INSIDE</span>
+    </div>
+    <div id="title-brand" class="title-line clip" data-start="0" data-duration="3.0" data-track-index="2">
+      <span class="title-word">HERMES</span> <span class="title-word">AGENT</span>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    const words = gsap.utils.toArray("#title-setup .title-word, #title-brand .title-word");
+    words.forEach((w, i) => {
+      tl.fromTo(w, { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.13, ease: "power4.out" }, 0.25 + i * 0.16);
+    });
+    // The setup line leaves; the app scene's identical blue takes over underneath and its window fades in
+    // behind the wordmark, which turns Hermes blue on the window's white.
+    tl.to("#title-setup .title-word", { opacity: 0, filter: "blur(8px)", duration: 0.2, stagger: 0.04, ease: "power2.in" }, 2.1);
+    tl.set("#title-ground", { opacity: 0 }, 2.2);
+    tl.to("#title-brand", { color: "#2152f4", duration: 0.4, ease: "power2.inOut" }, 2.25);
+    // Match dissolve into the app's start screen underneath.
+    tl.to("#root", { opacity: 0, duration: 0.2, ease: "none" }, 2.8);
+    window.__timelines["title"] = tl;
+  </script>
+</template>
