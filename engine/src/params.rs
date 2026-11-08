@@ -41,7 +41,9 @@ pub const EQ_MID: usize = 35;
 pub const EQ_HIGH: usize = 36;
 pub const COMP: usize = 37;
 pub const DRIVE: usize = 38;
-pub const COUNT: usize = 39;
+pub const CREATURE: usize = 39;
+pub const HARMONY: usize = 40;
+pub const COUNT: usize = 41;
 
 pub struct Spec {
     pub min: f32,
@@ -76,7 +78,7 @@ pub const SPECS: [Spec; COUNT] = [
     s(0.0, 1.0, 0.62, 25.0),      // lip opening
     s(0.0, 1.0, 0.12, 45.0),      // lip rounding / protrusion
     s(0.0, 1.0, 0.0, 35.0),       // velum opening
-    s(11.0, 19.0, 14.2, 80.0),    // tract length, cm (excluding protrusion)
+    s(11.0, 32.0, 14.2, 80.0),    // tract length, cm (excluding protrusion); above 19 cm for animals
     s(0.0, 1.0, 0.5, 60.0),       // throat (pharynx) width
     s(0.0, 1.0, 0.7, 30.0),       // output gain
     s(0.0, 1.0, 0.45, 80.0),      // humanize (jitter, shimmer, drift)
@@ -98,6 +100,8 @@ pub const SPECS: [Spec; COUNT] = [
     s(-12.0, 12.0, 0.0, 60.0),    // EQ high shelf (5.5 kHz), dB
     s(0.0, 1.0, 0.0, 60.0),       // compressor amount
     s(0.0, 1.0, 0.0, 60.0),       // drive (tanh saturation)
+    s(0.0, 2.0, 0.0, 0.5),        // creature source: 0 the human airway, 1 a songbird syrinx, 2 an elephant's lips and trunk
+    s(0.0, 1.0, 0.0, 30.0),       // songbird: the second side of the syrinx sings (1 + harmony) × the pitch
 ];
 
 pub fn clamp(id: usize, value: f32) -> f32 {

@@ -192,6 +192,10 @@ export const CSS = `
 .hvl-textarea:focus, .hvl-input:focus { outline: none; border-color: var(--hvl-accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--hvl-accent) 15%, transparent); }
 .hvl-input { height: 30px; border-radius: 8px; border: 1px solid var(--hvl-line); background: transparent; color: inherit; font: 13px var(--hvl-sans); padding: 0 10px; }
 .hvl-phones { display: flex; flex-wrap: wrap; gap: 8px 10px; }
+.hvl-beasts { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.hvl-beast { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--hvl-line); }
+.hvl-beast b { font-size: 14px; }
+.hvl-beast > span { font-size: 12px; color: var(--hvl-fg3); line-height: 1.4; }
 .hvl-pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
 .hvl-pad-btn { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--hvl-line);
   background: color-mix(in oklab, var(--hvl-fg) 3%, transparent); transition: transform .06s, background .1s; }

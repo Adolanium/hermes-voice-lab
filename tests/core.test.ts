@@ -12,6 +12,7 @@ import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, planSusta
 import {decodeLexicon, letterToSound, parsePhonemeInput, syllabify, tokenize} from '../src/core/text';
 import {newProject, projectScore, SILLY_SONG, validateProject} from '../src/core/project';
 import {beatSong} from '../src/core/beat';
+import {CREATURES} from '../src/core/bestiary';
 import {SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
 import {PHONEMES, VOWEL_CALIBRATION, isVowel as isVowelSymbol} from '../src/core/phonemes';
 const PHONEMES_TARGET = (symbol: string) => PHONEMES[symbol].target;
@@ -506,4 +507,26 @@ test('recording chain: neutral by default; mic, EQ, compressor and drive do what
   const crest = (x: Float32Array) => { let peak = 0, s = 0; for (const v of x) { peak = Math.max(peak, Math.abs(v)); s += v * v; } return peak / Math.sqrt(s / x.length); };
   assert.ok(crest(take({drive: 1})) < crest(neutral) * 0.85, 'drive squashes the peaks');
   for (const p of [{mic: 1}, {comp: 1}, {drive: 1}, {eqLow: 12, eqMid: -12}]) for (const v of take(p)) assert.ok(Number.isFinite(v) && Math.abs(v) < 1, 'bounded');
+});
+
+test('bestiary: every call is audible and bounded, the songbird sings in kHz, and calls hand back the human airway', () => {
+  const sr = 48000;
+  const creatureId = PARAM_NAMES.indexOf('creature');
+  for (const c of CREATURES) for (const call of c.calls) {
+    const score = call.score();
+    const out = renderScore(engine(sr, 8), score)[0];
+    let rms = 0, zc = 0;
+    for (let i = 0; i < out.length; i++) {
+      assert.ok(Number.isFinite(out[i]) && Math.abs(out[i]) < 1, `${c.id}/${call.id} bounded`);
+      rms += out[i] ** 2;
+      if (i && out[i - 1] < 0 && out[i] >= 0) zc++;
+    }
+    rms = Math.sqrt(rms / out.length);
+    assert.ok(rms > 0.01, `${c.id}/${call.id} is audible (rms ${rms.toFixed(3)})`);
+    if (c.id === 'songbird') assert.ok(zc / (out.length / sr) > 1000, `songbird whistles in kHz (${(zc / (out.length / sr)).toFixed(0)} crossings/s)`);
+    // The last creature event returns to the human airway.
+    let last = -1;
+    for (let i = 0; i < score.events.length; i += 4) if (score.events[i + 1] === creatureId) last = score.events[i + 2];
+    assert.equal(last, 0, `${c.id}/${call.id} ends on the human airway`);
+  }
 });

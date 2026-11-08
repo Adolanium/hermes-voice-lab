@@ -7,7 +7,7 @@ export const PARAM_NAMES = [
   'tongueX', 'tongueY', 'tipPlace', 'tipClose', 'dorsumClose', 'jaw', 'lipOpen', 'lipRound',
   'velum', 'tractLength', 'throat', 'gain', 'humanize', 'space', 'lateral', 'rhotic',
   'register', 'fry', 'growl', 'twang', 'pharynx', 'trill', 'glottal', 'larynx', 'suction',
-  'mic', 'eqLow', 'eqMid', 'eqHigh', 'comp', 'drive',
+  'mic', 'eqLow', 'eqMid', 'eqHigh', 'comp', 'drive', 'creature', 'harmony',
 ] as const;
 
 export type ParamName = (typeof PARAM_NAMES)[number];
@@ -64,6 +64,8 @@ const META: Record<ParamName, [string, string, ParamSpec['group'], string]> = {
   eqHigh: ['High', 'dB', 'output', 'EQ high shelf at 5.5 kHz.'],
   comp: ['Compressor', '', 'output', 'Evens out the level (threshold falls and ratio rises with the amount).'],
   drive: ['Drive', '', 'output', 'Tape-style saturation (tanh).'],
+  creature: ['Creature', '', 'internal', 'Sound source: 0 the human airway, 1 a songbird syrinx, 2 an elephant trumpet.'],
+  harmony: ['Second voice', '', 'internal', 'Songbird: the syrinx\'s second side sings (1 + this) × the pitch.'],
   pharynx: ['Pharynx', '×', 'tract', 'Throat length relative to the mouth: longer in adult men (≈1.15), shorter in children (≈0.85).'],
 };
 
@@ -72,10 +74,10 @@ const RANGES: Record<ParamName, [number, number, number]> = {
   pitch: [50, 1100, 210], loudness: [0, 1, 0.72], gate: [0, 1, 0], tenseness: [0, 1, 0.28], breath: [0, 1, 0.25],
   voicing: [0, 1, 1], vibratoDepth: [0, 1, 0.18], vibratoRate: [3, 9, 5.4], tongueX: [0, 1, 0.36], tongueY: [0, 1, 0.3],
   tipPlace: [0, 1, 0.35], tipClose: [0, 1, 0], dorsumClose: [0, 1, 0], jaw: [0, 1, 0.62], lipOpen: [0, 1, 0.62],
-  lipRound: [0, 1, 0.12], velum: [0, 1, 0], tractLength: [11, 19, 14.2], throat: [0, 1, 0.5], gain: [0, 1, 0.7],
+  lipRound: [0, 1, 0.12], velum: [0, 1, 0], tractLength: [11, 32, 14.2], throat: [0, 1, 0.5], gain: [0, 1, 0.7],
   humanize: [0, 1, 0.45], space: [0, 1, 0.18], lateral: [0, 1, 0], rhotic: [0, 1, 0],
   register: [0, 1, 0], fry: [0, 1, 0], growl: [0, 1, 0], twang: [0, 1, 0], pharynx: [0.75, 1.3, 1], trill: [0, 1, 0], glottal: [0, 1, 0], larynx: [0, 1, 0], suction: [0, 1, 0],
-  mic: [0, 1, 0.4], eqLow: [-12, 12, 0], eqMid: [-12, 12, 0], eqHigh: [-12, 12, 0], comp: [0, 1, 0], drive: [0, 1, 0],
+  mic: [0, 1, 0.4], eqLow: [-12, 12, 0], eqMid: [-12, 12, 0], eqHigh: [-12, 12, 0], comp: [0, 1, 0], drive: [0, 1, 0], creature: [0, 2, 0], harmony: [0, 1, 0],
 };
 
 export const PARAMS: readonly ParamSpec[] = PARAM_NAMES.map((name, id) => {
@@ -123,7 +125,7 @@ export const VOICE_PARAMS: readonly ParamName[] = [
 
 /** Articulation parameters a user can hold in Play mode. */
 export const SHAPE_PARAMS: readonly ParamName[] = [
-  'tongueX', 'tongueY', 'tipPlace', 'tipClose', 'dorsumClose', 'jaw', 'lipOpen', 'lipRound', 'velum', 'voicing', 'rhotic', 'lateral', 'trill',
+  'tongueX', 'tongueY', 'tipPlace', 'tipClose', 'dorsumClose', 'jaw', 'lipOpen', 'lipRound', 'velum', 'voicing', 'rhotic', 'lateral', 'trill', 'creature', 'harmony',
 ];
 
 export const midiToHz = (m: number) => 440 * 2 ** ((m - 69) / 12);

@@ -35,7 +35,7 @@ function preamble(voice: Patch): ScoreEvent[] {
   const all = voiceDefaults(voice);
   const ev: ScoreEvent[] = [];
   for (const name of VOICE_PARAMS) ev.push([0, name, all[name], 0]);
-  const rest: Patch = {...SCHWA, tipClose: 0, dorsumClose: 0, velum: 0, lateral: 0, voicing: 1, gate: 0, tipPlace: 0.38};
+  const rest: Patch = {...SCHWA, tipClose: 0, dorsumClose: 0, velum: 0, lateral: 0, voicing: 1, gate: 0, tipPlace: 0.38, creature: 0, harmony: 0};
   for (const [k, v] of Object.entries(rest)) ev.push([0, k as ParamName, v!, 0]);
   return ev;
 }

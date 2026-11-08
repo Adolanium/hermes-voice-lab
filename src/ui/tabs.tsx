@@ -5,12 +5,17 @@ import type {Plan, SongPlan} from '../core/planner';
 import type {Mode, Project} from '../core/project';
 import {PlayPanel, SingPanel, SpeakPanel} from './panels';
 import {BeatPanel} from './BeatPanel';
+import {BestiaryPanel} from './BestiaryPanel';
+import type {Score} from '../core/engine';
 import type {Beat} from '../core/beat';
+
+export type Tab = Mode | 'bestiary';
 
 interface Props {
   project: Project;
-  mode: Mode;
-  onMode: (m: Mode) => void;
+  mode: Tab;
+  onMode: (m: Tab) => void;
+  onCall: (score: Score) => void;
   live: Record<string, number> | null;
   agentKeys: Set<string>;
   onVoice: (p: Patch) => void;
@@ -41,7 +46,7 @@ interface Props {
   beatStep: number;
 }
 
-const TABS: Array<[Mode, string, string]> = [['play', 'Play', 'Hold a shape and play notes'], ['speak', 'Speak', 'Phrases and phonemes'], ['sing', 'Sing', 'Lyrics on a melody'], ['beat', 'Beat', 'Beatbox pads and steps']];
+const TABS: Array<[Tab, string, string]> = [['play', 'Play', 'Hold a shape and play notes'], ['speak', 'Speak', 'Phrases and phonemes'], ['sing', 'Sing', 'Lyrics on a melody'], ['beat', 'Beat', 'Beatbox pads and steps'], ['bestiary', 'Bestiary', 'Animal calls']];
 
 export function PlaySpeakSingTabs(p: Props) {
   return (
@@ -61,6 +66,7 @@ export function PlaySpeakSingTabs(p: Props) {
         <SpeakPanel project={p.project} plan={p.speechPlan} onChange={p.onSpeech} onSpeak={() => p.onPlay('speak')} onStop={p.onStop}
           playing={p.scorePlaying} position={p.position} ready={p.ready} onTry={p.onTry} trying={p.trying} />
       )}
+      {p.mode === 'bestiary' && <BestiaryPanel onCall={p.onCall} onStop={p.onStop} playing={p.scorePlaying} ready={p.ready} />}
       {p.mode === 'beat' && (
         <BeatPanel beat={p.project.beat} onChange={p.onBeat} onPlay={() => p.onPlay('beat')} onStop={p.onStop} onPad={p.onPad}
           playing={p.scorePlaying} step={p.scorePlaying ? p.beatStep : -1} ready={p.ready} />

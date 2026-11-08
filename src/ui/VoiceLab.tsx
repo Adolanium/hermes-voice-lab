@@ -1,6 +1,6 @@
 /** Voice Lab instrument: portrait, mode console, analysis and keyboard. */
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import type {TractResponse} from '../core/engine';
+import type {Score, TractResponse} from '../core/engine';
 import {STATE} from '../core/engine';
 import {midiToHz, noteName, hzToMidi, PARAM_NAMES, type ParamName, type Patch, VOICE_PARAMS} from '../core/params';
 import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, type Plan, type SongPlan} from '../core/planner';
@@ -246,6 +246,13 @@ export default function VoiceLab({bridge}: Props) {
     audio.play(planSong(notes, lyrics, lexicon, {bpm: projectRef.current.beat.bpm, voice: projectRef.current.voice}).score);
   };
   const [trying, setTrying] = useState<string | null>(null);
+  // The bestiary is a play area: its tab does not change the saved project's mode.
+  const [bestiary, setBestiary] = useState(false);
+  const callCreature = async (score: Score) => {
+    if (!(await ensureAudio())) return;
+    setHolding(false);
+    audio.play(score);
+  };
   const trySound = async (symbol: string) => {
     if (!lexicon || !(await ensureAudio())) return;
     setHolding(false);
@@ -529,8 +536,9 @@ export default function VoiceLab({bridge}: Props) {
 
           <PlaySpeakSingTabs
             project={project}
-            mode={project.mode}
-            onMode={m => update(p => ({...p, mode: m}))}
+            mode={bestiary ? 'bestiary' : project.mode}
+            onMode={m => { if (m === 'bestiary') setBestiary(true); else { setBestiary(false); update(p => ({...p, mode: m})); } }}
+            onCall={s => void callCreature(s)}
             live={params}
             agentKeys={agentKeys}
             onVoice={onVoice}

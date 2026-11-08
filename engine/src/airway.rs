@@ -61,7 +61,7 @@ const NASAL_BANDWIDTH: f64 = 450.0;
 
 /// Internal sample rate for a tract `length_cm` long (N sections).
 pub fn internal_rate(length_cm: f32) -> f32 {
-    (N as f64 * C / (COURANT * length_cm.clamp(9.0, 22.0) as f64)) as f32
+    (N as f64 * C / (COURANT * length_cm.clamp(9.0, 34.0) as f64)) as f32
 }
 
 /// Radiation load of an opening of area `a` (Flanagan's piston in a baffle):
@@ -183,7 +183,7 @@ impl Airway {
 
     /// Set the tract length (cm): section length and time step follow.
     pub fn set_length(&mut self, length_cm: f32) {
-        let dx = length_cm.clamp(9.0, 22.0) as f64 / N as f64;
+        let dx = length_cm.clamp(9.0, 34.0) as f64 / N as f64;
         // A longer section is not the walls moving: rescale the remembered
         // volumes so the change does not pump air.
         let scale = dx / self.dx;

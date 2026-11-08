@@ -147,7 +147,7 @@
   {
    "name": "tractLength",
    "min": 11,
-   "max": 19,
+   "max": 32,
    "default": 14.2,
    "label": "Tract length",
    "unit": "cm",
@@ -341,6 +341,24 @@
    "label": "Drive",
    "unit": "",
    "help": "Tape-style saturation (tanh)."
+  },
+  {
+   "name": "creature",
+   "min": 0,
+   "max": 2,
+   "default": 0,
+   "label": "Creature",
+   "unit": "",
+   "help": "Sound source: 0 the human airway, 1 a songbird syrinx, 2 an elephant trumpet."
+  },
+  {
+   "name": "harmony",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Second voice",
+   "unit": "",
+   "help": "Songbird: the syrinx's second side sings (1 + this) × the pitch."
   }
  ],
  "voiceParams": [
@@ -380,7 +398,9 @@
   "voicing",
   "rhotic",
   "lateral",
-  "trill"
+  "trill",
+  "creature",
+  "harmony"
  ],
  "voicePresets": [
   {

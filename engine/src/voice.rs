@@ -4,6 +4,7 @@
 //! driven by live parameter changes or a sample-accurate score.
 
 use crate::airway::{self, Airway};
+use crate::creature::{Creature, HUMAN};
 use crate::dsp::{Biquad, Dynamics, Resampler, Rng, Room, Strip, MIC_NEUTRAL};
 use crate::params::{self, *};
 use crate::tract::{self, Shape, N, TEETH};
@@ -125,6 +126,9 @@ pub struct Voice {
     resampler: Resampler,
     room: Room,
     strip: Strip,
+    creature: Creature,
+    /// Output samples since the last parameter step on a creature (no airway ticks).
+    creature_count: u32,
     dynamics: Dynamics,
     rng: Rng,
     phase: f32,
@@ -224,6 +228,8 @@ impl Voice {
             resampler: Resampler::new(out_rate),
             room: Room::new(out_rate),
             strip: Strip::new(out_rate),
+            creature: Creature::new(out_rate),
+            creature_count: 0,
             dynamics: Dynamics::new(out_rate),
             rng: Rng::new(seed),
             phase: 0.0,
@@ -319,12 +325,16 @@ impl Voice {
     }
 
     /// Recompute everything that changes at control rate.
-    fn control(&mut self) {
-        let dt = CONTROL as f32 / self.int_rate;
+    fn step_params(&mut self, dt: f32) {
         for i in 0..COUNT {
             self.params[i].step(dt);
             self.p[i] = params::clamp(i, self.params[i].value);
         }
+    }
+
+    fn control(&mut self) {
+        let dt = CONTROL as f32 / self.int_rate;
+        self.step_params(dt);
         let p = self.p;
         // A twang raises the larynx: a shorter tract and a pharynx that is wide
         // next to the narrowed epilarynx tube (see `larynx`).
@@ -602,14 +612,25 @@ impl Voice {
         let room_send = 1.0 + 1.5 * ((p[MIC] - MIC_NEUTRAL) / (1.0 - MIC_NEUTRAL)).max(0.0);
         for n in 0..count {
             self.advance_score();
-            let step = self.int_rate / self.out_rate;
-            self.frac += step;
-            while self.frac >= 1.0 {
-                self.frac -= 1.0;
-                let y = self.tick();
-                self.resampler.push(y);
-            }
-            let raw = self.resampler.read(self.frac);
+            let kind = (self.p[CREATURE].round() as u32).min(2);
+            let raw = if kind == HUMAN {
+                let step = self.int_rate / self.out_rate;
+                self.frac += step;
+                while self.frac >= 1.0 {
+                    self.frac -= 1.0;
+                    let y = self.tick();
+                    self.resampler.push(y);
+                }
+                self.resampler.read(self.frac)
+            } else {
+                // A creature's own source runs at the output rate; its parameters
+                // still glide at the control rate.
+                if self.creature_count % CONTROL == 0 {
+                    self.step_params(CONTROL as f32 / self.out_rate);
+                }
+                self.creature_count = self.creature_count.wrapping_add(1);
+                self.creature.tick(kind, &self.p) * 0.02
+            };
             let gain = self.p[GAIN];
             let dry = self.strip.process(self.dc.process(raw) * MASTER * gain * gain * 1.6);
             let space = self.p[SPACE];
@@ -635,6 +656,7 @@ impl Voice {
     }
 
     fn recover(&mut self) {
+        self.creature.reset();
         self.strip.reset();
         self.airway.reset();
         self.resampler.reset();

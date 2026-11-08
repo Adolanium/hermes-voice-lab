@@ -37,6 +37,12 @@ Everything that ships lives in `plugin/`; paths below are relative to it. One en
 
 **Source.** The glottis is an orifice whose area opens and closes: a raised-cosine opening, then a closing that steepens toward contact for a pressed voice. Its resistance is Bernoulli plus slit viscosity plus inertance, driven by lung pressure minus the pressure above it. The flow pulse, its skew, source–tract interaction and devoicing behind a closure all follow from that. The folds vibrate only when adducted and when the pressure across them exceeds a phonation threshold of about 2.5 cmH₂O. Voiceless consonants pull the folds apart, and a small posterior gap never closes. Lung pressure ramps within each control period, because a stepped pressure would buzz at the control rate.
 
+**Creatures (`creature.rs`).** `creature` switches the source.
+- **Songbird:** two van der Pol labia, oversampled 4×. Their nonlinearity rises with air-sac pressure, so the tone is pure when soft and buzzier when loud; the second side sings (1 + `harmony`) × the pitch. A 4 cm trachea, a resonance tracking the song's pitch (the oropharyngeal cavity, which keeps birdsong tonal) and a beak whose gape (`lipOpen`) sets the passband shape it.
+- **Elephant:** like the human glottis here, the lips' opening is driven at the pitch, more sharply when blown harder. Air passes them by Bernoulli against the back pressure of a 1.2–2 m trunk (a delay line inverted and low-passed at the open end).
+
+The seal and the alligator use the human airway, which now reaches 32 cm, with their own proportions, growl, fry and nasal coupling. Every call ends with `creature` back at 0.
+
 **Recording chain.** On the dry voice, before the room:
 - microphone distance: a 160 Hz shelf up to +8 dB and +3 dB of level up close; far away −4 dB of bass, −4 dB above 5 kHz, −6 dB of level and up to 2.5× the room send;
 - low and high shelves at 220 Hz and 5.5 kHz and a 1.6 kHz peak;

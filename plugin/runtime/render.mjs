@@ -44,7 +44,9 @@ var PARAM_NAMES = [
   "eqMid",
   "eqHigh",
   "comp",
-  "drive"
+  "drive",
+  "creature",
+  "harmony"
 ];
 var META = {
   pitch: ["Pitch", "Hz", "source", "Fundamental frequency of the vocal folds."],
@@ -85,6 +87,8 @@ var META = {
   eqHigh: ["High", "dB", "output", "EQ high shelf at 5.5 kHz."],
   comp: ["Compressor", "", "output", "Evens out the level (threshold falls and ratio rises with the amount)."],
   drive: ["Drive", "", "output", "Tape-style saturation (tanh)."],
+  creature: ["Creature", "", "internal", "Sound source: 0 the human airway, 1 a songbird syrinx, 2 an elephant trumpet."],
+  harmony: ["Second voice", "", "internal", "Songbird: the syrinx's second side sings (1 + this) \xD7 the pitch."],
   pharynx: ["Pharynx", "\xD7", "tract", "Throat length relative to the mouth: longer in adult men (\u22481.15), shorter in children (\u22480.85)."]
 };
 var RANGES = {
@@ -105,7 +109,7 @@ var RANGES = {
   lipOpen: [0, 1, 0.62],
   lipRound: [0, 1, 0.12],
   velum: [0, 1, 0],
-  tractLength: [11, 19, 14.2],
+  tractLength: [11, 32, 14.2],
   throat: [0, 1, 0.5],
   gain: [0, 1, 0.7],
   humanize: [0, 1, 0.45],
@@ -126,7 +130,9 @@ var RANGES = {
   eqMid: [-12, 12, 0],
   eqHigh: [-12, 12, 0],
   comp: [0, 1, 0],
-  drive: [0, 1, 0]
+  drive: [0, 1, 0],
+  creature: [0, 2, 0],
+  harmony: [0, 1, 0]
 };
 var PARAMS = PARAM_NAMES.map((name, id) => {
   const [min, max, def] = RANGES[name];
@@ -872,7 +878,7 @@ function preamble(voice) {
   const all = voiceDefaults(voice);
   const ev = [];
   for (const name of VOICE_PARAMS) ev.push([0, name, all[name], 0]);
-  const rest = { ...SCHWA, tipClose: 0, dorsumClose: 0, velum: 0, lateral: 0, voicing: 1, gate: 0, tipPlace: 0.38 };
+  const rest = { ...SCHWA, tipClose: 0, dorsumClose: 0, velum: 0, lateral: 0, voicing: 1, gate: 0, tipPlace: 0.38, creature: 0, harmony: 0 };
   for (const [k, v] of Object.entries(rest)) ev.push([0, k, v, 0]);
   return ev;
 }

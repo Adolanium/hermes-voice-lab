@@ -4,6 +4,7 @@
 //! AudioWorklet playback, offline browser export and Node rendering.
 
 pub mod airway;
+pub mod creature;
 pub mod analysis;
 pub mod dsp;
 pub mod glottis;
@@ -156,7 +157,7 @@ pub extern "C" fn analyze(nasal_area: f32, length_cm: f32) -> *const f32 {
         *a = if v.is_finite() { v.clamp(0.0, 12.0) } else { 1.0 };
     }
     let nasal = if nasal_area.is_finite() { nasal_area.clamp(0.0, 3.0) } else { 0.0 };
-    let length = if length_cm.is_finite() { length_cm.clamp(9.0, 22.0) } else { 14.6 };
+    let length = if length_cm.is_finite() { length_cm.clamp(9.0, 34.0) } else { 14.6 };
     let r = analysis::tract_response(&areas, nasal, length);
     s[..analysis::RESPONSE_BINS].copy_from_slice(&r.magnitude);
     for (k, (f, b)) in r.formants.iter().enumerate() {
