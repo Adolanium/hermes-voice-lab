@@ -131,7 +131,7 @@ const S = {
 /** Silhouette paths, drawn for this product. */
 const HAIR_BACK =
   'M 384 214 C 386 150 340 84 262 72 C 186 62 120 108 104 182 C 92 238 104 296 98 350 ' +
-  'C 94 396 84 436 66 468 C 60 480 64 490 78 488 C 136 482 204 474 254 450 ' +
+  'C 96 400 92 440 86 476 C 85 485 89 489 97 489 C 150 484 208 476 254 450 ' +
   'C 266 430 272 400 276 376 C 282 340 286 300 296 262 C 304 238 330 226 360 222 Z';
 
 const BANGS =
@@ -392,10 +392,10 @@ export function Portrait({pose, cutaway, labels, speaking, onDrag, onDragEnd}: P
       )}
       {labels && (
         <g className="hvl-labels">
-          {cutaway && <Label at={tongueAt} to={[218, 360]} text="tongue" />}
-          {cutaway && <Label at={g.uvula} to={[218, 316]} text="velum" />}
-          {cutaway && <Label at={[296, 456]} to={[218, 446]} text="vocal folds" />}
-          {cutaway && <Label at={[340, 296]} to={[218, 276]} text="nasal tract" />}
+          {cutaway && <Label at={tongueAt} to={[200, 430]} text="tongue" />}
+          {cutaway && <Label at={g.uvula} to={[200, 396]} text="velum" />}
+          {cutaway && <Label at={[296, 456]} to={[200, 466]} text="vocal folds" />}
+          {cutaway && <Label at={[340, 296]} to={[200, 362]} text="nasal tract" />}
           <Label at={[ul[0] + 3, ul[1] + 3]} to={[438, 340]} text="lips" anchor="start" />
           <Label at={chin} to={[430, 420]} text="jaw" anchor="start" />
         </g>
