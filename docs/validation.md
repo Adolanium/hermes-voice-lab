@@ -37,6 +37,18 @@ What the tests establish:
 - **Read-aloud provider**: Hermes' TTS registry returned `voice-lab`. `synthesize()` asked for `.mp3` and correctly produced WAV; `stream()` returned 24 kHz PCM.
 - **Layout**: verified at 1440 px and 520 px wide (stacked layout), and in light and dark themes (the dark theme was checked in the standalone preview; native used the default light theme).
 
+### Airway engine in the installed host (2026-11-08)
+
+Installed with `scripts/package.mjs` + `install-dev.mjs` into the isolated test home; installed files byte-identical to the build.
+- **Inside view:** open /ɑ/ → lit 26.2, 28 particles; tip sealed → "d", lit 6.6, 14 particles; velum down → "n", air through the nose.
+- **Lifecycle:** one running AudioContext; reloads and navigation close old ones; presets persist.
+- **Live Speak and the silly song (cartoon, Stage on):** audible 84% and 95% of the sampled window, peaks 0.32 and 0.45, no page errors, floating words in time.
+- **Export WAV** through the backend: the song render transcribes clearly.
+- **Engine cost** in the host's V8 at 128-frame blocks: about 5% of one core.
+- **Agent tools** (registry, `validate-tools-v2.py`): get, set_voice, vowel preview, speak, sing and render variation wrote 48 kHz WAVs; bad input was refused.
+- **Read-aloud provider** (`validate-tts.py`): 48 kHz file, 24 kHz PCM stream.
+- **Transient sweep** (30 sentences × 4 voices): no resets; default and breathy voices peak ≤ 0.60.
+
 ### Living cutaway (native, `research/validation/airway-alive.mjs`)
 
 | Step | Readout | Lit beads in front of the airway (sum) | Moving particles |
@@ -69,7 +81,8 @@ The judge set has 30 sentences: the 10 below, 10 Harvard sentences (IEEE 1969), 
 | + final consonants release into silence | 43.4% | |
 | + weak forms of function words | 39.8% | |
 | + lossy nasal passages (murmur 10–13 dB below vowels) | 29.6% | 10.4% |
-| + breathiness from the glottal gap, sibilant balance (released) | **31.4%** | **12.4%** |
+| + breathiness from the glottal gap, sibilant balance | 31.4% | 12.4% |
+| + no hiss surges at /s/→/l/ and /s/→/tʃ/ (released) | **31–35% across runs** | **10.4%** |
 
 What each step fixed:
 - **Airway.** The old engine was buzzy and muffled at once: F2 and F3 sat 10–15 dB below natural values, while 4–8 kHz carried about 10 dB too much. In the new engine a held /ɑ/ has F2 −6 dB and F3 −29 dB relative to F1, against about −6 and −26 in natural female speech. The airway alone did not change the score, but every later step built on it.
@@ -80,9 +93,9 @@ Current transcripts of the 10 sentences (base.en):
 
 | WER | Sentence | Whisper heard |
 |---|---|---|
-| 0.33 | The quick brown fox jumps over the lazy dog. | But weak brown fucks jumps over the lazy dog. |
-| 0.14 | Please call me when you get home. | Please follow me when you get home. |
-| 0.38 | She sells sea shells by the sea shore. | She sells seashells by the sea shower. |
+| 0.00 | The quick brown fox jumps over the lazy dog. | The quick brown fox jumps over the lazy dog. |
+| 0.14 | Please call me when you get home. | Please problem me when you get home. |
+| 0.50 | She sells sea shells by the sea shore. | She settles seashells by the sea shower. |
 | 0.00 | What time is it now? | What time is it now? |
 | 0.00 | I would like a cup of tea. | I would like a cup of tea. |
 | 0.00 | Open the window and let the light in. | Open the window and let the light in. |

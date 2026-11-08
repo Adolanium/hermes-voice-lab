@@ -135,7 +135,11 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     const nextIsSame = (param: ParamName) => next && next.symbol !== 'SIL' && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== undefined;
 
     // Position the tip before it closes.
-    if (t.tipPlace !== undefined) at(s.start - 0.07, 'tipPlace', t.tipPlace, 18, i);
+    // After a coronal fricative the tip holds its place until the fricative is
+    // nearly over: sliding mid-hiss sweeps the front cavity through a strong
+    // resonance ("fox chews").
+    const afterCoronalFricative = prevSeg && PHONEMES[prevSeg.symbol]?.manner === 'fricative' && PHONEMES[prevSeg.symbol].target.tipPlace !== undefined;
+    if (t.tipPlace !== undefined) at(afterCoronalFricative ? Math.max(s.start - 0.07, prevSeg.end - 0.02) : s.start - 0.07, 'tipPlace', t.tipPlace, 18, i);
     if (t.jaw !== undefined && ph.manner !== 'approximant') at(onset - 0.02, 'jaw', t.jaw, 22, i);
     if (t.lipRound !== undefined) at(onset - 0.03, 'lipRound', t.lipRound, 25, i);
 
@@ -159,7 +163,9 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       }
     }
     if (t.lateral) {
-      at(onset, 'lateral', 1, 10, i);
+      // The side channel opens with the /l/ itself: opened during a preceding
+      // voiceless fricative it vents the open glottis's air in a loud hiss.
+      at(Math.max(onset, s.start - 0.012), 'lateral', 1, 10, i);
       at(s.end, 'lateral', 0, 15, i);
     }
     if (t.lipRound !== undefined && (!next || isVowel(next.symbol) || next.symbol === 'SIL')) {

@@ -343,7 +343,8 @@ impl Voice {
         // The shorter jet of an alveolar groove strikes the incisors harder
         // than the wider postalveolar one, so /s/ is about as loud as /ʃ/.
         let place = 5.0 - 5.6 * p[TIP_PLACE];
-        self.teeth_weight = if self.shape.coronal { (smooth(0.6, 0.12, self.shape.min_area) * place) as f64 } else { 0.0 };
+        // Air escaping around the sides of the tongue (/l/) does not strike the incisors.
+        self.teeth_weight = if self.shape.coronal { (smooth(0.6, 0.12, self.shape.min_area) * place * (1.0 - p[LATERAL])) as f64 } else { 0.0 };
         // A jet with no obstacle in front of it (dental /θ ð/) is a weak
         // source; the lips' own jet (/f v/) meets the lower lip and teeth.
         let dental = p[TIP_CLOSE] > 0.5 && p[TIP_PLACE] < 0.1 && !self.shape.coronal;
@@ -438,8 +439,9 @@ impl Voice {
             (if downstream { self.jet_at } else { self.jet_branch.saturating_sub(4) }, sign * GAIN_JET * self.jet_weight * (1.0 - 0.7 * tw.min(1.0)) * jet * jet_noise),
             (TEETH + 1, sign * GAIN_TEETH * tw * jet * teeth_noise),
             // A breathy voice's open posterior gap carries its own turbulent
-            // jet, which the single-slit Reynolds number underrates.
-            (2, GAIN_GLOTTIS * (1.0 + 60.0 * (self.p[BREATH] as f64).powi(3)) * glot * asp_noise),
+            // jet, which the single-slit Reynolds number underrates. Only while
+            // the folds vibrate: an /h/ is not louder in a breathy voice.
+            (2, GAIN_GLOTTIS * (1.0 + 60.0 * (self.p[BREATH] as f64).powi(3) * self.voicing_amp as f64) * glot * asp_noise),
         ];
         // Display: frication at a consonant constriction (the turbulence of
         // /h/ air through an open vowel tract is not a fricative's).

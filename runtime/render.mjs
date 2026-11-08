@@ -763,7 +763,8 @@ function articulate(segments, voice) {
     const onset = phraseInitial ? Math.max(prevSeg?.start ?? 0, s.start - 0.1) : s.start - (complete ? 4.2 : 3.5) * closeTau / 1e3;
     const releaseTau = ph.manner === "stop" ? 6 : ph.manner === "fricative" ? 14 : 12;
     const nextIsSame = (param) => next && next.symbol !== "SIL" && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== void 0;
-    if (t.tipPlace !== void 0) at(s.start - 0.07, "tipPlace", t.tipPlace, 18, i);
+    const afterCoronalFricative = prevSeg && PHONEMES[prevSeg.symbol]?.manner === "fricative" && PHONEMES[prevSeg.symbol].target.tipPlace !== void 0;
+    if (t.tipPlace !== void 0) at(afterCoronalFricative ? Math.max(s.start - 0.07, prevSeg.end - 0.02) : s.start - 0.07, "tipPlace", t.tipPlace, 18, i);
     if (t.jaw !== void 0 && ph.manner !== "approximant") at(onset - 0.02, "jaw", t.jaw, 22, i);
     if (t.lipRound !== void 0) at(onset - 0.03, "lipRound", t.lipRound, 25, i);
     const closures = ["lipOpen", "tipClose", "dorsumClose"];
@@ -784,7 +785,7 @@ function articulate(segments, voice) {
       }
     }
     if (t.lateral) {
-      at(onset, "lateral", 1, 10, i);
+      at(Math.max(onset, s.start - 0.012), "lateral", 1, 10, i);
       at(s.end, "lateral", 0, 15, i);
     }
     if (t.lipRound !== void 0 && (!next || isVowel(next.symbol) || next.symbol === "SIL")) {
