@@ -396,7 +396,7 @@ impl Voice {
         // radiation derivative, their spectra fall off as real turbulence does.
         self.asp_lp += self.tilt_coeff * (self.asp_filter.process(white) - self.asp_lp);
         let asp = self.asp_lp * 6.0
-            * (self.p[BREATH] * self.p[BREATH] * 0.045 * self.voicing_amp * (0.1 + flow) + self.aspiration * 0.022);
+            * (self.p[BREATH] * self.p[BREATH] * 0.02 * self.voicing_amp * (0.1 + flow) + self.aspiration * 0.022);
         // The waveguide carries only the acoustic (AC) part of the glottal
         // flow; mean airflow is handled by the quasi-static aerodynamics.
         // Without this, DC flow would stop and restart abruptly at every
