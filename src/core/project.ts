@@ -25,7 +25,7 @@ export interface Project {
 export const LIMITS = {notes: 512, text: 1000, lyrics: 2000, seconds: 120, name: 120};
 
 /** Original demonstration material. */
-export const DEMO_PHRASE = 'Hello! I am a voice made of air, a few tubes, and a little bit of math. Shall we sing?';
+export const DEMO_PHRASE = 'Hello there! I shape every sound with my tongue, my lips and a little breath. Shall we sing?';
 export const DEMO_LYRICS = 'Ev-ery qui-et sig-nal finds a way to sing, o-pen up the morn-ing light';
 export const DEMO_NOTES: Note[] = [
   // An original 4/4 melody in C major (beats).

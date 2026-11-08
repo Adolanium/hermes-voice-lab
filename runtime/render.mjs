@@ -993,7 +993,7 @@ var VOWEL_PRESETS = [
 
 // src/core/project.ts
 var LIMITS = { notes: 512, text: 1e3, lyrics: 2e3, seconds: 120, name: 120 };
-var DEMO_PHRASE = "Hello! I am a voice made of air, a few tubes, and a little bit of math. Shall we sing?";
+var DEMO_PHRASE = "Hello there! I shape every sound with my tongue, my lips and a little breath. Shall we sing?";
 var DEMO_LYRICS = "Ev-ery qui-et sig-nal finds a way to sing, o-pen up the morn-ing light";
 var DEMO_NOTES = [
   // An original 4/4 melody in C major (beats).

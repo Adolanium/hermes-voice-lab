@@ -121,7 +121,7 @@ function VowelPad({x, y, liveX, liveY, running, onChange}: {x: number; y: number
 // ---- Speak ------------------------------------------------------------------
 
 const EXAMPLES = [
-  'Hello! I am a voice made of air, a few tubes, and a little bit of math.',
+  'Hello there! I shape every sound with my tongue, my lips and a little breath.',
   'Good morning. Would you like a cup of tea?',
   'Every quiet signal finds a way to sing.',
   'Is this the voice you were hoping for?',
@@ -178,7 +178,7 @@ export function SpeakPanel({project, plan, onChange, onSpeak, onStop, playing, p
         </div>
       )}
       <div className="hvl-sliders">
-        <Range label="Speaking rate" value={sp.rate} min={0.5} max={1.8} step={0.05} format={v => `${v.toFixed(2)}×`} onChange={v => onChange({rate: v})} />
+        <Range label="Speaking rate" value={sp.rate} min={0.6} max={1.6} step={0.05} format={v => `${Math.round(v * 100)}%`} onChange={v => onChange({rate: v})} />
         <Range label="Intonation" value={sp.expression} min={0} max={1} format={v => `${Math.round(v * 100)}%`} onChange={v => onChange({expression: v})} help="Pitch range of accents and phrase contours" />
       </div>
       <div className="hvl-group">

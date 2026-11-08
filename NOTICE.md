@@ -44,7 +44,7 @@ The engine implements published models in our own code. No code, figures, record
 - J. Hillenbrand, L. A. Getty, M. J. Clark and K. Wheeler, "Acoustic characteristics of American English vowels," JASA 97(5), 1995 — adult-female mean F1–F3 used as calibration targets (`engine/src/bin/calibrate.rs`).
 - S. E. G. Öhman, "Coarticulation in VCV utterances," JASA 39(1), 1966 — vowel-to-vowel trajectory with superimposed consonant gestures.
 - E. L. Saltzman and K. G. Munhall, "A dynamical approach to gestural patterning in speech production," Ecological Psychology 1(4), 1989 — critically damped articulator dynamics.
-- D. H. Klatt, "Synthesis by rule of segmental durations in English sentences," 1979 — context-dependent duration rules (our values).
+- D. H. Klatt, "Synthesis by rule of segmental durations in English sentences," 1979 — context-dependent duration rules. Some inherent durations equal Klatt's published values; others were tuned for this voice.
 - D. Murphy, M. Jani and S. Ternström, "Articulatory vocal tract synthesis in SuperCollider," DAFx 2015. https://dafx.de/paper-archive/details/eHg8j1Dj_oAGb2pGTuyaJQ
 - A. Weitz, I. Steiner and P. Birkholz, "Gesture-based articulatory text-to-speech synthesis," ESSV 2017. https://www.dfki.de/en/web/research/projects-and-publications/publication/9202
 - H. Choi, "Audio worklet design pattern." https://developer.chrome.com/blog/audio-worklet-design-pattern

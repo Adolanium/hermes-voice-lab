@@ -38,21 +38,23 @@ export function formatValue(name: ParamName, v: number): string {
 
 export function Slider({name, value, onChange, agent, label, live}: {name: ParamName; value: number; onChange: (v: number) => void; agent?: boolean; label?: string; live?: number}) {
   const spec = PARAMS[PARAM_ID[name]];
-  const log = name === 'pitch';
-  const toPos = (v: number) => (log ? Math.log(v / spec.min) / Math.log(spec.max / spec.min) : (v - spec.min) / (spec.max - spec.min));
-  const fromPos = (p: number) => (log ? spec.min * (spec.max / spec.min) ** p : spec.min + p * (spec.max - spec.min));
-  const pos = Math.min(1, Math.max(0, toPos(value)));
+  // Pitch is shown on a logarithmic (musical) scale; everything else is linear.
+  const span = name === 'pitch' ? Math.log(spec.max / spec.min) : spec.max - spec.min;
+  const norm = name === 'pitch' ? Math.log(Math.max(spec.min, value) / spec.min) / span : (value - spec.min) / span;
+  const fraction = norm < 0 ? 0 : norm > 1 ? 1 : norm;
+  const denorm = (u: number) => (name === 'pitch' ? spec.min * Math.exp(u * span) : spec.min + u * span);
   const id = `hvl-${name}`;
+  const steps = 2048;
   return (
     <div className={`hvl-slider ${agent ? 'is-agent' : ''}`} title={spec.help}>
       <div className="hvl-slider-head">
         <label htmlFor={id}>{label ?? spec.label}</label>
         <output htmlFor={id}>{formatValue(name, live ?? value)}</output>
       </div>
-      <input id={id} className="hvl-range" type="range" min={0} max={1000} step={1} value={Math.round(pos * 1000)}
-        style={{'--p': `${pos * 100}%`} as React.CSSProperties}
+      <input id={id} className="hvl-range" type="range" min={0} max={steps} step={1} value={Math.round(fraction * steps)}
+        style={{'--p': `${fraction * 100}%`} as React.CSSProperties}
         aria-valuetext={formatValue(name, value)}
-        onChange={e => onChange(Number(fromPos(Number(e.target.value) / 1000).toFixed(name === 'pitch' ? 1 : 3)))} />
+        onChange={e => onChange(Number(denorm(e.currentTarget.valueAsNumber / steps).toFixed(name === 'pitch' ? 1 : 3)))} />
     </div>
   );
 }

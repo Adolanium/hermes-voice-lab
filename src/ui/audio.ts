@@ -1,7 +1,7 @@
 /**
- * Audio session: AudioContext + worklet node + analyser, started only from a
- * user gesture and fully released on dispose. One live voice per window; a
- * BroadcastChannel silences other windows when this one starts playing.
+ * Live audio for one Voice Lab view. Created lazily from a user gesture,
+ * torn down completely on dispose. Only one window sounds at a time: starting
+ * playback broadcasts a claim that silences the others.
  */
 import {Engine, renderScore, type Score} from '../core/engine';
 import {PARAM_NAMES, type ParamName, type Patch} from '../core/params';
@@ -107,8 +107,8 @@ export class VoiceAudio {
         this.emit();
       };
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 4096;
-      analyser.smoothingTimeConstant = 0.6;
+      analyser.fftSize = 8192;
+      analyser.smoothingTimeConstant = 0.45;
       const master = ctx.createGain();
       master.gain.value = 1;
       node.connect(analyser);
