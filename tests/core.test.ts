@@ -16,8 +16,8 @@ import {VOWEL_CALIBRATION} from '../src/core/phonemes';
 import {encodeWav, measure} from '../src/core/wav';
 
 const root = process.cwd();
-const wasm = new WebAssembly.Module(readFileSync(join(root, 'runtime/voice_lab_engine.wasm')));
-const lexicon = decodeLexicon(gunzipSync(readFileSync(join(root, 'runtime/lexicon.txt.gz'))).toString('utf8'));
+const wasm = new WebAssembly.Module(readFileSync(join(root, 'plugin/runtime/voice_lab_engine.wasm')));
+const lexicon = decodeLexicon(gunzipSync(readFileSync(join(root, 'plugin/runtime/lexicon.txt.gz'))).toString('utf8'));
 const engine = (rate = 48000, seed = 1) => new Engine(wasm, rate, seed);
 
 function f0Of(x: Float32Array, rate: number) {
@@ -206,11 +206,11 @@ test('Node renderer CLI writes a WAV and reports metadata', () => {
   const dir = mkdtempSync(join(tmpdir(), 'hvl-'));
   try {
     const out = join(dir, 'x.wav');
-    const meta = JSON.parse(execFileSync(process.execPath, ['runtime/render.mjs', '--text', 'Hello there.', '--output', out, '--voice', 'warm'], {encoding: 'utf8'}));
+    const meta = JSON.parse(execFileSync(process.execPath, ['plugin/runtime/render.mjs', '--text', 'Hello there.', '--output', out, '--voice', 'warm'], {encoding: 'utf8'}));
     assert.equal(meta.ok, true);
     assert.equal(meta.sampleRate, 48000);
     assert.equal(readFileSync(out).subarray(0, 4).toString(), 'RIFF');
-    assert.throws(() => execFileSync(process.execPath, ['runtime/render.mjs', '--text', 'x', '--output', out, '--voice', 'nope'], {stdio: 'pipe'}));
+    assert.throws(() => execFileSync(process.execPath, ['plugin/runtime/render.mjs', '--text', 'x', '--output', out, '--voice', 'nope'], {stdio: 'pipe'}));
   } finally {
     rmSync(dir, {recursive: true, force: true});
   }

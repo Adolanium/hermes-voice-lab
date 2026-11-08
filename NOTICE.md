@@ -4,7 +4,7 @@ Hermes Voice Lab's code, engine, calibration results, presets, melodies, example
 
 ## CMU Pronouncing Dictionary
 
-`runtime/lexicon.txt.gz` (and `assets/lexicon.txt.gz`) is derived from the CMU Pronouncing Dictionary (https://github.com/cmusphinx/cmudict, commit `74790861f652b15e4ac49015a90074ad62a27690`): first pronunciations of alphabetic words, re-encoded by `scripts/build-lexicon.mjs`. Its license is reproduced in `assets/CMUDICT-LICENSE`:
+The plugin's `runtime/lexicon.txt.gz` (built from `assets/lexicon.txt.gz` in the source repository) is derived from the CMU Pronouncing Dictionary (https://github.com/cmusphinx/cmudict, commit `74790861f652b15e4ac49015a90074ad62a27690`): first pronunciations of alphabetic words, re-encoded by `scripts/build-lexicon.mjs`. Its license is reproduced in `CMUDICT-LICENSE` (in the plugin; `assets/CMUDICT-LICENSE` in the source repository):
 
 > Copyright (C) 1993-2015 Carnegie Mellon University. All rights reserved.
 >

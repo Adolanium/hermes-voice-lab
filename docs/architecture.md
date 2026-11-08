@@ -16,7 +16,7 @@
             └──────────────────────────────────────────────────────┘
 ```
 
-One engine (Rust → `runtime/voice_lab_engine.wasm`) and one planner (TypeScript, `src/core`) serve live playback, Desktop export and agent renders. The language model only sends structured values: parameters, text, notes. Planning, timing and samples are local.
+Everything that ships lives in `plugin/`; paths below are relative to it. One engine (Rust → `runtime/voice_lab_engine.wasm`) and one planner (TypeScript, `src/core`) serve live playback, Desktop export and agent renders. The language model only sends structured values: parameters, text, notes. Planning, timing and samples are local.
 
 ## Engine (`engine/src`)
 

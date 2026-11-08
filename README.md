@@ -49,29 +49,34 @@ In Hermes builds with Tool Search, these plugin tools are discovered through `to
 
 ## Install
 
-1. Download `hermes-voice-lab-<version>.tar.gz` from Releases, or build it (below).
-2. Extract `hermes-voice-lab/` into your profile's plugins folder (`$HERMES_HOME/plugins/`).
-3. Enable the agent side with `hermes plugins enable hermes-voice-lab`, then restart the gateway so the plugin's routes mount.
-4. In Hermes Desktop, open **Capabilities → Plugins**, enable **Voice Lab**, and open it from the sidebar or the command palette (**Open Voice Lab**).
+```bash
+hermes plugins install Adolanium/hermes-voice-lab/plugin --enable
+```
 
-You need neither Rust nor npm: the package ships the compiled WebAssembly engine, the desktop bundle and the Node renderer. Agent-side rendering uses Node 20+, which the Hermes runtime provides. Sound starts only after you press a play control.
+1. Run the command above. Hermes clones only the [`plugin/`](plugin/) folder (about 3 MB) into your profile's plugins folder and enables the agent side. The repository is private, so the machine needs Git access to it (for example `gh auth login`, or a Git credential helper that already works for `git clone`).
+2. Restart the gateway so the plugin's routes mount.
+3. In Hermes Desktop, open **Capabilities → Plugins**, enable **Voice Lab**, and open it from the sidebar or the command palette (**Open Voice Lab**).
+
+Hermes warns that this is a custom source, not from the Hermes catalog. Update with `hermes plugins update hermes-voice-lab`, remove with `hermes plugins remove hermes-voice-lab`. Without Git access, copy the `plugin/` folder to `$HERMES_HOME/plugins/hermes-voice-lab/` by hand (or unpack the archive from `npm run package`) and run `hermes plugins enable hermes-voice-lab`.
+
+You need neither Rust nor npm: `plugin/` ships the compiled WebAssembly engine, the desktop bundle and the Node renderer. Agent-side rendering uses Node 20+, which the Hermes runtime provides. Sound starts only after you press a play control.
 
 ## Build from source
 
 ```bash
 npm ci
 rustup target add wasm32-unknown-unknown    # Rust 1.98, pinned in rust-toolchain.toml
-node scripts/build-engine.mjs              # engine → runtime/voice_lab_engine.wasm
-node scripts/build.mjs                     # Node runtime + desktop/plugin.js
+node scripts/build-engine.mjs              # engine → plugin/runtime/voice_lab_engine.wasm
+npm run build                              # plugin/runtime/render.mjs + plugin/desktop/plugin.js
 npm test && npm run test:engine && npm run typecheck
-node scripts/package.mjs                   # release/hermes-voice-lab-<ver>.tar.gz
-HERMES_HOME=/path/to/test-home node scripts/install-dev.mjs
+npm run package                            # release/hermes-voice-lab-<ver>.tar.gz (optional)
+HERMES_HOME=/path/to/test-home node scripts/install-dev.mjs   # copy plugin/ into a test profile
 ```
 
 `node scripts/render-video.mjs --out show.mp4` renders a 1920×1080 performance video of the lounge set (`src/core/show.ts`) (needs ffmpeg and a Playwright Chromium; development tool, not shipped). `npm run dev` starts a standalone browser preview of the instrument. It is a development aid only and does not prove Hermes compatibility. `npm run calibrate` refits the vowel targets (see `docs/architecture.md`). Offline render example:
 
 ```bash
-node runtime/render.mjs --text "Good morning." --voice warm --output /tmp/hello.wav
+node plugin/runtime/render.mjs --text "Good morning." --voice warm --output /tmp/hello.wav
 ```
 
 ## How it works
@@ -81,9 +86,9 @@ The airway is simulated as a lossy acoustic transmission line in the time domain
 ## Limits
 
 - English only. Pronunciation comes from the CMU dictionary plus fallback letter-to-sound rules; unknown words are flagged as guessed. ARPABET input gives exact control.
-- Speech is intelligible for many short phrases but sounds robotic. On an automatic proxy (ten fixed sentences transcribed by Whisper `base.en`), the word error rate is about 0.36–0.39: four sentences come back exactly or nearly so, while /s/–/ʃ/ sequences, some nasals and velars, and /ɑ/ vs /ʌ/ remain weak. This is not a human listening test; see `docs/validation.md`.
+- Speech is intelligible but sounds robotic. On an automatic proxy (30 sentences transcribed by Whisper `small.en`), 31–35% of words come back wrong; on the ten easier sentences in `docs/validation.md`, about 10%. This is not a human listening test.
 - A held sung note fades by about 5 dB over its first ~0.6 s as the output leveler settles.
 - The area-function geometry is a compact original parametric model, not measured anatomy. The cutaway is a stylized view of the modeled articulators.
-- Not yet implemented: MIDI input, beatboxing, other species, duets and 3D views.
+- Not yet implemented: MIDI input, other species, duets and 3D views. Beatbox sounds exist only as hits inside songs.
 
 See [NOTICE.md](NOTICE.md) for the dictionary license, character attribution and scientific sources.

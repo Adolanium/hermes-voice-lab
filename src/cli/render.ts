@@ -1,7 +1,7 @@
 /**
  * Offline renderer used by the agent tools (and for tests):
- *   node runtime/render.mjs --project in.json --output out.wav [--mode speak] [--rate 48000]
- *   node runtime/render.mjs --text "Hello there" --output out.wav
+ *   node plugin/runtime/render.mjs --project in.json --output out.wav [--mode speak] [--rate 48000]
+ *   node plugin/runtime/render.mjs --text "Hello there" --output out.wav
  * Prints JSON metadata on stdout. Uses the same WASM engine and planner as
  * Desktop playback.
  */

@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 /**
- * Build everything that ships:
- *   runtime/   Node renderer for agent tools (+ WASM, lexicon)
- *   desktop/plugin.js   single-file ESM Desktop plugin with embedded WASM,
- *                       lexicon and AudioWorklet source (the Desktop loader
- *                       only resolves @hermes/plugin-sdk and react imports).
- * Requires runtime/voice_lab_engine.wasm (node scripts/build-engine.mjs).
+ * Build everything that ships into plugin/ (the folder Hermes installs):
+ *   plugin/runtime/            Node renderer for agent tools (+ WASM, lexicon)
+ *   plugin/desktop/plugin.js   single-file ESM Desktop plugin with embedded WASM,
+ *                              lexicon and AudioWorklet source (the Desktop loader
+ *                              only resolves @hermes/plugin-sdk and react imports).
+ *   plugin/LICENSE, NOTICE.md, CMUDICT-LICENSE   copies of the repository's notices.
+ * Requires plugin/runtime/voice_lab_engine.wasm (node scripts/build-engine.mjs).
  */
 import {build} from 'esbuild';
-import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {copyFileSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
@@ -17,7 +18,7 @@ process.chdir(root);
 execFileSync(process.execPath, ['scripts/build-runtime.mjs'], {stdio: 'inherit'});
 
 const worklet = await build({entryPoints: ['src/worklet/processor.ts'], bundle: true, write: false, format: 'iife', target: 'es2022', minify: true, legalComments: 'none'});
-const wasm = readFileSync('runtime/voice_lab_engine.wasm');
+const wasm = readFileSync('plugin/runtime/voice_lab_engine.wasm');
 const lexicon = readFileSync('assets/lexicon.txt.gz');
 mkdirSync('src/generated', {recursive: true});
 writeFileSync('src/generated/assets.ts', [
@@ -29,15 +30,16 @@ writeFileSync('src/generated/assets.ts', [
 ].join('\n'));
 
 if (!process.argv.includes('--assets-only')) {
-  mkdirSync('desktop', {recursive: true});
+  for (const [from, to] of [['LICENSE', 'LICENSE'], ['NOTICE.md', 'NOTICE.md'], ['assets/CMUDICT-LICENSE', 'CMUDICT-LICENSE']]) copyFileSync(from, `plugin/${to}`);
+  mkdirSync('plugin/desktop', {recursive: true});
   await build({
-    entryPoints: ['src/desktop.tsx'], outfile: 'desktop/plugin.js', bundle: true, format: 'esm', target: 'es2022',
+    entryPoints: ['src/desktop.tsx'], outfile: 'plugin/desktop/plugin.js', bundle: true, format: 'esm', target: 'es2022',
     jsx: 'automatic', external: ['@hermes/plugin-sdk', 'react', 'react/jsx-runtime'], minify: true, legalComments: 'none',
     banner: {js: '// Hermes Voice Lab desktop plugin. Source: src/. Built by scripts/build.mjs. See NOTICE.md for third-party notices.'},
   });
-  const out = readFileSync('desktop/plugin.js', 'utf8');
+  const out = readFileSync('plugin/desktop/plugin.js', 'utf8');
   const imports = [...out.matchAll(/(?:^|[;\s])(?:import|export)\s*(?:[\w*{}\s,]+from\s*)?["']([^"']+)["']/g)].map(m => m[1]);
   const bad = imports.filter(s => !['@hermes/plugin-sdk', 'react', 'react/jsx-runtime'].includes(s));
   if (bad.length) throw new Error(`Unsupported imports in desktop bundle: ${bad.join(', ')}`);
-  console.log(`desktop/plugin.js ${(out.length / 1024).toFixed(0)} KiB (WASM ${wasm.length} B, lexicon ${lexicon.length} B)`);
+  console.log(`plugin/desktop/plugin.js ${(out.length / 1024).toFixed(0)} KiB (WASM ${wasm.length} B, lexicon ${lexicon.length} B)`);
 }

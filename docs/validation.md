@@ -25,7 +25,7 @@ What the tests establish:
 
 ## Installed host (native Hermes Desktop)
 
-- The packaged plugin (`release/hermes-voice-lab/`) installed into the isolated home. Desktop discovered the desktop half, mounted the Voice Lab route, sidebar entry and palette command, and the Voice Lab settings page.
+- The plugin folder (`plugin/`) installed into the isolated home. Desktop discovered the desktop half, mounted the Voice Lab route, sidebar entry and palette command, and the Voice Lab settings page.
 - **Audio**: Start audio created a 48 kHz AudioContext running the embedded-WASM worklet. Hold/Sustain, keyboard notes (key down marks the key, key up releases it), Speak and Sing played with live telemetry driving the portrait, airway, spectrum, waveform and glottal displays.
 - **Lifecycle**: with AudioContext construction instrumented, three hot reloads while sounding each closed the previous context (`closed, closed, closed, running`), and navigating away closed the last (`closed ×4`). Disabling the plugin in Capabilities → Plugins removed its sidebar entry; re-enabling restored it.
 - **Persistence**: a saved voice preset survived a plugin reload. Projects persist per conversation in `plugin-data/hermes-voice-lab/sessions/<conversation>/projects/main.json`.
@@ -39,7 +39,7 @@ What the tests establish:
 
 ### Airway engine in the installed host (2026-11-08)
 
-Installed with `scripts/package.mjs` + `install-dev.mjs` into the isolated test home; installed files byte-identical to the build.
+Installed into the isolated test home, first with `install-dev.mjs`, later with `hermes plugins install` from Git (`…#plugin`); installed files byte-identical to `plugin/`.
 - **Inside view:** open /ɑ/ → lit 26.2, 28 particles; tip sealed → "d", lit 6.6, 14 particles; velum down → "n", air through the nose.
 - **Lifecycle:** one running AudioContext; reloads and navigation close old ones; presets persist.
 - **Live Speak and the silly song (cartoon, Stage on):** audible 84% and 95% of the sampled window, peaks 0.32 and 0.45, no page errors, floating words in time.
@@ -68,7 +68,7 @@ Engine test `closure_stops_airflow_and_sound_in_front_and_nose_takes_over` pins 
 
 ## Listening and intelligibility
 
-The author could not listen to audio in this environment. Speech quality was judged from spectrograms, level and spectrum measurements, and an automatic proxy: research tooling renders fixed sentences with `runtime/render.mjs`, transcribes them with a local Whisper model (greedy decoding), and computes the word error rate (WER). A sentence's errors are capped at its word count, so one hallucinated run-on can't dominate. This measures machine intelligibility, not naturalness or human perception. Run to run, it varies by about ±2 points.
+The author could not listen to audio in this environment. Speech quality was judged from spectrograms, level and spectrum measurements, and an automatic proxy: research tooling renders fixed sentences with `plugin/runtime/render.mjs`, transcribes them with a local Whisper model (greedy decoding), and computes the word error rate (WER). A sentence's errors are capped at its word count, so one hallucinated run-on can't dominate. This measures machine intelligibility, not naturalness or human perception. Run to run, it varies by about ±2 points.
 
 The judge set has 30 sentences: the 10 below, 10 Harvard sentences (IEEE 1969), and 10 original semantically unpredictable sentences dense in sibilants, affricates, nasals and stops.
 

@@ -1,4 +1,4 @@
-/** Writes runtime/catalog.json: parameters, presets and limits for the Python side. */
+/** Writes plugin/runtime/catalog.json: parameters, presets and limits for the Python side. */
 import {writeFileSync} from 'node:fs';
 import {PARAMS, VOICE_PARAMS, SHAPE_PARAMS} from '../core/params';
 import {VOICE_PRESETS, VOWEL_PRESETS} from '../core/presets';

@@ -8,7 +8,7 @@ import {LOUNGE_SET, planShow} from '../src/core/show';
 import {decodeLexicon} from '../src/core/text';
 import {SIGNATURE} from '../src/core/presets';
 
-const lexicon = decodeLexicon(gunzipSync(readFileSync(new URL('../../runtime/lexicon.txt.gz', import.meta.url))).toString('utf8'));
+const lexicon = decodeLexicon(gunzipSync(readFileSync(new URL('../../assets/lexicon.txt.gz', import.meta.url))).toString('utf8'));
 const voice = {...SIGNATURE, tenseness: 0.42, breath: 0.2, humanize: 0.4, space: 0.22, loudness: 0.78};
 const plan = planShow(LOUNGE_SET, lexicon, voice);
 // planSong puts beat 0 of each song 0.25 s into its section.
