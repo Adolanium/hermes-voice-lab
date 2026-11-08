@@ -2,9 +2,15 @@
 
 A vocal synthesizer for Hermes Desktop built on a physical model of the voice. A side-profile portrait of Nous Girl is the instrument: drag her jaw, lips and tongue and the sound changes, because the drawing and the sound come from the same articulatory parameters. Hermes can play it too: ask for a breathier voice, a different vowel, a spoken line or a short song, and the controls move in front of you.
 
-![Voice Lab in Hermes Desktop](docs/media/voice-lab-native.png)
+![Voice Lab in Hermes Desktop](docs/media/voice-lab-play.png)
 
 Everything is synthesized locally by a Rust engine compiled to WebAssembly: a glottal source drives a simulated vocal tract. There are no recordings, no neural or cloud TTS and no network calls. The default voice is an original adult feminine character voice, clear, warm and slightly breathy. It is a fictional voice for the character and not an official Nous voice.
+
+**Listen** (rendered by the shipped engine, 48 kHz mono): [phrase, Signature voice](docs/media/speech-signature.wav) · [song with lyrics](docs/media/song-signature.wav) · [Warm voice](docs/media/speech-warm.wav) · [Airy voice](docs/media/speech-airy.wav) · [vowel glide /ɑ i u o æ ɝ/](docs/media/vowels.wav)
+
+| Speak | Sing | Dark theme |
+|---|---|---|
+| ![Speak mode](docs/media/voice-lab-speak.png) | ![Sing mode](docs/media/voice-lab-sing.png) | ![Dark theme](docs/media/voice-lab-dark.png) |
 
 ## What you can do
 
@@ -25,7 +31,11 @@ The agent tools take structured instructions. The engine does all timing and syn
 | `voice_lab_perform` | Speak a phrase, or sing a melody (`"melody": "E4:0.5 G4:0.5 A4:1 r:0.5 C5:2"`, `"lyrics": "o-pen the light"`) and return a WAV |
 | `voice_lab_render` | Render the project, or a variation with temporary overrides, to WAV |
 
-Calls are scoped to the active conversation, so edits appear in that conversation's Voice Lab, where a toast offers to play them. Renders come back as normal Hermes media. Desktop shows them in a Voice Lab audio card with the rendered waveform. In Hermes builds with Tool Search, these plugin tools are discovered through `tool_search`/`tool_call` like other plugin tools.
+Calls are scoped to the active conversation, so edits appear in that conversation's Voice Lab, where a toast offers to play them. Renders come back as normal Hermes media. Desktop shows them in a Voice Lab audio card with the rendered waveform:
+
+![Voice Lab audio card in a chat](docs/media/voice-lab-chat-card.png)
+
+In Hermes builds with Tool Search, these plugin tools are discovered through `tool_search`/`tool_call` like other plugin tools.
 
 **Read-aloud (optional).** The plugin registers a `voice-lab` TTS provider. Set `tts.provider: voice-lab` in a profile's `config.yaml` to hear replies in the character voice; voices are the presets (`signature`, `warm`, `bright`, `airy`, `lyric`, `alto`). It is English only and clearly less natural than neural TTS, so it is opt-in.
 
@@ -63,7 +73,8 @@ A Liljencrants–Fant glottal source (with jitter, shimmer, drift, vibrato and b
 ## Limits
 
 - English only. Pronunciation comes from the CMU dictionary plus fallback letter-to-sound rules; unknown words are flagged as guessed. ARPABET input gives exact control.
-- Speech is intelligible for many phrases but robotic, and some consonant clusters remain unclear. See the measured intelligibility proxy in `docs/validation.md`.
+- Speech is intelligible for many short phrases but sounds robotic. On an automatic proxy (ten fixed sentences transcribed by Whisper `base.en`), the word error rate is 0.36: four sentences come back exactly or nearly so, while /s/–/ʃ/ sequences, some nasals and velars, and /ɑ/ vs /ʌ/ remain weak. This is not a human listening test; see `docs/validation.md`.
+- A held sung note fades by about 5 dB over its first ~0.6 s as the output leveler settles.
 - The area-function geometry is a compact original parametric model, not measured anatomy. The cutaway is a stylized view of the modeled articulators.
 - Not yet implemented: MIDI input, beatboxing, other species, duets and 3D views.
 

@@ -18,7 +18,7 @@ const dest = 'release/hermes-voice-lab';
 rmSync('release', {recursive: true, force: true});
 mkdirSync(dest, {recursive: true});
 const ship = ['plugin.yaml', '__init__.py', 'voice_backend.py', 'tts.py', 'dashboard', 'desktop/plugin.js', 'runtime/render.mjs', 'runtime/voice_lab_engine.wasm',
-  'runtime/lexicon.txt.gz', 'runtime/catalog.json', 'assets/CMUDICT-LICENSE', 'README.md', 'LICENSE', 'NOTICE.md', 'docs'];
+  'runtime/lexicon.txt.gz', 'runtime/catalog.json', 'assets/CMUDICT-LICENSE', 'README.md', 'LICENSE', 'NOTICE.md', 'docs/architecture.md', 'docs/validation.md'];
 for (const entry of ship) {
   if (!existsSync(entry)) throw new Error(`missing ${entry} — run the build first`);
   cpSync(entry, `${dest}/${entry}`, {recursive: true, filter: s => !s.includes('__pycache__') && !s.endsWith('.DS_Store')});

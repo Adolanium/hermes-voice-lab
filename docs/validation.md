@@ -17,7 +17,7 @@ What the tests establish:
 - **Live = offline**: rendering a score in 128-frame worklet-sized blocks is sample-identical to the 1024-frame offline renderer. Block size never changes the output (Rust test with 128 vs 1000).
 - **Timing**: score events land on their exact frame; a 0.25 s gate event starts at frame 12000 at 48 kHz.
 - **Pitch**: sustained /ɑ/, /i/ and /u/ at 196, 262 and 440 Hz measure within 10 cents (autocorrelation), so pitch is independent of vowel.
-- **Resonances**: a uniform tube resonates at odd quarter-wavelengths (within 3% for 15 cm). Calibrated vowels sit within 10% of the Hillenbrand et al. (1995) adult-female F1/F2 means; most are within 2–5%. The nasal branch moves resonances. /i/ is high-front, /ɑ/ low-back and /u/ low-F2.
+- **Resonances**: a uniform tube resonates at odd quarter-wavelengths (within 3% for 15 cm). Calibrated vowels are within 10% (F1) and 13% (F2) of the Hillenbrand et al. (1995) adult-female means. Most are within 2–5%. Fitting with natural-looking articulations leaves F2 short for /ɑ/ (−12%), /æ/ (−9%) and /i/ (−7%). The nasal branch moves resonances. /i/ is high-front, /ɑ/ low-back and /u/ low-F2.
 - **Aerodynamics**: a lip closure builds intraoral pressure and its release produces a burst. Gate release decays to silence.
 - **Planner**: events are ordered and in range. Voiceless fricatives devoice. Sung vowels start on note onsets (±20 ms) and melismas extend the vowel.
 - **I/O**: WAV headers and clipping are correct. The Node CLI renders, reports metadata and rejects unknown presets.
@@ -45,4 +45,40 @@ What the tests establish:
 
 ## Listening and intelligibility
 
-The author could not listen to audio in this environment. Speech quality was judged by spectrograms, level measurements and an automatic proxy: research tooling renders ten fixed sentences with `runtime/render.mjs` and transcribes them with a local Whisper `base.en` model to compute word error rate. That measures machine intelligibility, not naturalness or human perception. Results are in the next section.
+The author could not listen to audio in this environment. Speech quality was judged from spectrograms, level measurements and an automatic proxy. Research tooling renders ten fixed sentences with `runtime/render.mjs`, transcribes them with a local Whisper `base.en` model, and computes the word error rate (WER). This measures machine intelligibility, not naturalness or human perception, and Whisper is noisy: identical audio has scored 0.376–0.431 across reruns. Decisions also used a larger set of 60 sentences × 2 seeds.
+
+| Build | Mean WER (10 sentences) |
+|---|---|
+| First complete engine | 0.774 |
+| After intelligibility work (closures, gesture precedence, VOT, bursts, sibilants, tempo, leveler) | 0.376 |
+| Released (softer Signature source) | 0.360, identical on two runs |
+
+Released transcripts (reference → heard):
+
+| WER | Sentence | Whisper heard |
+|---|---|---|
+| 0.11 | The quick brown fox jumps over the lazy dog. | The quick brown fox clumps over the lazy dog. |
+| 0.29 | Please call me when you get home. | Please call me when you're back home. |
+| 0.75 | She sells sea shells by the sea shore. | She sells, she sells, I'll say sure |
+| 0.00 | What time is it now? | What time is it now? |
+| 0.57 | I would like a cup of tea. | I would like to top out the |
+| 0.12 | Open the window and let the light in. | Open the window and let the light in it. |
+| 0.71 | Seven green birds sat on the fence. | Sell and drink their bread on the fence. |
+| 0.38 | My voice is made of air and math. | My voice is made of a bleh |
+| 0.00 | Good morning, how are you today? | Good morning. How are you today? |
+| 0.67 | We will meet at the old bridge at noon. | We will lay that little bridge up low. |
+
+**Levels.** Speech renders at RMS ≈ 0.08–0.10. A C4–E4–G4–C5 sung test went from RMS 0.29 / peak 1.0 to RMS 0.10–0.12 / peak ≤ 0.67 once the pitch-compensated source, a slow leveler and a 2 ms look-ahead limiter (ceiling 0.8) were in place. Through the real tool registry, sung and spoken renders peak at 0.42–0.43.
+
+**Voice character** (sustained /ɑ/, `research/tools/voice_metrics.py`, measured on the output):
+
+| Preset | F0 (Hz) | H1–H2 (dB) | H1–A3 (dB) | HNR (dB) |
+|---|---|---|---|---|
+| Signature | 212 | 0.0 | 23.4 | 14.7 |
+| Warm | 194 | 3.9 | 26.7 | 13.9 |
+| Bright | 238 | −7.9 | 12.2 | 15.3 |
+| Airy | 222 | 1.2 | 22.8 | 8.4 |
+| Lyric | 331 | −12.6 | 13.3 | 16.4 |
+| Alto | 176 | 5.2 | 28.3 | 14.2 |
+
+The intelligibility work made the source firmer (Signature H1–H2 −4.8 dB). The released presets soften it again without hurting the WER proxy. Pitch and tract length set the perceived size independently of these source measures.
