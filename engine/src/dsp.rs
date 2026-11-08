@@ -167,7 +167,7 @@ impl Room {
     pub fn new(rate: f32) -> Self {
         let ms = [31.7f32, 37.3, 41.9, 47.1];
         let len = |m: f32| ((m * 0.001 * rate) as usize).max(8);
-        let rt60 = 1.25f32;
+        let rt60 = 0.7f32;
         let mean = ms.iter().sum::<f32>() / 4.0 * 0.001;
         Self {
             lines: [vec![0.0; len(ms[0])], vec![0.0; len(ms[1])], vec![0.0; len(ms[2])], vec![0.0; len(ms[3])]],
@@ -205,5 +205,86 @@ impl Room {
         }
         self.pre.iter_mut().for_each(|v| *v = 0.0);
         self.damp = [0.0; 4];
+    }
+}
+
+/// Maximum limiter look-ahead in samples (2 ms at 192 kHz).
+const LOOKAHEAD_MAX: usize = 512;
+
+/// Transparent output dynamics: a slow RMS leveler (gentle ratio, so
+/// sustained notes are evened out without pumping) followed by a
+/// look-ahead peak limiter. Fixed-size state; no allocation.
+pub struct Dynamics {
+    ms: f32,
+    ms_coeff: f32,
+    gr_db: f32,
+    lev_attack: f32,
+    lev_release: f32,
+    lim_gain: f32,
+    lim_attack: f32,
+    lim_release: f32,
+    delay_l: [f32; LOOKAHEAD_MAX],
+    delay_r: [f32; LOOKAHEAD_MAX],
+    pos: usize,
+    look: usize,
+}
+
+/// Leveler threshold (dBFS, short-term RMS) and ratio above it.
+const LEVEL_THRESHOLD_DB: f32 = -22.0;
+const LEVEL_RATIO: f32 = 3.0;
+/// Limiter ceiling (linear), ahead of the soft clipper.
+const LIMIT: f32 = 0.8;
+
+impl Dynamics {
+    pub fn new(rate: f32) -> Self {
+        let c = |seconds: f32| 1.0 - (-1.0 / (seconds * rate)).exp();
+        let look = ((0.002 * rate) as usize).clamp(1, LOOKAHEAD_MAX);
+        Self {
+            ms: 0.0,
+            // Phrase-scale time constants: held notes and loud passages are
+            // evened out, but a consonant after a loud vowel is not ducked.
+            ms_coeff: c(0.3),
+            gr_db: 0.0,
+            lev_attack: c(0.3),
+            lev_release: c(0.8),
+            lim_gain: 1.0,
+            lim_attack: c(look as f32 / rate / 3.0),
+            lim_release: c(0.2),
+            delay_l: [0.0; LOOKAHEAD_MAX],
+            delay_r: [0.0; LOOKAHEAD_MAX],
+            pos: 0,
+            look,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.ms = 0.0;
+        self.gr_db = 0.0;
+        self.lim_gain = 1.0;
+        self.delay_l = [0.0; LOOKAHEAD_MAX];
+        self.delay_r = [0.0; LOOKAHEAD_MAX];
+    }
+
+    #[inline]
+    pub fn process(&mut self, l: f32, r: f32) -> (f32, f32) {
+        // Leveler: dB-domain gain reduction from short-term mean square.
+        self.ms += self.ms_coeff * (0.5 * (l * l + r * r) - self.ms);
+        let level_db = 10.0 * (self.ms + 1e-12).log10();
+        let want = ((level_db - LEVEL_THRESHOLD_DB) * (1.0 - 1.0 / LEVEL_RATIO)).max(0.0);
+        let k = if want > self.gr_db { self.lev_attack } else { self.lev_release };
+        self.gr_db += k * (want - self.gr_db);
+        let g = 10f32.powf(-self.gr_db / 20.0);
+        let (l, r) = (l * g, r * g);
+        // Limiter: the gain needed by the incoming sample is reached before
+        // that sample leaves the delay line.
+        let need = (LIMIT / l.abs().max(r.abs()).max(1e-9)).min(1.0);
+        let k = if need < self.lim_gain { self.lim_attack } else { self.lim_release };
+        self.lim_gain += k * (need - self.lim_gain);
+        let i = self.pos;
+        let (dl, dr) = (self.delay_l[i], self.delay_r[i]);
+        self.delay_l[i] = l;
+        self.delay_r[i] = r;
+        self.pos = if i + 1 >= self.look { 0 } else { i + 1 };
+        (dl * self.lim_gain, dr * self.lim_gain)
     }
 }

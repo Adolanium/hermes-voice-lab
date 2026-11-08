@@ -74,7 +74,7 @@ fn cost(x: &[f32], t: &Target) -> f32 {
         c += w * (f[k] / t.formants[k]).ln().powi(2) * 100.0;
     }
     // Keep articulations plausible for the portrait: jaw and lips matter most.
-    let weights = [0.05, 0.05, 0.6, 0.3, 0.3, 0.05];
+    let weights = [0.2, 0.2, 2.4, 1.2, 1.2, 0.2];
     for k in 0..6 {
         c += weights[k] * (x[k] - t.prior[k]).powi(2);
     }

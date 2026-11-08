@@ -42,8 +42,15 @@ function preamble(voice: Patch): ScoreEvent[] {
 
 /** Articulatory events for a list of timed segments. */
 export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
-  const ev: ScoreEvent[] = preamble(voice);
-  const at = (t: number, name: ParamName, value: number, tau: number) => ev.push([Math.max(0, t), name, clampParam(name, value), tau]);
+  // Every gesture event remembers the segment that produced it (-1: global).
+  type Tagged = {t: number; name: ParamName; value: number; tau: number; seg: number; order: number};
+  const tagged: Tagged[] = [];
+  const at = (t: number, name: ParamName, value: number, tau: number, seg = -1) =>
+    tagged.push({t: Math.max(0, t), name, value: clampParam(name, value), tau, seg, order: tagged.length});
+  // Intervals during which a consonant owns an articulator (closure onset to
+  // release); later segments' movements of that articulator wait for the release.
+  type Hold = {seg: number; name: ParamName; start: number; end: number; tau: number; value: number};
+  const holds: Hold[] = [];
   const vowelIdx = segments.map((s, i) => (isVowel(s.symbol) ? i : -1)).filter(i => i >= 0);
   const nextVowel = (i: number) => segments[vowelIdx.find(v => v > i) ?? -1];
   const prevVowel = (i: number) => segments[[...vowelIdx].reverse().find(v => v < i) ?? -1];
@@ -52,7 +59,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
   let inPhrase = false;
   segments.forEach((s, i) => {
     if (s.symbol === 'SIL') {
-      if (inPhrase) at(s.start, 'gate', 0, 35);
+      if (inPhrase) at(s.start, 'gate', 0, 20);
       inPhrase = false;
     } else if (!inPhrase) {
       at(s.start - 0.03, 'gate', 1, 10);
@@ -62,7 +69,7 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
   });
 
   // Tongue-body anchors: vowels plus consonants that need the dorsum.
-  type Anchor = {time: number; target: Patch; tau?: number};
+  type Anchor = {time: number; target: Patch; tau?: number; lead?: number; seg: number};
   const anchors: Anchor[] = [];
   segments.forEach((s, i) => {
     if (s.symbol === 'SIL') return;
@@ -71,17 +78,17 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     if (isVowel(s.symbol)) {
       const target = vowelTarget({symbol: s.symbol, stress: s.stress});
       if (ph.offglide) {
-        anchors.push({time: s.start + 0.22 * dur, target});
-        anchors.push({time: s.start + 0.8 * dur, target: {...ph.offglide, rhotic: 0}});
+        anchors.push({time: s.start + 0.22 * dur, target, seg: i});
+        anchors.push({time: s.start + 0.8 * dur, target: {...ph.offglide, rhotic: 0}, seg: i});
       } else {
-        anchors.push({time: s.start + 0.38 * dur, target});
+        anchors.push({time: s.start + 0.38 * dur, target, seg: i});
       }
       return;
     }
     if (s.symbol === 'HH') {
       // /h/ takes the following vowel's shape (voiceless onset).
       const v = nextVowel(i);
-      if (v) anchors.push({time: s.start + 0.2 * dur, target: vowelTarget({symbol: v.symbol, stress: v.stress})});
+      if (v) anchors.push({time: s.start + 0.2 * dur, target: vowelTarget({symbol: v.symbol, stress: v.stress}), seg: i});
       return;
     }
     const t = ph.target;
@@ -89,16 +96,18 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     for (const k of ['tongueX', 'tongueY', 'rhotic', 'jaw'] as ParamName[]) if (t[k] !== undefined) body[k] = t[k];
     if (Object.keys(body).length) {
       if (s.symbol === 'R') body.jaw = 0.55;
-      anchors.push({time: s.start + 0.5 * dur, target: body, tau: 22});
+      // Consonantal tongue-body targets are extreme and brief: move early
+      // enough (4 time constants) to get close to them.
+      anchors.push({time: s.start + 0.5 * dur, target: body, tau: 18, lead: 4, seg: i});
     }
   });
   anchors.sort((a, b) => a.time - b.time);
   anchors.forEach((a, k) => {
     const gap = k ? a.time - anchors[k - 1].time : 0.15;
     const tau = a.tau ?? Math.min(48, Math.max(14, gap * 1000 * 0.3));
-    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - (LEAD_SCALE * tau) / 1000);
+    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - ((a.lead ?? LEAD_SCALE) * tau) / 1000);
     for (const [name, value] of Object.entries(a.target)) {
-      if (['tongueX', 'tongueY', 'jaw', 'throat', 'rhotic', 'lipOpen', 'lipRound'].includes(name)) at(start, name as ParamName, value!, tau);
+      if (['tongueX', 'tongueY', 'jaw', 'throat', 'rhotic', 'lipOpen', 'lipRound'].includes(name)) at(start, name as ParamName, value!, tau, a.seg);
     }
   });
 
@@ -111,56 +120,130 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     const next = segments[i + 1];
     const nv = nextVowel(i) ?? prevVowel(i);
     const vowelLips = nv ? vowelTarget({symbol: nv.symbol, stress: nv.stress}) : SCHWA;
-    const closeTau = ph.manner === 'stop' || ph.manner === 'nasal' || ph.manner === 'affricate' ? 9 : 14;
-    const onset = s.start - (LEAD_SCALE * closeTau) / 1000;
+    const complete = ph.manner === 'stop' || ph.manner === 'nasal' || ph.manner === 'affricate';
+    const closeTau = s.symbol === 'DX' ? 4 : complete ? 9 : 14;
+    // Closures aim past contact (engine: contact at 92%); a critically damped
+    // move reaches 92% after ~4.2 time constants, so start that early to
+    // have the seal complete at segment start. Fricatives need ~3.5 tau to settle.
+    // After a pause the articulators are already in place when the breath starts.
+    const prevSeg = segments[i - 1];
+    const phraseInitial = !prevSeg || prevSeg.symbol === 'SIL';
+    const onset = phraseInitial ? Math.max(prevSeg?.start ?? 0, s.start - 0.1) : s.start - ((complete ? 4.2 : 3.5) * closeTau) / 1000;
     const releaseTau = ph.manner === 'stop' ? 6 : ph.manner === 'fricative' ? 14 : 12;
     const nextIsSame = (param: ParamName) => next && next.symbol !== 'SIL' && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== undefined;
 
     // Position the tip before it closes.
-    if (t.tipPlace !== undefined) at(s.start - 0.07, 'tipPlace', t.tipPlace, 18);
-    if (t.jaw !== undefined && ph.manner !== 'approximant') at(onset - 0.02, 'jaw', t.jaw, 22);
-    if (t.lipRound !== undefined) at(onset - 0.03, 'lipRound', t.lipRound, 25);
+    if (t.tipPlace !== undefined) at(s.start - 0.07, 'tipPlace', t.tipPlace, 18, i);
+    if (t.jaw !== undefined && ph.manner !== 'approximant') at(onset - 0.02, 'jaw', t.jaw, 22, i);
+    if (t.lipRound !== undefined) at(onset - 0.03, 'lipRound', t.lipRound, 25, i);
 
     const closures: ParamName[] = ['lipOpen', 'tipClose', 'dorsumClose'];
     for (const param of closures) {
       if (t[param] === undefined) continue;
-      if (param === 'lipOpen' && ['R', 'W'].includes(s.symbol)) continue; // handled by anchors
-      at(onset, param, t[param]!, closeTau);
+      // /ð/ after a pause or a stop/nasal is usually a brief dental stop
+      // released into the fricative ("the" → [d̪ə]).
+      const stopped = s.symbol === 'DH' && param === 'tipClose' && (phraseInitial || ['stop', 'nasal'].includes(PHONEMES[prevSeg.symbol]?.manner));
+      at(onset, param, stopped ? 1 : t[param]!, closeTau, i);
+      if (stopped) at(s.start + 0.45 * dur, param, t[param]!, 6, i);
+      holds.push({seg: i, name: param, start: onset, end: s.end, tau: releaseTau, value: t[param]!});
       if (ph.manner === 'affricate' && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
-        at(s.start + 0.55 * dur, 'tipClose', r.tipClose!, 6);
-        at(s.start + 0.45 * dur, 'tipPlace', r.tipPlace!, 10);
+        at(s.start + 0.55 * dur, 'tipClose', r.tipClose!, 6, i);
+        at(s.start + 0.45 * dur, 'tipPlace', r.tipPlace!, 10, i);
       }
       if (!nextIsSame(param)) {
         const rest = param === 'lipOpen' ? vowelLips.lipOpen ?? 0.6 : 0;
-        at(s.end - (param === 'lipOpen' ? 0.004 : 0.002), param, rest, releaseTau);
+        at(s.end - (param === 'lipOpen' ? 0.004 : 0.002), param, rest, releaseTau, i);
       }
     }
     if (t.lateral) {
-      at(onset, 'lateral', 1, 10);
-      at(s.end, 'lateral', 0, 15);
+      at(onset, 'lateral', 1, 10, i);
+      at(s.end, 'lateral', 0, 15, i);
     }
     if (t.lipRound !== undefined && (!next || isVowel(next.symbol) || next.symbol === 'SIL')) {
-      at(s.end, 'lipRound', vowelLips.lipRound ?? 0.1, 30);
+      at(s.end, 'lipRound', vowelLips.lipRound ?? 0.1, 30, i);
     }
     // Velum: anticipatory lowering, raise after.
     if (t.velum) {
-      at(s.start - 0.06, 'velum', 1, 22);
-      if (!(next && PHONEMES[next.symbol]?.target.velum)) at(s.end + 0.01, 'velum', 0, 25);
+      // Anticipatory lowering, but not into a preceding obstruent (it would
+      // vent its pressure through the nose).
+      const afterObstruent = prevSeg && ['stop', 'fricative', 'affricate'].includes(PHONEMES[prevSeg.symbol]?.manner);
+      at(afterObstruent ? s.start - 0.012 : s.start - 0.06, 'velum', 1, afterObstruent ? 12 : 22, i);
+      if (!(next && PHONEMES[next.symbol]?.target.velum)) {
+        // Before an obstruent the velopharyngeal port must be sealed when the
+        // obstruent starts (or pressure leaks out of the nose and /g/ in
+        // "green" after /n/ becomes [ŋ]); before vowels it can lag.
+        const obstruent = next && ['stop', 'fricative', 'affricate'].includes(PHONEMES[next.symbol]?.manner);
+        if (obstruent) at(s.end - 0.035, 'velum', 0, 9, i);
+        else at(s.end + 0.01, 'velum', 0, 25, i);
+      }
     }
     // Glottis.
     if (!ph.voiced) {
-      at(s.start - 0.012, 'voicing', 0, 7);
-      const aspirated = ph.manner === 'stop' && next && isVowel(next.symbol) && next.stress > 0;
-      const vot = ph.manner === 'stop' ? (aspirated ? 0.05 : 0.018) : ph.manner === 'affricate' ? 0.01 : 0.0;
+      // Stops and affricates abduct once the seal is complete (an open glottis
+      // behind a narrowing tip would hiss); fricatives slightly before the
+      // constriction is reached.
+      const closing = ph.manner === 'stop' || ph.manner === 'affricate';
+      at(phraseInitial ? onset : closing ? s.start : s.start - 0.012, 'voicing', 0, 7, i);
+      const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === 'S';
+      const aspirated = ph.manner === 'stop' && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === 'SIL' || ['R', 'L', 'W', 'Y'].includes(next.symbol));
+      // Voice onset time after release; adduction takes ~12 ms to reach the
+      // point where the folds start to vibrate, so the command leads it.
+      const vot = ph.manner === 'stop' ? (aspirated ? 0.055 : 0.015) : ph.manner === 'affricate' ? 0.02 : 0.0;
       const following = next && next.symbol !== 'SIL' && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
-      if (!following) at(s.end + vot, 'voicing', 1, 8);
-    } else if (ph.manner === 'fricative' || ph.manner === 'stop') {
-      // Voiced obstruents: slightly breathy to sustain voicing behind the closure.
-      at(s.start, 'voicing', 0.85, 10);
-      at(s.end, 'voicing', 1, 10);
+      // After a fricative the folds adduct as the constriction opens (no gap).
+      if (!following) at(s.end + (ph.manner === "fricative" || ph.manner === "aspirate" ? -0.02 : vot - 0.012), "voicing", 1, 8, i);
+    } else if (phraseInitial && (ph.manner === 'stop' || ph.manner === 'affricate')) {
+      // Utterance-initial /b d g/ in English are short-lag, not prevoiced:
+      // the folds are apart but not vibrating during the closure; voicing
+      // starts just after the release.
+      at(onset, 'voicing', 0.15, 10, i);
+      at(s.end - 0.006, 'voicing', 1, 6, i);
+    } else if (ph.manner === 'fricative' || ph.manner === 'stop' || ph.manner === 'affricate') {
+      // Voiced obstruents: the glottis opens partly, keeping the folds
+      // vibrating while feeding enough flow for frication / pressure build-up.
+      at(s.start - 0.01, 'voicing', ph.manner === 'stop' ? 0.85 : 0.66, 10, i);
+      at(s.end, 'voicing', 1, 10, i);
     }
   });
+  return resolveGestures(tagged, holds, preamble(voice));
+}
+
+/**
+ * Turn segment-tagged events into a score. Movements of an articulator that a
+ * consonant holds closed wait for its release (and then move at release
+ * speed), and once a later segment has started moving an articulator, events
+ * from earlier segments for it (e.g. a restore after a voiced fricative) are
+ * dropped, so later gestures are never undone by earlier ones.
+ */
+function resolveGestures(
+  tagged: Array<{t: number; name: ParamName; value: number; tau: number; seg: number; order: number}>,
+  holds: Array<{seg: number; name: ParamName; start: number; end: number; tau: number; value: number}>,
+  ev: ScoreEvent[],
+): ScoreEvent[] {
+  holds.sort((a, b) => a.start - b.start);
+  for (const e of tagged) {
+    if (e.seg < 0) continue;
+    for (const h of holds) {
+      // Only movements that would open the constriction wait; a following
+      // consonant may tighten it further (overlapping gestures).
+      const opens = h.name === 'lipOpen' ? e.value > h.value : e.value < h.value;
+      if (h.name === e.name && h.seg < e.seg && opens && e.t >= h.start && e.t < h.end) {
+        e.t = h.end;
+        e.tau = Math.min(e.tau, h.tau);
+      }
+    }
+  }
+  tagged.sort((a, b) => a.t - b.t || a.seg - b.seg || a.order - b.order);
+  const latest = new Map<ParamName, number>();
+  for (const e of tagged) {
+    if (e.seg >= 0) {
+      const owner = latest.get(e.name) ?? -1;
+      if (e.seg < owner) continue;
+      latest.set(e.name, e.seg);
+    }
+    ev.push([e.t, e.name, e.value, e.tau]);
+  }
   ev.sort((a, b) => a[0] - b[0]);
   return ev;
 }
@@ -182,6 +265,9 @@ export interface Plan {
   warnings: string[];
 }
 
+/** Inherent durations are scaled to a ~160 words/minute reading rate at rate 1. */
+const TEMPO = 1.25;
+
 function durationOf(seg: Phone, prev: Phone | undefined, next: Phone | undefined, final: boolean, rate: number): number {
   const ph = PHONEMES[seg.symbol];
   let d = ph.duration;
@@ -195,7 +281,7 @@ function durationOf(seg: Phone, prev: Phone | undefined, next: Phone | undefined
     if (cluster) d *= 0.8;
     if (final) d *= 1.15;
   }
-  return d / 1000 / rate;
+  return (TEMPO * d) / 1000 / rate;
 }
 
 /** Plan speech from words. */
@@ -211,6 +297,14 @@ export function planWords(words: Word[], opts: SpeechOptions = {}): Plan {
     const lastSyll = syll[syll.length - 1];
     w.phones.forEach((p, pi) => {
       const final = w.boundary !== 'word' && lastSyll.includes(p);
+      const prev = pi > 0 ? w.phones[pi - 1] : wi > 0 && words[wi - 1].boundary === 'word' ? words[wi - 1].phones.at(-1) : undefined;
+      const crossWord = pi === w.phones.length - 1;
+      const next = !crossWord ? w.phones[pi + 1] : w.boundary === 'word' ? words[wi + 1]?.phones[0] : undefined;
+      // American English flapping: T/D between a vowel and an unstressed vowel
+      // ("water"), or word-finally before a vowel-initial word ("meet at").
+      if ((p.symbol === 'T' || p.symbol === 'D') && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
+        p = {symbol: 'DX', stress: 0};
+      }
       const d = durationOf(p, w.phones[pi - 1], w.phones[pi + 1], final, rate);
       segments.push({symbol: p.symbol, stress: p.stress, start: t, end: t + d, word: wi});
       t += d;
