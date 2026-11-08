@@ -9,10 +9,10 @@ import {SILLY_SONG, type Project} from '../core/project';
 import {cssVar, Icon, Range, Seg, Slider, useCanvas} from './controls';
 
 const SOURCE: ParamName[] = ['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize'];
-const SHAPE: ParamName[] = ['jaw', 'lipOpen', 'lipRound', 'tipPlace', 'tipClose', 'dorsumClose', 'velum', 'rhotic', 'throat', 'tractLength'];
+const SHAPE: ParamName[] = ['jaw', 'lipOpen', 'lipRound', 'tipPlace', 'tipClose', 'dorsumClose', 'velum', 'rhotic', 'throat', 'tractLength', 'pharynx'];
 const OUTPUT: ParamName[] = ['space', 'gain'];
 const QUALITY: ParamName[] = ['register', 'fry', 'growl', 'twang'];
-const VOICE_KEYS = new Set<ParamName>(['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize', 'throat', 'tractLength', 'space', 'gain', ...QUALITY]);
+const VOICE_KEYS = new Set<ParamName>(['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize', 'throat', 'tractLength', 'pharynx', 'space', 'gain', ...QUALITY]);
 
 export const MANNER_COLORS: Record<string, string> = {
   vowel: 'var(--hvl-accent)', diphthong: 'var(--hvl-accent)', stop: 'var(--hvl-bad)', nasal: 'var(--ui-purple, #9b59d0)',

@@ -175,6 +175,26 @@ pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
             shape.min_index = i;
         }
     }
+    // Body proportions: the pharynx (below the velum, sections 0..PORT) is
+    // relatively longer in an adult male and shorter in a child. Each section
+    // takes the nearest section of the unscaled tract, which keeps closures
+    // and constriction areas exact.
+    let s = p[PHARYNX];
+    if (s - 1.0).abs() > 1e-3 {
+        let q = PORT as f32 / N as f32;
+        let qs = q * s / (q * s + 1.0 - q);
+        let source = *areas;
+        shape.min_area = f32::MAX;
+        for (i, a) in areas.iter_mut().enumerate() {
+            let x = (i as f32 + 0.5) / N as f32;
+            let r = if x < qs { x * q / qs } else { q + (x - qs) * (1.0 - q) / (1.0 - qs) };
+            *a = source[((r * N as f32) as usize).min(N - 1)];
+            if i > 6 && *a < shape.min_area {
+                shape.min_area = *a;
+                shape.min_index = i;
+            }
+        }
+    }
     shape.length_cm = p[TRACT_LEN] + 1.1 * p[LIP_ROUND];
     shape.nasal_area = 0.5 * p[VELUM];
     shape.coronal = (tip_min - shape.min_area).abs() < 1e-4 && p[TIP_CLOSE] > 0.5 && p[TIP_PLACE] > 0.1;

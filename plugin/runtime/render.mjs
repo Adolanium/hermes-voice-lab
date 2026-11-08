@@ -33,7 +33,8 @@ var PARAM_NAMES = [
   "register",
   "fry",
   "growl",
-  "twang"
+  "twang",
+  "pharynx"
 ];
 var META = {
   pitch: ["Pitch", "Hz", "source", "Fundamental frequency of the vocal folds."],
@@ -63,7 +64,8 @@ var META = {
   register: ["Falsetto", "", "source", "Vocal register, chest (0) to falsetto (1): thin, never fully closed folds. Flip it fast for a yodel."],
   fry: ["Fry", "", "source", "Vocal fry: paired, irregular, creaky pulses."],
   growl: ["Growl", "", "source", "Ventricular folds flapping at half the pitch: a rough growl."],
-  twang: ["Twang", "", "source", "Narrowed epilarynx: a bright, ringing, nasal-sounding twang."]
+  twang: ["Twang", "", "source", "Narrowed epilarynx: a bright, ringing, nasal-sounding twang."],
+  pharynx: ["Pharynx", "\xD7", "tract", "Throat length relative to the mouth: longer in adult men (\u22481.15), shorter in children (\u22480.85)."]
 };
 var RANGES = {
   pitch: [50, 1100, 210],
@@ -93,7 +95,8 @@ var RANGES = {
   register: [0, 1, 0],
   fry: [0, 1, 0],
   growl: [0, 1, 0],
-  twang: [0, 1, 0]
+  twang: [0, 1, 0],
+  pharynx: [0.75, 1.3, 1]
 };
 var PARAMS = PARAM_NAMES.map((name, id) => {
   const [min, max, def] = RANGES[name];
@@ -139,7 +142,8 @@ var VOICE_PARAMS = [
   "register",
   "fry",
   "growl",
-  "twang"
+  "twang",
+  "pharynx"
 ];
 var midiToHz = (m) => 440 * 2 ** ((m - 69) / 12);
 
@@ -1197,7 +1201,8 @@ var SIGNATURE = {
   register: 0,
   fry: 0,
   growl: 0,
-  twang: 0
+  twang: 0,
+  pharynx: 1
 };
 var VOICE_PRESETS = [
   { id: "signature", name: "Signature", description: "Clear, warm, gently breathy \u2014 the default character voice.", voice: SIGNATURE },
@@ -1208,6 +1213,9 @@ var VOICE_PRESETS = [
   { id: "head", name: "Head voice", description: "Light falsetto: thin folds that never quite close, high and airy.", voice: { ...SIGNATURE, pitch: 440, register: 1, tenseness: 0.3, breath: 0.2, vibratoDepth: 0.22 } },
   { id: "gravel", name: "Gravel", description: "Low and rough: the ventricular folds growl, with a little fry.", voice: { ...SIGNATURE, pitch: 165, growl: 0.55, fry: 0.15, tenseness: 0.5, breath: 0.12, loudness: 0.82, tractLength: 14.8 } },
   { id: "twang", name: "Twang", description: "Bright and ringing: a narrowed epilarynx, firm and forward.", voice: { ...SIGNATURE, pitch: 250, twang: 0.8, tenseness: 0.48, breath: 0.12, throat: 0.3 } },
+  { id: "child", name: "Child", description: "A child body: a 12.6 cm tract and a high, light voice.", voice: { ...SIGNATURE, pitch: 280, tractLength: 12.6, pharynx: 1.1, tenseness: 0.32, breath: 0.2, vibratoDepth: 0.12 } },
+  { id: "tenor", name: "Tenor", description: "An adult male body (16.4 cm tract), singing high and bright.", voice: { ...SIGNATURE, pitch: 196, tractLength: 16.4, pharynx: 1, tenseness: 0.42, breath: 0.12, throat: 0.45, vibratoDepth: 0.22 } },
+  { id: "baritone", name: "Baritone", description: "An adult male body (16.4 cm tract) with a low, warm voice.", voice: { ...SIGNATURE, pitch: 120, tractLength: 16.4, pharynx: 1, tenseness: 0.35, breath: 0.14, throat: 0.6, humanize: 0.4 } },
   { id: "alto", name: "Alto", description: "Darker, lower feminine voice.", voice: { ...SIGNATURE, pitch: 176, tenseness: 0.3, breath: 0.22, tractLength: 15.2, throat: 0.62 } }
 ];
 var closed = { tipClose: 0, dorsumClose: 0, velum: 0, lateral: 0, voicing: 1 };

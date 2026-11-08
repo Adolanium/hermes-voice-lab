@@ -13,7 +13,7 @@ export interface VoicePreset {
 export const SIGNATURE: Patch = {
   pitch: 212, loudness: 0.72, tenseness: 0.28, breath: 0.25, vibratoDepth: 0.18, vibratoRate: 5.4,
   tractLength: 14.2, throat: 0.5, gain: 0.7, humanize: 0.45, space: 0.18,
-  register: 0, fry: 0, growl: 0, twang: 0,
+  register: 0, fry: 0, growl: 0, twang: 0, pharynx: 1,
 };
 
 export const VOICE_PRESETS: VoicePreset[] = [
@@ -25,6 +25,9 @@ export const VOICE_PRESETS: VoicePreset[] = [
   {id: 'head', name: 'Head voice', description: 'Light falsetto: thin folds that never quite close, high and airy.', voice: {...SIGNATURE, pitch: 440, register: 1, tenseness: 0.3, breath: 0.2, vibratoDepth: 0.22}},
   {id: 'gravel', name: 'Gravel', description: 'Low and rough: the ventricular folds growl, with a little fry.', voice: {...SIGNATURE, pitch: 165, growl: 0.55, fry: 0.15, tenseness: 0.5, breath: 0.12, loudness: 0.82, tractLength: 14.8}},
   {id: 'twang', name: 'Twang', description: 'Bright and ringing: a narrowed epilarynx, firm and forward.', voice: {...SIGNATURE, pitch: 250, twang: 0.8, tenseness: 0.48, breath: 0.12, throat: 0.3}},
+  {id: 'child', name: 'Child', description: 'A child body: a 12.6 cm tract and a high, light voice.', voice: {...SIGNATURE, pitch: 280, tractLength: 12.6, pharynx: 1.1, tenseness: 0.32, breath: 0.2, vibratoDepth: 0.12}},
+  {id: 'tenor', name: 'Tenor', description: 'An adult male body (16.4 cm tract), singing high and bright.', voice: {...SIGNATURE, pitch: 196, tractLength: 16.4, pharynx: 1, tenseness: 0.42, breath: 0.12, throat: 0.45, vibratoDepth: 0.22}},
+  {id: 'baritone', name: 'Baritone', description: 'An adult male body (16.4 cm tract) with a low, warm voice.', voice: {...SIGNATURE, pitch: 120, tractLength: 16.4, pharynx: 1, tenseness: 0.35, breath: 0.14, throat: 0.6, humanize: 0.4}},
   {id: 'alto', name: 'Alto', description: 'Darker, lower feminine voice.', voice: {...SIGNATURE, pitch: 176, tenseness: 0.3, breath: 0.22, tractLength: 15.2, throat: 0.62}},
 ];
 

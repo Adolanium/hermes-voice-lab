@@ -12,7 +12,8 @@ import {planSong, planSpeech, planSustain} from '../src/core/planner';
 import {decodeLexicon, letterToSound, parsePhonemeInput, syllabify, tokenize} from '../src/core/text';
 import {newProject, projectScore, SILLY_SONG, validateProject} from '../src/core/project';
 import {SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
-import {VOWEL_CALIBRATION} from '../src/core/phonemes';
+import {PHONEMES, VOWEL_CALIBRATION} from '../src/core/phonemes';
+const PHONEMES_TARGET = (symbol: string) => PHONEMES[symbol].target;
 import {encodeWav, measure} from '../src/core/wav';
 
 const root = process.cwd();
@@ -331,4 +332,26 @@ test('yodel style flips to falsetto on the high notes and back on the low ones',
   assert.deepEqual(flips, [1, 0, 1]);
   assert.throws(() => validateProject({song: {style: 'opera'}}), /natural, cartoon or yodel/);
   assert.doesNotThrow(() => validateProject({song: {style: 'yodel'}}));
+});
+
+test('male and child bodies put the vowels near the published means for those speakers', () => {
+  // Hillenbrand, Getty, Clark & Wheeler (1995): mean F1, F2 for men and for 10–12-year-old children.
+  const MEANS: Record<string, Record<string, [number, number]>> = {
+    tenor: {IY: [342, 2322], IH: [427, 2034], EY: [476, 2089], EH: [580, 1799], AE: [588, 1952], AA: [768, 1333], AO: [652, 997], OW: [497, 910], UH: [469, 1122], UW: [378, 997], AH: [623, 1200], ER: [474, 1379]},
+    child: {IY: [452, 3081], IH: [511, 2552], EY: [564, 2656], EH: [749, 2267], AE: [717, 2501], AA: [1002, 1688], AO: [803, 1210], OW: [597, 1137], UH: [568, 1490], UW: [494, 1345], AH: [749, 1546], ER: [586, 1719]},
+  };
+  const e = engine();
+  for (const [id, means] of Object.entries(MEANS)) {
+    const body = VOICE_PRESETS.find(v => v.id === id)!.voice;
+    let sum = 0, n = 0;
+    for (const [symbol, [f1, f2]] of Object.entries(means)) {
+      const target = VOWEL_CALIBRATION.find(v => v.symbol === symbol) ? (PHONEMES_TARGET(symbol) as Record<string, number>) : {};
+      const values = PARAMS.map(p => (p.name === 'tractLength' || p.name === 'pharynx' ? body[p.name] : target[p.name]) ?? p.default);
+      const s = e.shapeFor(values);
+      const r = e.analyze(s.areas, s.nasal, s.length);
+      sum += Math.abs(Math.log(r.formants[0].frequency / f1)) + Math.abs(Math.log(r.formants[1].frequency / f2));
+      n += 2;
+    }
+    assert.ok(sum / n < 0.06, `${id}: mean formant error ${(100 * sum / n).toFixed(1)}%`);
+  }
 });
