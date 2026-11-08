@@ -1,0 +1,14 @@
+{
+  "IY": {"params":{"tongueX":0.998,"tongueY":0.881,"jaw":0.726,"lipOpen":1.000,"lipRound":0.000,"throat":0.340},"model":[426,2630,3237],"target":[437,2761,3372]},
+  "IH": {"params":{"tongueX":1.000,"tongueY":0.552,"jaw":0.407,"lipOpen":0.942,"lipRound":0.000,"throat":0.379},"model":[482,2356,3010],"target":[483,2365,3053]},
+  "EY": {"params":{"tongueX":1.000,"tongueY":0.730,"jaw":0.777,"lipOpen":1.000,"lipRound":0.000,"throat":0.018},"model":[526,2435,2994],"target":[536,2530,3047]},
+  "EH": {"params":{"tongueX":1.000,"tongueY":0.209,"jaw":1.000,"lipOpen":1.000,"lipRound":0.000,"throat":0.000},"model":[710,1988,3028],"target":[731,2058,2979]},
+  "AE": {"params":{"tongueX":0.999,"tongueY":0.453,"jaw":1.000,"lipOpen":1.000,"lipRound":0.000,"throat":0.000},"model":[633,2193,2932],"target":[669,2349,2972]},
+  "AA": {"params":{"tongueX":0.004,"tongueY":0.000,"jaw":1.000,"lipOpen":1.000,"lipRound":0.000,"throat":0.000},"model":[887,1438,2725],"target":[936,1551,2815]},
+  "AO": {"params":{"tongueX":0.035,"tongueY":0.089,"jaw":0.996,"lipOpen":0.634,"lipRound":0.311,"throat":0.000},"model":[762,1161,2748],"target":[781,1136,2824]},
+  "OW": {"params":{"tongueX":0.239,"tongueY":0.137,"jaw":0.497,"lipOpen":0.524,"lipRound":0.689,"throat":0.403},"model":[555,1034,2830],"target":[555,1035,2828]},
+  "UH": {"params":{"tongueX":0.055,"tongueY":0.787,"jaw":0.363,"lipOpen":0.434,"lipRound":0.540,"throat":0.140},"model":[519,1225,2830],"target":[519,1225,2827]},
+  "UW": {"params":{"tongueX":0.001,"tongueY":0.811,"jaw":0.269,"lipOpen":0.432,"lipRound":0.839,"throat":0.160},"model":[459,1105,2736],"target":[459,1105,2735]},
+  "AH": {"params":{"tongueX":0.698,"tongueY":0.000,"jaw":1.000,"lipOpen":0.981,"lipRound":0.620,"throat":0.000},"model":[737,1441,3107],"target":[753,1426,2933]},
+  "ER": {"params":{"tongueX":0.000,"tongueY":1.000,"jaw":0.959,"lipOpen":0.867,"lipRound":0.798,"throat":0.000,"rhotic":0.903},"model":[507,1585,2019],"target":[523,1588,1929]}
+}
