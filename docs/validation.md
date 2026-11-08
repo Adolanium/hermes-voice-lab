@@ -88,16 +88,19 @@ Since 2026-11-08 the voice has been tuned toward real voices, one measured chang
 | | Speech MCD (lower is better) | Length vs real | Pitch range vs real | Singing note MCD | Whisper WER |
 |---|---|---|---|---|---|
 | Before | 32.90 dB | ×1.23 | −5.1 st | 36.62 dB | 38.9% |
-| Now | **32.64 dB** | **×1.04** | **+0.5 st** | **35.08 dB** | **31.4%** |
+| Now | **32.12 dB** | **×1.04** | **+0.5 st** | **35.07 dB** | **33.2%** |
 | Reference synthesizer | 32.46 dB | ×1.02 | −3.3 st | 38.87 dB | 43.4% (earlier run) |
 
 Kept changes:
 - intonation scaled to real speakers' pitch range;
 - a firmer, less breathy default voice;
 - a natural speaking rate with faster speech gestures;
-- no extra firmness for singing.
+- no extra firmness for singing;
+- a +3 dB presence lift at 1.6 kHz in the default voice's recording chain.
 
-Rejected changes and their numbers are in `research/hill-climb/log.md`. The owner listened at two checkpoints and preferred the new version both times. Still open: formants wider than real, the 1–4 kHz presence region about 3 dB low, and shallow sung vibrato.
+Whisper WER varies by about ±2 points run to run; 31.4% before the presence lift, 33.2% after, both within that noise.
+
+Rejected changes and their numbers are in `research/hill-climb/log.md`. The owner listened at three checkpoints and preferred the new version each time (the third only slightly). An earlier, deeper sung vibrato moved toward the real singer but was not audibly different, so it was not kept. Still open: formants wider than real, and shallow sung vibrato.
 
 ## Listening and intelligibility
 
