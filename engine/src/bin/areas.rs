@@ -26,6 +26,9 @@ fn main() {
         println!("{arg}: min {:.3} @{} coronal {} | {}", s.min_area, s.min_index, s.coronal,
             a[28..].iter().map(|v| format!("{v:.2}")).collect::<Vec<_>>().join(" "));
         let r = tract_response(&a, s.nasal_area, s.length_cm);
+        let m = &r.magnitude;
+        let peaks: Vec<String> = (1..m.len() - 1).filter(|&k| m[k] > m[k - 1] && m[k] >= m[k + 1]).map(|k| format!("{:.0}:{:.0}", k as f32 * 8000.0 / 255.0, m[k])).collect();
+        println!("   peaks {}", peaks.join(" "));
         println!("   formants {}", r.formants.iter().map(|(f, b)| format!("{f:.0}/{b:.0}")).collect::<Vec<_>>().join("  "));
     }
 }

@@ -12,8 +12,6 @@ pub const MAX_EVENTS: usize = 65_536;
 const CONTROL: u32 = 32;
 /// Pitch at which the source level is calibrated (default voice).
 const F0_REF: f32 = 210.0;
-/// Section whose pressure drives wall radiation (low pharynx).
-const WALL_SECTION: usize = 8;
 /// Overall level calibration so the default patch peaks well below 0 dBFS.
 const MASTER: f32 = 15.0;
 /// Stop-release transient level relative to the frication source.
@@ -24,7 +22,7 @@ const PHONATION_THRESHOLD: f32 = 0.1;
 /// (the "voice bar" heard during voiced closures).
 /// Per-tick sound absorption by a fully developed jet (at full lung pressure).
 const JET_LOSS: f32 = 0.12;
-const WALL_LEVEL: f32 = 0.0005;
+const WALL_LEVEL: f32 = 0.025;
 
 #[derive(Clone, Copy, Default)]
 pub struct Event {
@@ -117,6 +115,7 @@ pub struct Voice {
     wall_lp1: f32,
     wall_lp2: f32,
     wall_coeff: f32,
+    wall_drive: f32,
     sibilant: bool,
     tilt_coeff: f32,
     sum_sq: f32,
@@ -202,6 +201,7 @@ impl Voice {
             wall_lp1: 0.0,
             wall_lp2: 0.0,
             wall_coeff: 0.02,
+            wall_drive: 0.0,
             sibilant: false,
             tilt_coeff: 0.05,
             sum_sq: 0.0,
@@ -347,7 +347,7 @@ impl Voice {
         self.asp_filter.bandpass(1800.0, 0.35, self.int_rate);
         self.tilt_coeff = 1.0 - (-2.0 * std::f32::consts::PI * 1400.0 / self.int_rate).exp();
         self.src_r = (-2.0 * std::f32::consts::PI * 40.0 / self.int_rate).exp();
-        self.wall_coeff = 1.0 - (-2.0 * std::f32::consts::PI * 450.0 / self.int_rate).exp();
+        self.wall_coeff = 1.0 - (-2.0 * std::f32::consts::PI * 350.0 / self.int_rate).exp();
 
         // Voice quality: tenseness and effort lower Rd (brighter, firmer).
         let rd = 2.2 - 2.0 * p[TENSENESS] - 0.4 * (p[LOUDNESS] - 0.6);
@@ -401,6 +401,7 @@ impl Voice {
         // closure, which radiates as a click, and pile up behind a closure.
         let raw = glottal * 0.9 + asp;
         let source = raw - self.src_x1 + self.src_r * self.src_y1;
+        self.wall_drive = source;
         self.src_x1 = raw;
         self.src_y1 = source;
 
@@ -428,9 +429,11 @@ impl Voice {
         let flow = mouth + nose;
         let radiated = flow - self.radiation_prev;
         self.radiation_prev = flow;
-        // Wall radiation: pharyngeal pressure, low-passed by the wall mass.
-        let wall = self.wg.pressure_at(WALL_SECTION);
-        self.wall_lp1 += self.wall_coeff * (wall - self.wall_lp1);
+        // Wall radiation: the yielding throat and cheek walls are driven by
+        // the glottal pulses and, being massive, radiate only low
+        // frequencies. Masked while the mouth is open, it is the voice bar
+        // heard through voiced closures.
+        self.wall_lp1 += self.wall_coeff * (self.wall_drive - self.wall_lp1);
         self.wall_lp2 += self.wall_coeff * (self.wall_lp1 - self.wall_lp2);
         radiated + WALL_LEVEL * self.wall_lp2
     }
