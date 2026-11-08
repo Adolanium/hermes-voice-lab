@@ -158,7 +158,7 @@ const SHEEN =
   'M 214 116 C 256 98 318 98 362 130 L 358 138 L 348 132 L 342 142 L 332 132 L 324 142 L 314 130 L 306 140 ' +
   'L 298 128 L 288 138 L 280 126 L 270 134 L 260 122 L 250 130 L 240 120 L 228 126 Z';
 
-const BAND = 'M 318 86 C 302 120 290 162 284 204 C 280 222 278 236 279 248';
+const BAND = 'M 304 74 C 292 108 284 156 281 200 C 279 222 278 238 279 250';
 
 const NECK = 'M 350 384 C 346 412 346 440 350 470 L 250 478 C 256 448 258 418 254 380 Z';
 
@@ -345,11 +345,13 @@ export function Portrait({pose, cutaway, labels, speaking, onDrag, onDragEnd}: P
 
       {/* Eye */}
       <g className="hvl-eye">
+        <g className="hvl-blink">
         <path d="M 333 247 C 342 242 354 242 362 246 C 365 248 366 252 365 255" fill="none" stroke={S.ink} strokeWidth="4" strokeLinecap="round" />
         <path d="M 333 247 C 328 245 325 241 323 236 M 336 245 C 333 241 332 237 332 232 M 340 244 C 339 240 339 236 340 232" fill="none" stroke={S.ink} strokeWidth="1.5" strokeLinecap="round" />
         <path d="M 349 248 C 344 253 344 266 350 273 C 355 276 360 270 362 263 C 363 257 361 251 358 248 Z" fill={S.ink} />
         <circle cx="356" cy="256" r="2.4" fill={S.skin} />
         <circle cx="351" cy="266" r="1.1" fill={S.skin} opacity="0.8" />
+        </g>
         <path d="M 343 277 C 349 280 356 279 361 275" fill="none" stroke={S.ink} strokeWidth="1.2" strokeLinecap="round" opacity="0.65" />
       </g>
 
@@ -389,10 +391,14 @@ export function Portrait({pose, cutaway, labels, speaking, onDrag, onDragEnd}: P
 }
 
 function Label({at, to, text, anchor = 'end'}: {at: Pt; to: Pt; text: string; anchor?: 'start' | 'end'}) {
+  const w = text.length * 6.1 + 12;
+  const x = anchor === 'end' ? to[0] - 4 - w : to[0] + 4;
   return (
     <g className="hvl-label">
-      <path d={`M ${f(at)} L ${f(to)} L ${f([to[0] + (anchor === 'end' ? -6 : 6), to[1]])}`} fill="none" />
-      <text x={to[0] + (anchor === 'end' ? -10 : 10)} y={to[1] + 4} textAnchor={anchor}>{text}</text>
+      <path d={`M ${f(at)} L ${f(to)}`} fill="none" />
+      <circle cx={at[0]} cy={at[1]} r={1.6} className="hvl-label-dot" />
+      <rect x={x} y={to[1] - 8} width={w} height={16} rx={8} />
+      <text x={x + w / 2} y={to[1] + 3.2} textAnchor="middle">{text}</text>
     </g>
   );
 }

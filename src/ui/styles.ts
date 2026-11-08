@@ -87,12 +87,16 @@ export const CSS = `
 .hvl-handle:hover .hvl-handle-ring { fill: color-mix(in oklab, var(--hvl-accent) 30%, transparent); }
 .hvl-handle-dot { fill: var(--hvl-accent); }
 .hvl-label path { stroke-width: .9; }
-.hvl-label text { font: 600 9px var(--hvl-mono); fill: var(--hvl-fg2); letter-spacing: .1em; text-transform: uppercase; paint-order: stroke; stroke: var(--hvl-skin); stroke-width: 2.4px; stroke-opacity: .9; stroke-linejoin: round; }
-.hvl-label path { stroke: var(--hvl-accent); stroke-opacity: .7; }
+.hvl-label text { font: 600 8.5px var(--hvl-mono); fill: var(--hvl-fg2); letter-spacing: .08em; text-transform: uppercase; }
+.hvl-label rect { fill: var(--hvl-skin); stroke: color-mix(in oklab, var(--hvl-accent) 45%, transparent); stroke-width: .8; }
+.hvl-label path { stroke: var(--hvl-accent); stroke-opacity: .65; }
+.hvl-label-dot { fill: var(--hvl-accent); }
+.hvl-blink { transform-box: fill-box; transform-origin: 50% 40%; animation: hvl-blink 5.2s infinite; }
+@keyframes hvl-blink { 0%, 93%, 100% { transform: scaleY(1); } 95.5% { transform: scaleY(0.08); } }
 .hvl-air path { animation: hvl-flow 1.1s linear infinite; }
 .hvl-air.is-fast path { animation-duration: .6s; }
 @keyframes hvl-flow { to { stroke-dashoffset: -22; } }
-@media (prefers-reduced-motion: reduce) { .hvl-air path { animation: none; } .hvl-cutaway { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .hvl-air path, .hvl-blink { animation: none; } .hvl-cutaway { transition: none; } }
 
 /* Console */
 .hvl-console { display: flex; flex-direction: column; min-width: 0; }
@@ -214,5 +218,8 @@ export const CSS = `
   .hvl-scopes { grid-template-columns: 1fr; }
   .hvl-actions { width: 100%; }
   .hvl-keys { height: 76px; }
+  .hvl-readouts { position: static; grid-template-columns: repeat(5, auto); margin: 0 12px 8px; justify-content: space-between; }
+  .hvl-readouts dd { text-align: left; }
+  .hvl-portrait-wrap { flex-direction: column; }
 }
 `;
