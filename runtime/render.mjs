@@ -281,25 +281,25 @@ var PHONEMES = Object.fromEntries([
   P("M", "m", "nasal", true, 75, { lipOpen: 0, velum: 1 }, "me"),
   P("N", "n", "nasal", true, 65, { tipPlace: 0.38, tipClose: 1, velum: 1 }, "no"),
   P("NG", "\u014B", "nasal", true, 80, { dorsumClose: 1, velum: 1 }, "sing"),
-  P("F", "f", "fricative", false, 100, { lipOpen: 0.06, lipRound: 0 }, "fine"),
-  P("V", "v", "fricative", true, 65, { lipOpen: 0.07, lipRound: 0 }, "very"),
-  P("TH", "\u03B8", "fricative", false, 100, { tipPlace: 0, tipClose: 0.95 }, "think"),
-  P("DH", "\xF0", "fricative", true, 50, { tipPlace: 0, tipClose: 0.93 }, "this"),
-  P("S", "s", "fricative", false, 110, { tipPlace: 0.4, tipClose: 0.955, jaw: 0.3 }, "see"),
-  P("Z", "z", "fricative", true, 85, { tipPlace: 0.4, tipClose: 0.95, jaw: 0.3 }, "zoo"),
-  P("SH", "\u0283", "fricative", false, 115, { tipPlace: 0.85, tipClose: 0.9, lipRound: 0.55, jaw: 0.3 }, "she"),
-  P("ZH", "\u0292", "fricative", true, 90, { tipPlace: 0.85, tipClose: 0.9, lipRound: 0.55, jaw: 0.3 }, "vision"),
+  P("F", "f", "fricative", false, 100, { lipOpen: 0.098, lipRound: 0 }, "fine"),
+  P("V", "v", "fricative", true, 65, { lipOpen: 0.107, lipRound: 0 }, "very"),
+  P("TH", "\u03B8", "fricative", false, 100, { tipPlace: 0, tipClose: 0.874 }, "think"),
+  P("DH", "\xF0", "fricative", true, 50, { tipPlace: 0, tipClose: 0.856 }, "this"),
+  P("S", "s", "fricative", false, 110, { tipPlace: 0.4, tipClose: 0.879, jaw: 0.3 }, "see"),
+  P("Z", "z", "fricative", true, 85, { tipPlace: 0.4, tipClose: 0.874, jaw: 0.3 }, "zoo"),
+  P("SH", "\u0283", "fricative", false, 115, { tipPlace: 0.85, tipClose: 0.83, lipRound: 0.55, jaw: 0.3 }, "she"),
+  P("ZH", "\u0292", "fricative", true, 90, { tipPlace: 0.85, tipClose: 0.83, lipRound: 0.55, jaw: 0.3 }, "vision"),
   P("CH", "t\u0283", "affricate", false, 115, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "chair"),
   P("JH", "d\u0292", "affricate", true, 95, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "joy"),
   P("L", "l", "approximant", true, 70, { tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3 }, "love"),
   P("R", "\u0279", "approximant", true, 70, { rhotic: 1, lipRound: 0.55, tongueX: 0.15, tongueY: 0.85, lipOpen: 0.6 }, "red"),
-  P("W", "w", "approximant", true, 65, { lipOpen: 0.16, lipRound: 0.95, tongueX: 0, tongueY: 0.9 }, "we"),
+  P("W", "w", "approximant", true, 65, { lipOpen: 0.194, lipRound: 0.95, tongueX: 0, tongueY: 0.9 }, "we"),
   P("Y", "j", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35 }, "yes"),
   P("HH", "h", "aspirate", false, 65, { voicing: 0 }, "hat")
 ].map((p) => [p.symbol, p]));
 var AFFRICATE_RELEASE = {
-  CH: { tipPlace: 0.85, tipClose: 0.9, lipRound: 0.55 },
-  JH: { tipPlace: 0.85, tipClose: 0.9, lipRound: 0.55 }
+  CH: { tipPlace: 0.85, tipClose: 0.83, lipRound: 0.55 },
+  JH: { tipPlace: 0.85, tipClose: 0.83, lipRound: 0.55 }
 };
 var VOWEL_SYMBOLS = Object.values(PHONEMES).filter((p) => p.manner === "vowel" || p.manner === "diphthong").map((p) => p.symbol);
 var CONSONANT_SYMBOLS = Object.values(PHONEMES).filter((p) => !VOWEL_SYMBOLS.includes(p.symbol)).map((p) => p.symbol);
@@ -692,8 +692,9 @@ function articulate(segments, voice) {
     const next = segments[i + 1];
     const nv = nextVowel(i) ?? prevVowel(i);
     const vowelLips = nv ? vowelTarget({ symbol: nv.symbol, stress: nv.stress }) : SCHWA;
-    const closeTau = ph.manner === "stop" || ph.manner === "nasal" || ph.manner === "affricate" ? 9 : 14;
-    const onset = s.start - LEAD_SCALE * closeTau / 1e3;
+    const complete = ph.manner === "stop" || ph.manner === "nasal" || ph.manner === "affricate";
+    const closeTau = complete ? 9 : 14;
+    const onset = s.start - (complete ? 4.2 : 3.5) * closeTau / 1e3;
     const releaseTau = ph.manner === "stop" ? 6 : ph.manner === "fricative" ? 14 : 12;
     const nextIsSame = (param) => next && next.symbol !== "SIL" && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== void 0;
     if (t.tipPlace !== void 0) at(s.start - 0.07, "tipPlace", t.tipPlace, 18);

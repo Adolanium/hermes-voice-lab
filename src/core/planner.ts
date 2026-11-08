@@ -111,8 +111,12 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
     const next = segments[i + 1];
     const nv = nextVowel(i) ?? prevVowel(i);
     const vowelLips = nv ? vowelTarget({symbol: nv.symbol, stress: nv.stress}) : SCHWA;
-    const closeTau = ph.manner === 'stop' || ph.manner === 'nasal' || ph.manner === 'affricate' ? 9 : 14;
-    const onset = s.start - (LEAD_SCALE * closeTau) / 1000;
+    const complete = ph.manner === 'stop' || ph.manner === 'nasal' || ph.manner === 'affricate';
+    const closeTau = complete ? 9 : 14;
+    // Closures aim past contact (engine: contact at 92%); a critically damped
+    // move reaches 92% after ~4.2 time constants, so start that early to
+    // have the seal complete at segment start. Fricatives need ~3.5 tau to settle.
+    const onset = s.start - ((complete ? 4.2 : 3.5) * closeTau) / 1000;
     const releaseTau = ph.manner === 'stop' ? 6 : ph.manner === 'fricative' ? 14 : 12;
     const nextIsSame = (param: ParamName) => next && next.symbol !== 'SIL' && !isVowel(next.symbol) && PHONEMES[next.symbol].target[param] !== undefined;
 

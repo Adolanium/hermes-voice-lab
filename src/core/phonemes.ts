@@ -59,27 +59,27 @@ export const PHONEMES: Record<string, Phoneme> = Object.fromEntries([
   P('M', 'm', 'nasal', true, 75, {lipOpen: 0, velum: 1}, 'me'),
   P('N', 'n', 'nasal', true, 65, {tipPlace: 0.38, tipClose: 1, velum: 1}, 'no'),
   P('NG', 'ŋ', 'nasal', true, 80, {dorsumClose: 1, velum: 1}, 'sing'),
-  P('F', 'f', 'fricative', false, 100, {lipOpen: 0.06, lipRound: 0}, 'fine'),
-  P('V', 'v', 'fricative', true, 65, {lipOpen: 0.07, lipRound: 0}, 'very'),
-  P('TH', 'θ', 'fricative', false, 100, {tipPlace: 0, tipClose: 0.95}, 'think'),
-  P('DH', 'ð', 'fricative', true, 50, {tipPlace: 0, tipClose: 0.93}, 'this'),
-  P('S', 's', 'fricative', false, 110, {tipPlace: 0.4, tipClose: 0.955, jaw: 0.3}, 'see'),
-  P('Z', 'z', 'fricative', true, 85, {tipPlace: 0.4, tipClose: 0.95, jaw: 0.3}, 'zoo'),
-  P('SH', 'ʃ', 'fricative', false, 115, {tipPlace: 0.85, tipClose: 0.9, lipRound: 0.55, jaw: 0.3}, 'she'),
-  P('ZH', 'ʒ', 'fricative', true, 90, {tipPlace: 0.85, tipClose: 0.9, lipRound: 0.55, jaw: 0.3}, 'vision'),
+  P('F', 'f', 'fricative', false, 100, {lipOpen: 0.098, lipRound: 0}, 'fine'),
+  P('V', 'v', 'fricative', true, 65, {lipOpen: 0.107, lipRound: 0}, 'very'),
+  P('TH', 'θ', 'fricative', false, 100, {tipPlace: 0, tipClose: 0.874}, 'think'),
+  P('DH', 'ð', 'fricative', true, 50, {tipPlace: 0, tipClose: 0.856}, 'this'),
+  P('S', 's', 'fricative', false, 110, {tipPlace: 0.4, tipClose: 0.879, jaw: 0.3}, 'see'),
+  P('Z', 'z', 'fricative', true, 85, {tipPlace: 0.4, tipClose: 0.874, jaw: 0.3}, 'zoo'),
+  P('SH', 'ʃ', 'fricative', false, 115, {tipPlace: 0.85, tipClose: 0.83, lipRound: 0.55, jaw: 0.3}, 'she'),
+  P('ZH', 'ʒ', 'fricative', true, 90, {tipPlace: 0.85, tipClose: 0.83, lipRound: 0.55, jaw: 0.3}, 'vision'),
   P('CH', 'tʃ', 'affricate', false, 115, {tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3}, 'chair'),
   P('JH', 'dʒ', 'affricate', true, 95, {tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3}, 'joy'),
   P('L', 'l', 'approximant', true, 70, {tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3}, 'love'),
   P('R', 'ɹ', 'approximant', true, 70, {rhotic: 1, lipRound: 0.55, tongueX: 0.15, tongueY: 0.85, lipOpen: 0.6}, 'red'),
-  P('W', 'w', 'approximant', true, 65, {lipOpen: 0.16, lipRound: 0.95, tongueX: 0, tongueY: 0.9}, 'we'),
+  P('W', 'w', 'approximant', true, 65, {lipOpen: 0.194, lipRound: 0.95, tongueX: 0, tongueY: 0.9}, 'we'),
   P('Y', 'j', 'approximant', true, 60, {tongueX: 1, tongueY: 1, jaw: 0.35}, 'yes'),
   P('HH', 'h', 'aspirate', false, 65, {voicing: 0}, 'hat'),
 ].map(p => [p.symbol, p]));
 
 /** Released friction phase of affricates. */
 export const AFFRICATE_RELEASE: Record<string, Patch> = {
-  CH: {tipPlace: 0.85, tipClose: 0.9, lipRound: 0.55},
-  JH: {tipPlace: 0.85, tipClose: 0.9, lipRound: 0.55},
+  CH: {tipPlace: 0.85, tipClose: 0.83, lipRound: 0.55},
+  JH: {tipPlace: 0.85, tipClose: 0.83, lipRound: 0.55},
 };
 
 export const VOWEL_SYMBOLS = Object.values(PHONEMES).filter(p => p.manner === 'vowel' || p.manner === 'diphthong').map(p => p.symbol);

@@ -53,6 +53,23 @@ fn neutral(u: f32, throat: f32, jaw: f32) -> f32 {
     lerp(a, oral, smoothstep(0.56, 0.68, u))
 }
 
+/// Closure parameters aim past the point of contact, as real articulators
+/// do: tissue meets the opposing surface at 92% of the gesture, so a closing
+/// movement completes in finite time instead of creeping toward zero area.
+pub const CONTACT: f32 = 0.92;
+/// Lip opening at or below which the lips are sealed.
+pub const LIP_CONTACT: f32 = 0.04;
+
+#[inline]
+fn closure(c: f32) -> f32 {
+    (c / CONTACT).clamp(0.0, 1.0)
+}
+
+#[inline]
+fn lip_aperture(open: f32) -> f32 {
+    ((open - LIP_CONTACT) / (1.0 - LIP_CONTACT)).clamp(0.0, 1.0)
+}
+
 /// Compute the oral area function (cm²) from smoothed parameters.
 pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
     let tx = p[TONGUE_X];
@@ -74,7 +91,9 @@ pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
 
     let tip_center = lerp(TEETH as f32 + 0.6, TEETH as f32 - 3.4, p[TIP_PLACE]).round() as i32;
     let dorsum_center = (lerp(0.62, 0.74, tx) * N as f32).round() as i32;
-    let lip_area = p[LIP_OPEN].powf(1.35) * (5.2 - 3.7 * p[LIP_ROUND]) * (0.8 + 0.3 * jaw);
+    let tip_close = closure(p[TIP_CLOSE]);
+    let dorsum_close = closure(p[DORSUM_CLOSE]);
+    let lip_area = lip_aperture(p[LIP_OPEN]).powf(1.35) * (5.2 - 3.7 * p[LIP_ROUND]) * (0.8 + 0.3 * jaw);
     let mut shape = Shape::default();
     shape.min_area = f32::MAX;
     let mut tip_min = f32::MAX;
@@ -104,12 +123,12 @@ pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
         }
         // Dorsum closure (velar stops and nasal) and tip closure (coronals).
         let dd = (i as i32 - dorsum_center) as f32;
-        a *= 1.0 - p[DORSUM_CLOSE] * (-(dd / 1.6).powi(2)).exp();
+        a *= 1.0 - dorsum_close * (-(dd / 1.6).powi(2)).exp();
         let td = (i as i32 - tip_center) as f32;
         // Flat-topped profile: a tip constriction spans about three sections (1 cm).
         let tg = (-(td / 1.6).powi(4)).exp();
         let lateral = p[LATERAL] * 0.42 * tg;
-        a = (a * (1.0 - p[TIP_CLOSE] * tg)).max(lateral.min(a));
+        a = (a * (1.0 - tip_close * tg)).max(lateral.min(a));
         if tg > 0.5 {
             tip_min = tip_min.min(a);
         }
