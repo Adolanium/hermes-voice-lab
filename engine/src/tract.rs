@@ -64,6 +64,10 @@ const TONGUE_SHAPE: [f32; 6] = [0.1, 0.13, 0.085, 0.02, 1.1, 1.5];
 /// Rhotic constriction depths, widths and positions (pharyngeal, palatal).
 const RHO: [f32; 6] = [0.75, 0.92, 0.08, 0.07, 0.22, 0.63];
 
+/// Area (cm²) left by the tongue tip at rest; a closing tip gesture
+/// shrinks it quadratically to zero at contact.
+const TIP_SPAN: f32 = 8.0;
+
 /// Closure parameters aim past the point of contact, as real articulators
 /// do: tissue meets the opposing surface at 92% of the gesture, so a closing
 /// movement completes in finite time instead of creeping toward zero area.
@@ -148,7 +152,11 @@ pub fn area_function(p: &[f32; COUNT], areas: &mut [f32; N]) -> Shape {
         // Flat-topped profile: a tip constriction spans about three sections (1 cm).
         let tg = (-(td / 1.6).powi(4)).exp();
         let lateral = p[LATERAL] * 0.25 * tg;
-        a = (a * (1.0 - tip_close * tg)).max(lateral.min(a));
+        // The tip/blade forms its channel against the palate whatever the
+        // tongue body is doing, so its area is absolute, not a fraction of
+        // the local (vowel-dependent) area: /s/ is equally narrow next to /i/ and /a/.
+        let tip_area = TIP_SPAN * (1.0 - tip_close);
+        a = lerp(a, a.min(tip_area), tg).max(lateral.min(a));
         if tg > 0.5 {
             tip_min = tip_min.min(a);
         }
@@ -430,6 +438,12 @@ impl Waveguide {
             self.nasal_left[i] = (nl[i] * 0.9935).clamp(-60.0, 60.0);
         }
         self.nasal_areas[NASAL_N - 1].sqrt() * (incident - reflected)
+    }
+
+    /// Scale applied to a pressure source injected in section `i`.
+    #[inline]
+    pub fn injection_scale(&self, i: usize) -> f32 {
+        self.root_area[i.min(N - 1)].min(1.0)
     }
 
     /// Acoustic pressure (normalised units) in section `i`.

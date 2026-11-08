@@ -284,12 +284,12 @@ var PHONEMES = Object.fromEntries([
   P("NG", "\u014B", "nasal", true, 80, { dorsumClose: 1, velum: 1 }, "sing"),
   P("F", "f", "fricative", false, 100, { lipOpen: 0.098, lipRound: 0 }, "fine"),
   P("V", "v", "fricative", true, 65, { lipOpen: 0.107, lipRound: 0 }, "very"),
-  P("TH", "\u03B8", "fricative", false, 100, { tipPlace: 0, tipClose: 0.78 }, "think"),
-  P("DH", "\xF0", "fricative", true, 50, { tipPlace: 0, tipClose: 0.77 }, "this"),
-  P("S", "s", "fricative", false, 110, { tipPlace: 0.18, tipClose: 0.8, jaw: 0.3 }, "see"),
-  P("Z", "z", "fricative", true, 85, { tipPlace: 0.18, tipClose: 0.79, jaw: 0.3 }, "zoo"),
-  P("SH", "\u0283", "fricative", false, 115, { tipPlace: 0.85, tipClose: 0.76, lipRound: 0.55, jaw: 0.3 }, "she"),
-  P("ZH", "\u0292", "fricative", true, 90, { tipPlace: 0.85, tipClose: 0.76, lipRound: 0.55, jaw: 0.3 }, "vision"),
+  P("TH", "\u03B8", "fricative", false, 100, { tipPlace: 0, tipClose: 0.8 }, "think"),
+  P("DH", "\xF0", "fricative", true, 50, { tipPlace: 0, tipClose: 0.794 }, "this"),
+  P("S", "s", "fricative", false, 110, { tipPlace: 0.18, tipClose: 0.834, jaw: 0.3 }, "see"),
+  P("Z", "z", "fricative", true, 85, { tipPlace: 0.18, tipClose: 0.828, jaw: 0.3 }, "zoo"),
+  P("SH", "\u0283", "fricative", false, 115, { tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55, jaw: 0.3 }, "she"),
+  P("ZH", "\u0292", "fricative", true, 90, { tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55, jaw: 0.3 }, "vision"),
   P("CH", "t\u0283", "affricate", false, 115, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "chair"),
   P("JH", "d\u0292", "affricate", true, 95, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "joy"),
   P("L", "l", "approximant", true, 70, { tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3, tongueY: 0.5 }, "love"),
@@ -299,8 +299,8 @@ var PHONEMES = Object.fromEntries([
   P("HH", "h", "aspirate", false, 65, { voicing: 0 }, "hat")
 ].map((p) => [p.symbol, p]));
 var AFFRICATE_RELEASE = {
-  CH: { tipPlace: 0.85, tipClose: 0.76, lipRound: 0.55 },
-  JH: { tipPlace: 0.85, tipClose: 0.76, lipRound: 0.55 }
+  CH: { tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55 },
+  JH: { tipPlace: 0.85, tipClose: 0.794, lipRound: 0.55 }
 };
 var VOWEL_SYMBOLS = Object.values(PHONEMES).filter((p) => p.manner === "vowel" || p.manner === "diphthong").map((p) => p.symbol);
 var CONSONANT_SYMBOLS = Object.values(PHONEMES).filter((p) => !VOWEL_SYMBOLS.includes(p.symbol)).map((p) => p.symbol);

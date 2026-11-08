@@ -314,7 +314,7 @@ impl Voice {
             self.noise_index = TEETH;
             // A postalveolar channel feeds a long, rounded front cavity whose
             // strong low resonance needs less source to sound as loud.
-            self.noise_gain = 0.52 - 0.12 * smooth(0.18, 0.85, p[TIP_PLACE]);
+            self.noise_gain = 1.15 - 0.59 * smooth(0.18, 0.85, p[TIP_PLACE]);
         } else {
             self.noise_index = (self.shape.min_index + 1).min(N - 1);
             self.noise_gain = if self.shape.min_index >= N - 3 { 0.9 } else { 0.19 };
@@ -414,7 +414,14 @@ impl Voice {
             // Pre-tilt so the radiation derivative leaves the intended shape.
             self.fric_lp += self.tilt_coeff * (sib - self.fric_lp);
             self.flat_lp += self.tilt_coeff * (flat - self.flat_lp);
-            let n = if self.sibilant { self.fric_lp * 9.0 } else { self.flat_lp * 5.0 };
+            // The obstacle source's strength should not depend on how far the
+            // tip profile happens to narrow the section at the teeth (which
+            // varies with the vowel context), so normalise the injection there.
+            let n = if self.sibilant {
+                self.fric_lp * 9.0 * 0.85 / self.wg.injection_scale(TEETH).max(0.3)
+            } else {
+                self.flat_lp * 5.0
+            };
             fric = n * self.frication * 0.05 * self.noise_gain;
         }
         if self.burst > 1e-4 {
@@ -424,7 +431,7 @@ impl Voice {
             self.burst *= self.burst_decay;
         }
         // The open glottis absorbs more energy than the closed one.
-        self.wg.glottal_reflection = 0.92 - 0.2 * flow * self.voicing_amp.min(1.0) - 0.7 * (1.0 - self.p[VOICING]);
+        self.wg.glottal_reflection = 0.92 - 0.45 * flow * self.voicing_amp.min(1.0) - 0.7 * (1.0 - self.p[VOICING]);
         let (mouth, nose) = self.wg.tick(source, self.noise_index, fric, self.burst_index, burst);
         let flow = mouth + nose;
         let radiated = flow - self.radiation_prev;

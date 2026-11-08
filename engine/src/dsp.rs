@@ -230,7 +230,7 @@ pub struct Dynamics {
 }
 
 /// Leveler threshold (dBFS, short-term RMS) and ratio above it.
-const LEVEL_THRESHOLD_DB: f32 = -20.0;
+const LEVEL_THRESHOLD_DB: f32 = -22.0;
 const LEVEL_RATIO: f32 = 3.0;
 /// Limiter ceiling (linear), ahead of the soft clipper.
 const LIMIT: f32 = 0.8;
@@ -241,10 +241,12 @@ impl Dynamics {
         let look = ((0.002 * rate) as usize).clamp(1, LOOKAHEAD_MAX);
         Self {
             ms: 0.0,
-            ms_coeff: c(0.08),
+            // Phrase-scale time constants: held notes and loud passages are
+            // evened out, but a consonant after a loud vowel is not ducked.
+            ms_coeff: c(0.3),
             gr_db: 0.0,
-            lev_attack: c(0.06),
-            lev_release: c(0.35),
+            lev_attack: c(0.3),
+            lev_release: c(0.8),
             lim_gain: 1.0,
             lim_attack: c(look as f32 / rate / 3.0),
             lim_release: c(0.2),
