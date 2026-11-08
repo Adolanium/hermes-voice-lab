@@ -196,6 +196,9 @@ export function useOpaqueInk(ref: React.RefObject<HTMLElement | null>) {
       const ink = solid('var(--ui-text-primary, #16151a)');
       const skin = solid('var(--ui-bg-elevated, #fff)');
       if (ink) root.style.setProperty('--hvl-ink', ink);
+      const lum = 0.2126 * bg[0] + 0.7152 * bg[1] + 0.0722 * bg[2];
+      if (lum < 110) root.dataset.dark = '1';
+      else delete root.dataset.dark;
       if (skin) root.style.setProperty('--hvl-skin', skin);
     };
     update();

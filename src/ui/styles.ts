@@ -89,6 +89,18 @@ export const CSS = `
 .hvl-stage-foot { display: flex; align-items: center; gap: 6px; padding: 0 12px 10px; font-size: 11px; color: var(--hvl-fg3); flex-wrap: wrap; }
 .hvl-note { font-size: 11px; color: var(--hvl-fg3); line-height: 1.4; }
 
+.hvl-portrait {
+  /* The portrait is a printed illustration: her true colours in every theme. */
+  --hvl-ink: #18171c; --hvl-skin: #fbfaf6;
+  --hvl-paper: color-mix(in oklab, var(--hvl-accent) 6%, #fbfaf6);
+  --hvl-flesh: color-mix(in oklab, var(--hvl-accent) 40%, #fbfaf6);
+  --hvl-cavity: color-mix(in oklab, var(--hvl-accent) 15%, #fbfaf6);
+  --hvl-bone: #8b8895; --hvl-fg2: #45434d; --hvl-fg3: #75727e;
+}
+.hvl-portrait-disc { fill: transparent; }
+.hvl-root[data-dark] .hvl-portrait-disc { fill: #eceaf1; }
+.hvl-art-tone { fill: color-mix(in oklab, var(--hvl-ink) 38%, var(--hvl-skin)); }
+.hvl-xray { opacity: .5; pointer-events: none; }
 .hvl-cutaway { opacity: 0; transition: opacity .3s ease; pointer-events: none; }
 .hvl-cutaway.is-on { opacity: 1; }
 .hvl-handle { cursor: grab; }

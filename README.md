@@ -1,6 +1,6 @@
 # Hermes Voice Lab
 
-A vocal synthesizer for Hermes Desktop built on a physical model of the voice. A side-profile portrait of Nous Girl is the instrument: drag her jaw, lips and tongue and the sound changes, because the drawing and the sound come from the same articulatory parameters. Hermes can play it too: ask for a breathier voice, a different vowel, a spoken line or a short song, and the controls move in front of you.
+A vocal synthesizer for Hermes Desktop built on a physical model of the voice. A side-profile portrait of Nous Girl, with her headphones, is the instrument: drag her jaw, lips and tongue and the sound changes, because the drawing and the sound come from the same articulatory parameters. Hermes can play it too: ask for a breathier voice, a different vowel, a spoken line or a short song, and the controls move in front of you.
 
 ![Voice Lab in Hermes Desktop](docs/media/voice-lab-play.png)
 

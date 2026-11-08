@@ -19,7 +19,9 @@ Hermes Voice Lab's code, engine, calibration results, presets, melodies, example
 
 ## Nous Girl
 
-The portrait is an original side-profile drawing that interprets the Nous Girl character published by Nous Research (reference assets: `assets/nous-girl-black.svg` and `assets/nous-girl-white.svg` in https://github.com/NousResearch/hermes-agent, inspected at revision `ee6db222660c84e4ba2cf158108f0e6fed9afe34`). No official artwork is traced or embedded. That repository is published under the MIT license; no separate asset license was found. The character belongs to Nous Research; this attribution is separate from authorship of the drawing and the code. Voice Lab is unofficial: its synthetic voice is a fictional character voice, not an official Nous voice, and nothing here implies endorsement or grants trademark rights.
+The portrait (`src/ui/art/nousGirlArt.ts`) is a vector tracing of a side-profile Nous Girl illustration with headphones, supplied by the project owner as the character reference. It was mirrored to face the controls and traced to paths with potrace-style curve fitting. The jaw, mouth, cutaway, airway and handles are original rig layers drawn on top of it. The project owner provided the illustration for this use; its original author and license were not documented with it. Anyone redistributing the plugin should confirm they may use the illustration.
+
+The character belongs to Nous Research (official assets `assets/nous-girl-black.svg` and `assets/nous-girl-white.svg` in https://github.com/NousResearch/hermes-agent, inspected at revision `ee6db222660c84e4ba2cf158108f0e6fed9afe34`). Voice Lab is unofficial: its synthetic voice is a fictional character voice, not an official Nous voice, and nothing here implies endorsement or grants trademark rights.
 
 The hermes-agent MIT notice, for the character reference:
 

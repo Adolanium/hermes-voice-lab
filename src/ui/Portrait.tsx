@@ -11,6 +11,7 @@
 import React, {useCallback, useRef} from 'react';
 import type {ParamName} from '../core/params';
 import {AirwayLife, type AirwayState} from './AirwayLife';
+import {ART_FIGURE, ART_INK, ART_SIZE, ART_TONE} from './art/nousGirlArt';
 
 export interface Pose {
   tongueX: number;
@@ -131,46 +132,31 @@ const S = {
   air: 'var(--hvl-air)',
 };
 
-/** Silhouette paths, drawn for this product. */
-const HAIR_BACK =
-  'M 384 214 C 386 150 340 84 262 72 C 186 62 120 108 104 182 C 92 238 104 296 98 350 ' +
-  'C 96 400 92 440 86 476 C 85 485 89 489 97 489 C 150 484 208 476 254 450 ' +
-  'C 266 430 272 400 276 376 C 282 340 286 300 296 262 C 304 238 330 226 360 222 Z';
-
-const BANGS =
-  'M 262 72 C 330 74 376 112 388 168 C 392 190 394 214 398 240 Q 396 231 393 229 Q 390 240 388 249 Q 386 240 382 229 Q 379 234 377 243 Q 375 234 372 232 Q 368 242 366 251 Q 364 242 360 230 Q 357 236 355 245 Q 353 236 350 228 Q 346 243 344 252 Q 342 243 338 231 Q 335 237 333 246 Q 331 237 328 229 Q 324 242 322 251 Q 320 242 316 232 Q 313 236 311 245 Q 309 236 306 230 Q 302 240 300 249 C 290 214 274 182 252 160 C 232 142 212 134 196 132 C 208 100 232 78 262 72 Z';
-
-const SIDE_LOCK =
-  'M 300 240 C 290 266 284 296 282 330 C 279 372 274 408 262 440 C 256 456 248 468 238 478 ' +
-  'C 258 476 272 460 280 440 C 290 412 292 374 294 342 C 296 308 300 280 310 256 Z';
-
-/** Long tapered highlights cut into the hair (drawn in the skin colour). */
-const STRANDS = [
-  'M 196 140 C 160 182 140 240 136 312 C 146 246 168 188 204 146 Z',
-  'M 150 300 C 140 352 128 396 108 432 C 132 398 148 356 156 304 Z',
-  'M 248 250 C 246 320 236 380 218 424 C 242 384 254 322 254 252 Z',
-];
-
-const SHEEN =
-  'M 214 116 C 256 98 318 98 362 130 L 358 138 L 348 132 L 342 142 L 332 132 L 324 142 L 314 130 L 306 140 ' +
-  'L 298 128 L 288 138 L 280 126 L 270 134 L 260 122 L 250 130 L 240 120 L 228 126 Z';
-
-/** Headphone band over the crown, ending in the slider yoke above the earcup. */
-const BAND = 'M 330 90 C 306 90 288 114 278 152 C 270 182 263 206 259 222';
-const EAR = {cx: 252, cy: 284, rx: 27, ry: 35, tilt: -10};
-
-const NECK = 'M 350 384 C 346 412 346 446 352 494 L 250 498 C 256 452 258 418 254 380 Z';
-
 const WINDOW = 'M 270 292 C 300 282 350 280 384 286 C 404 292 414 312 404 330 C 398 346 404 372 392 394 C 380 410 362 414 354 420 C 350 438 350 456 352 474 L 262 478 C 262 440 262 400 262 360 C 262 330 262 304 270 292 Z';
+
+/**
+ * The rig's articulation geometry (above) lives in a compact "rig" coordinate
+ * space. The portrait artwork lives in its own space; this affine places the
+ * rig inside her head so the cutaway, handles and airway line up with the art.
+ */
+const RIG_TO_ART = {a: 2.66, d: 2.645, e: 2, f: -216};
+const rigToArt = ([x, y]: Pt): Pt => [RIG_TO_ART.a * x + RIG_TO_ART.e, RIG_TO_ART.d * y + RIG_TO_ART.f];
+const ART_PIVOT = rigToArt(PIVOT);
+/** Lower face that rotates with the jaw: chin, jawline and lower lip (art space). */
+const JAW_REGION = 'M 790 702 L 1034 685 L 1058 681 L 1140 681 L 1140 842 L 1040 848 L 990 822 L 880 815 L 790 830 Z';
+/** Mouth interior revealed between the lips as the jaw opens (art space). */
+const MOUTH = 'M 1026 686 L 1060 680 L 1082 688 L 1074 716 L 1030 704 Z';
 
 export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDragEnd}: Props) {
   const g = rig(pose);
   const svg = useRef<SVGSVGElement>(null);
+  const rigGroup = useRef<SVGGElement>(null);
   const drag = useRef<null | {kind: string; start: Pt; startPose: Pose}>(null);
 
+  /** Pointer position in rig coordinates. */
   const toLocal = useCallback((e: React.PointerEvent): Pt => {
     const el = svg.current;
-    const m = el?.getScreenCTM();
+    const m = rigGroup.current?.getScreenCTM();
     if (!el || !m) return [0, 0];
     const pt = el.createSVGPoint();
     pt.x = e.clientX;
@@ -218,35 +204,10 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
 
   const jaw = `rotate(${g.jawDeg.toFixed(2)} ${PIVOT[0]} ${PIVOT[1]})`;
   const tongueRot = `rotate(${g.tongueDeg.toFixed(2)} ${PIVOT[0]} ${PIVOT[1]})`;
-  const local = (pt: Pt) => rotate(pt, -g.jawDeg);
-  const ll = local(g.lowerLip);
-  const lc = local(g.corner);
   const ul = g.upperLip;
-  const face = [
-    'M 360 132 C 372 160 378 200 380 232',
-    'C 381 244 378 252 373 262',
-    'C 382 276 398 294 408 306',
-    'C 412 311 410 318 403 320',
-    'C 399 322 395 322 392 325',
-    `C 393 330 ${f([ul[0] - 3, ul[1] - 5])} ${f(ul)}`,
-    `C ${f([ul[0] - 4, ul[1] + 5])} ${f([g.corner[0] + 6, g.corner[1] - 1])} ${f(g.corner)}`,
-    'L 300 350 L 290 240 Z',
-  ].join(' ');
-  const lowerFace = [
-    `M 300 340 L ${f(lc)}`,
-    `C ${f([lc[0] + 6, lc[1] + 3])} ${f([ll[0] - 4, ll[1] - 2])} ${f(ll)}`,
-    `C ${f([ll[0] + 3, ll[1] + 5])} ${f([ll[0] - 5, ll[1] + 10])} 387 366`,
-    'C 392 372 395 380 393 386 C 390 396 382 402 370 403',
-    'C 346 404 312 394 286 372 C 276 362 270 330 266 300 Z',
-  ].join(' ');
-  const faceLine = face.slice(0, face.indexOf(' L 300 350'));
-  const jawLine = [
-    `M ${f(lc)}`,
-    `C ${f([lc[0] + 6, lc[1] + 3])} ${f([ll[0] - 4, ll[1] - 2])} ${f(ll)}`,
-    `C ${f([ll[0] + 3, ll[1] + 5])} ${f([ll[0] - 5, ll[1] + 10])} 387 366`,
-    'C 392 372 395 380 393 386 C 390 396 382 402 370 403',
-    'C 346 404 312 394 286 372',
-  ].join(' ');
+  // The visible mouth follows the lip gap (lips can close with the jaw open).
+  const mouthDeg = 0.1 + 3.4 * clamp01(g.lipGap / 16);
+  const artJaw = `rotate(${mouthDeg.toFixed(2)} ${ART_PIVOT[0].toFixed(1)} ${ART_PIVOT[1].toFixed(1)})`;
   const handle = (kind: string, at: Pt, label: string, r = 8) => (
     <g className="hvl-handle" onPointerDown={begin(kind)} aria-label={label}>
       <title>{label}</title>
@@ -257,47 +218,53 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   );
   const tongueAt = rotate(g.dorsum, g.tongueDeg);
   const tipAt = rotate(g.tip, g.tongueDeg);
-  const chin = rotate([384, 398], g.jawDeg);
-  const mouthOpen = g.lipGap > 1;
+  const chinRig: Pt = [(1046 - RIG_TO_ART.e) / RIG_TO_ART.a, (808 - RIG_TO_ART.f) / RIG_TO_ART.d];
+  const chin = rotate(chinRig, mouthDeg * 0.9);
+  const lipsAt: Pt = [(1092 - RIG_TO_ART.e) / RIG_TO_ART.a, (686 - RIG_TO_ART.f) / RIG_TO_ART.d + mouthDeg * 0.8];
+  const art = (
+    <>
+      <path d={ART_FIGURE} fill={S.skin} />
+      <path d={ART_TONE} className="hvl-art-tone" />
+      <path d={ART_INK} fill={S.ink} fillRule="evenodd" />
+    </>
+  );
 
   return (
-    <svg ref={svg} viewBox="36 52 470 470" className="hvl-portrait" onPointerMove={move} onPointerUp={end} onPointerCancel={end}
-      role="img" aria-label="Side-profile portrait whose jaw, lips, tongue and throat follow the synthesizer">
+    <svg ref={svg} viewBox="40 20 1290 1230" className="hvl-portrait" onPointerMove={move} onPointerUp={end} onPointerCancel={end}
+      role="img" aria-label="Side-profile portrait whose mouth, jaw, tongue and throat follow the synthesizer">
       <defs>
+        <radialGradient id="hvl-glow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="var(--hvl-accent)" stopOpacity="0.16" />
+          <stop offset="1" stopColor="var(--hvl-accent)" stopOpacity="0" />
+        </radialGradient>
+        <mask id="hvl-static" maskUnits="userSpaceOnUse" x="0" y="0" width={ART_SIZE} height={ART_SIZE}>
+          <rect width={ART_SIZE} height={ART_SIZE} fill="white" />
+          <path d={JAW_REGION} fill="black" />
+        </mask>
+        <clipPath id="hvl-jaw"><path d={JAW_REGION} /></clipPath>
+        <clipPath id="hvl-figure"><path d={ART_FIGURE} /></clipPath>
         <filter id="hvl-feather" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="7" /></filter>
         <mask id="hvl-window" maskUnits="userSpaceOnUse" x="200" y="230" width="260" height="300">
           <path d={WINDOW} fill="white" filter="url(#hvl-feather)" />
         </mask>
-        <clipPath id="hvl-skin">
-          <path d={face} />
-          <path d={lowerFace} transform={jaw} />
-          <path d={NECK} />
-        </clipPath>
-        <radialGradient id="hvl-glow" cx="0.62" cy="0.5" r="0.62">
-          <stop offset="0" stopColor="var(--hvl-accent)" stopOpacity="0.18" />
-          <stop offset="1" stopColor="var(--hvl-accent)" stopOpacity="0" />
-        </radialGradient>
       </defs>
-      <circle cx="300" cy="290" r="228" fill="url(#hvl-glow)" />
-      <circle cx="300" cy="290" r="208" fill="none" stroke="var(--hvl-accent)" strokeOpacity="0.18" strokeWidth="1" />
-      <circle cx="300" cy="290" r="208" fill="none" stroke="var(--hvl-accent)" strokeOpacity="0.5" strokeWidth="1" strokeDasharray="1 7" />
+      <circle cx="840" cy="640" r="585" className="hvl-portrait-disc" />
+      <circle cx="860" cy="640" r="600" fill="url(#hvl-glow)" />
+      <circle cx="860" cy="640" r="560" fill="none" stroke="var(--hvl-accent)" strokeOpacity="0.45" strokeWidth="2" strokeDasharray="2 16" />
 
-      {/* Skin underlay: fills the gaps between face, jaw and neck pieces; hair covers the rest */}
-      <path d="M 288 236 L 372 236 L 372 300 L 384 326 L 372 344 L 370 372 L 356 398 L 350 500 L 248 500 L 248 236 Z" fill={S.skin} />
-      <path d={HAIR_BACK} fill={S.ink} />
-      {STRANDS.map((d, i) => <path key={i} d={d} fill={S.skin} opacity="0.92" />)}
-      {/* Gloss on the back of the head and rim light on the flipped ends */}
-      <path d="M 196 108 C 160 126 134 156 122 194 L 128 192 L 130 200 L 135 190 L 139 197 L 143 186 C 154 158 174 134 200 118 L 194 118 L 196 110 Z" fill={S.skin} opacity="0.8" />
-      {/* Neck under a sleeveless top */}
-      <path d={NECK} fill={S.skin} />
-      <g transform={jaw}><path d={lowerFace} fill={S.skin} /></g>
-      <path d={face} fill={S.skin} />
+      {/* Portrait: static art, then the lower face on the jaw */}
+      <g mask="url(#hvl-static)">{art}</g>
+      <g clipPath="url(#hvl-figure)">
+        <path d={JAW_REGION} fill={S.skin} stroke={S.skin} strokeWidth="8" strokeLinejoin="round" />
+        <path d={MOUTH} fill={S.ink} />
+      </g>
+      <g transform={artJaw}><g clipPath="url(#hvl-jaw)">{art}</g></g>
 
-      {/* Cutaway: stylised midsagittal view of the modelled articulators */}
-      <g className={`hvl-cutaway ${cutaway ? 'is-on' : ''}`} aria-hidden={!cutaway}>
-        <g mask="url(#hvl-window)">
-          <g clipPath="url(#hvl-skin)">
-            <rect x="250" y="250" width="180" height="240" fill={S.paper} />
+      <g ref={rigGroup} transform={`matrix(${RIG_TO_ART.a} 0 0 ${RIG_TO_ART.d} ${RIG_TO_ART.e} ${RIG_TO_ART.f})`}>
+        {/* Cutaway: stylised midsagittal view of the modelled articulators */}
+        <g className={`hvl-cutaway ${cutaway ? 'is-on' : ''}`} aria-hidden={!cutaway}>
+          <g mask="url(#hvl-window)">
+            <rect x="240" y="250" width="200" height="250" fill={S.paper} opacity="0.94" />
             <path d="M 282 300 C 300 286 340 282 372 288 C 390 292 402 302 408 314 L 402 320 C 390 310 370 304 346 304 C 318 304 300 308 290 316 Z" fill={S.cavity} opacity={0.3 + 0.55 * pose.velum} />
             <path d="M 282 300 C 300 286 340 282 372 288 C 390 292 402 302 408 314" fill="none" stroke={S.bone} strokeWidth="1.1" opacity="0.7" />
             <path d={`M 278 312 C 282 350 282 400 286 440 L 312 440 C 310 420 ${f([g.rootX + 4, 400])} ${f([g.rootX + 6, 384])} L 372 364 L ${f([ul[0] - 3, ul[1] + 4])} L 388 330 C 360 322 320 312 294 312 Z`} fill={S.cavity} opacity="0.55" />
@@ -319,83 +286,35 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
             <path d={`M 311 452 L ${298 + g.fold} 456 L 311 460 Z`} fill={S.flesh} stroke={S.ink} strokeWidth="0.9" />
             <AirwayLife state={airway} geometry={{pivot: PIVOT, tongueDeg: g.tongueDeg, exit: [ul[0] - 2, ul[1] + g.lipGap / 2 + 2]}} />
           </g>
+          {/* Her outline stays visible through the lens */}
+          <g mask="url(#hvl-window)" className="hvl-xray">
+            <g transform={`matrix(${1 / RIG_TO_ART.a} 0 0 ${1 / RIG_TO_ART.d} ${-RIG_TO_ART.e / RIG_TO_ART.a} ${-RIG_TO_ART.f / RIG_TO_ART.d})`}>
+              <g mask="url(#hvl-static)"><path d={ART_INK} fill={S.ink} fillRule="evenodd" /></g>
+              <g transform={artJaw}><g clipPath="url(#hvl-jaw)"><path d={ART_INK} fill={S.ink} fillRule="evenodd" /></g></g>
+            </g>
+          </g>
         </g>
+
+        {onDrag && (
+          <g className="hvl-handles">
+            {cutaway && handle('tongue', tongueAt, 'Tongue body — drag to move front/back and up/down')}
+            {cutaway && handle('tip', tipAt, 'Tongue tip — drag up to close, left to move back', 6)}
+            {cutaway && handle('velum', g.uvula, 'Velum — drag down to open the nasal passage', 6)}
+            {handle('lips', lipsAt, 'Lips — drag down to open, right to round', 7)}
+            {handle('jaw', chin, 'Jaw — drag down to open', 8)}
+          </g>
+        )}
+        {labels && (
+          <g className="hvl-labels">
+            {cutaway && <Label at={[340, 296]} to={[214, 362]} text="nasal tract" />}
+            {cutaway && <Label at={g.uvula} to={[214, 396]} text="velum" />}
+            {cutaway && <Label at={tongueAt} to={[214, 430]} text="tongue" />}
+            {cutaway && <Label at={[296, 456]} to={[214, 466]} text="vocal folds" />}
+            <Label at={lipsAt} to={[438, 352]} text="lips" anchor="start" />
+            <Label at={chin} to={[430, 410]} text="jaw" anchor="start" />
+          </g>
+        )}
       </g>
-
-      {/* Outlines over the cutaway */}
-      <path d="M 350 384 C 346 412 346 440 350 470" fill="none" stroke={S.ink} strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M 56 534 C 82 508 160 492 240 488 C 268 508 322 514 362 496 C 420 500 466 516 486 534 Z" fill={S.ink} />
-      <path d="M 242 490 C 270 509 322 515 361 498" fill="none" stroke={S.skin} strokeWidth="3.2" strokeLinecap="round" />
-      <path d="M 132 506 C 158 518 196 522 226 514" fill="none" stroke={S.skin} strokeWidth="2.2" strokeLinecap="round" opacity="0.9" />
-      <g transform={jaw}><path d={jawLine} fill="none" stroke={S.ink} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" /></g>
-      <path d={faceLine} fill="none" stroke={S.ink} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
-      <path d="M 393 314 C 396 318 401 319 404 317" fill="none" stroke={S.ink} strokeWidth="1.5" strokeLinecap="round" opacity="0.75" />
-
-      {mouthOpen && (
-        <path d={`M ${f(g.corner)} C ${f([g.corner[0] + 7, ul[1] + 3])} ${f([ul[0] - 5, ul[1] + 2.5])} ${f([ul[0] - 1.5, ul[1] + 2.5])} L ${f([g.lowerLip[0] - 1.5, g.lowerLip[1] - 1])} C ${f([g.lowerLip[0] - 7, g.lowerLip[1] - 1])} ${f([g.corner[0] + 5, g.corner[1] + 2])} ${f(g.corner)} Z`} fill={S.ink} opacity={cutaway ? 0.55 : 1} />
-      )}
-
-      {/* Lip contours over everything */}
-      <path d={`M 392 325 C 393 330 ${f([ul[0] - 3, ul[1] - 5])} ${f(ul)} C ${f([ul[0] - 4, ul[1] + 5])} ${f([g.corner[0] + 6, g.corner[1] - 1])} ${f(g.corner)}`} fill="none" stroke={S.ink} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d={`M ${f(g.corner)} C ${f([g.corner[0] + 6, g.corner[1] + 3])} ${f([g.lowerLip[0] - 4, g.lowerLip[1] - 2])} ${f(g.lowerLip)} C ${f([g.lowerLip[0] + 3, g.lowerLip[1] + 5])} ${f([g.lowerLip[0] - 5, g.lowerLip[1] + 10])} ${f(rotate([387, 366], g.jawDeg))}`} fill="none" stroke={S.ink} strokeWidth="2.4" strokeLinecap="round" />
-
-      {/* Eye */}
-      <g className="hvl-eye">
-        <g className="hvl-blink">
-        <path d="M 333 247 C 342 242 354 242 362 246 C 365 248 366 252 365 255" fill="none" stroke={S.ink} strokeWidth="4.8" strokeLinecap="round" />
-        <path d="M 337 238 C 346 234 356 235 363 240" fill="none" stroke={S.ink} strokeWidth="1.1" strokeLinecap="round" opacity="0.6" />
-        <path d="M 333 247 C 328 245 325 241 323 236 M 336 245 C 333 241 332 237 332 232 M 340 244 C 339 240 339 236 340 232" fill="none" stroke={S.ink} strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M 349 248 C 344 253 344 266 350 273 C 355 276 360 270 362 263 C 363 257 361 251 358 248 Z" fill={S.ink} />
-        <circle cx="356" cy="256" r="2.4" fill={S.skin} />
-        <circle cx="351" cy="266" r="1.1" fill={S.skin} opacity="0.8" />
-        </g>
-        <path d="M 343 277 C 349 280 356 279 361 275 M 346 278 l -1 3 M 351 279 l 0 3 M 356 278 l 1 3" fill="none" stroke={S.ink} strokeWidth="1.2" strokeLinecap="round" opacity="0.65" />
-      </g>
-
-      {/* Front hair, sheen and headphones */}
-      <path d={BANGS} fill={S.ink} />
-      <path d={SHEEN} fill={S.skin} opacity="0.92" />
-      <path d="M 298 244 C 292 222 282 200 266 180 M 346 238 C 344 214 338 190 328 170 M 374 232 C 374 210 370 188 362 168" fill="none" stroke={S.skin} strokeWidth="1" opacity="0.35" />
-      <g className="hvl-headphones">
-        <path d={BAND} fill="none" stroke={S.ink} strokeWidth="27" strokeLinecap="butt" />
-        <path d={BAND} fill="none" stroke={S.skin} strokeWidth="19" strokeLinecap="butt" />
-        {/* Padding seam along the band */}
-        <path d={BAND} fill="none" stroke={S.ink} strokeWidth="1.3" opacity="0.45" transform="translate(-4 1)" />
-        {/* Slider yoke */}
-        <path d="M 244 214 L 272 214 L 273 244 C 273 250 268 254 259 254 C 250 254 244 250 244 244 Z" fill={S.skin} stroke={S.ink} strokeWidth="2.8" strokeLinejoin="round" />
-        <path d="M 252 228 C 252 236 266 236 266 228" fill="none" stroke={S.ink} strokeWidth="2.4" strokeLinecap="round" />
-        {/* Earcup over the ear */}
-        <g transform={`rotate(${EAR.tilt} ${EAR.cx} ${EAR.cy})`}>
-          <ellipse cx={EAR.cx} cy={EAR.cy} rx={EAR.rx} ry={EAR.ry} fill={S.skin} stroke={S.ink} strokeWidth="2.6" />
-          <path d={`M ${EAR.cx - EAR.rx + 3} ${EAR.cy - 10} C ${EAR.cx - EAR.rx - 1} ${EAR.cy + 8} ${EAR.cx - 12} ${EAR.cy + EAR.ry - 2} ${EAR.cx + 2} ${EAR.cy + EAR.ry - 1} C ${EAR.cx - 10} ${EAR.cy + EAR.ry - 8} ${EAR.cx - EAR.rx + 6} ${EAR.cy + 6} ${EAR.cx - EAR.rx + 3} ${EAR.cy - 10} Z`} fill={S.ink} />
-          <ellipse cx={EAR.cx + 3} cy={EAR.cy - 1} rx={EAR.rx - 9} ry={EAR.ry - 11} fill="none" stroke={S.ink} strokeWidth="1.6" />
-          <circle cx={EAR.cx + 3} cy={EAR.cy - 1} r={3} fill={S.ink} />
-          <path d={`M ${EAR.cx + 8} ${EAR.cy - EAR.ry + 6} C ${EAR.cx + 15} ${EAR.cy - EAR.ry + 9} ${EAR.cx + 18} ${EAR.cy - EAR.ry + 15} ${EAR.cx + 19} ${EAR.cy - 8}`} fill="none" stroke={S.ink} strokeWidth="1.2" opacity="0.4" />
-        </g>
-      </g>
-      <path d={SIDE_LOCK} fill={S.ink} />
-      {/* Front lock falls over the cup's front edge */}
-      <path d="M 274 262 C 272 286 276 306 286 320 C 280 300 280 280 284 262 Z" fill={S.ink} />
-
-      {onDrag && (
-        <g className="hvl-handles">
-          {cutaway && handle('tongue', tongueAt, 'Tongue body — drag to move front/back and up/down')}
-          {cutaway && handle('tip', tipAt, 'Tongue tip — drag up to close, left to move back', 6)}
-          {cutaway && handle('velum', g.uvula, 'Velum — drag down to open the nasal passage', 6)}
-          {handle('lips', [ul[0] + 11, (ul[1] + g.lowerLip[1]) / 2], 'Lips — drag down to open, right to round', 7)}
-          {handle('jaw', chin, 'Jaw — drag down to open', 8)}
-        </g>
-      )}
-      {labels && (
-        <g className="hvl-labels">
-          {cutaway && <Label at={tongueAt} to={[200, 430]} text="tongue" />}
-          {cutaway && <Label at={g.uvula} to={[200, 396]} text="velum" />}
-          {cutaway && <Label at={[296, 456]} to={[200, 466]} text="vocal folds" />}
-          {cutaway && <Label at={[340, 296]} to={[200, 362]} text="nasal tract" />}
-          <Label at={[ul[0] + 3, ul[1] + 3]} to={[438, 340]} text="lips" anchor="start" />
-          <Label at={chin} to={[430, 420]} text="jaw" anchor="start" />
-        </g>
-      )}
     </svg>
   );
 }
