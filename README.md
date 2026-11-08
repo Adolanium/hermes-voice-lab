@@ -58,7 +58,7 @@ hermes plugins install Adolanium/hermes-voice-lab/plugin --enable
 2. Restart the gateway so the plugin's routes mount.
 3. In Hermes Desktop, open **Capabilities → Plugins**, enable **Voice Lab**, and open it from the sidebar or the command palette (**Open Voice Lab**).
 
-Hermes warns that this is a custom source, not from the Hermes catalog. Update with `hermes plugins update hermes-voice-lab`, remove with `hermes plugins remove hermes-voice-lab`. Without Git access, copy the `plugin/` folder to `$HERMES_HOME/plugins/hermes-voice-lab/` by hand (or unpack the archive from `npm run package`) and run `hermes plugins enable hermes-voice-lab`.
+Hermes warns that this is a custom source, not from the Hermes catalog. Update with `hermes plugins update hermes-voice-lab` and restart the gateway (until it restarts, it keeps the old backend, which refuses projects saved by the new UI), remove with `hermes plugins remove hermes-voice-lab`. Without Git access, copy the `plugin/` folder to `$HERMES_HOME/plugins/hermes-voice-lab/` by hand (or unpack the archive from `npm run package`) and run `hermes plugins enable hermes-voice-lab`.
 
 You need neither Rust nor npm: `plugin/` ships the compiled WebAssembly engine, the desktop bundle and the Node renderer. Agent-side rendering uses Node 20+, which the Hermes runtime provides. Sound starts only after you press a play control.
 
