@@ -162,6 +162,11 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
         at(s.end - (param === 'lipOpen' ? 0.004 : 0.002), param, rest, releaseTau, i);
       }
     }
+    if (t.trill) {
+      // The articulator is held near contact and flaps for the segment (engine).
+      at(Math.max(onset, s.start - 0.01), 'trill', 1, 8, i);
+      at(s.end, 'trill', 0, 8, i);
+    }
     if (t.lateral) {
       // The side channel opens with the /l/ itself: opened during a preceding
       // voiceless fricative it vents the open glottis's air in a loud hiss.
@@ -586,7 +591,7 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
       const stop = (p: Phone) => ['stop', 'affricate'].includes(PHONEMES[p.symbol].manner);
       const length = Math.max(0.05, Math.min(end, nextStart - 0.01) - start);
       const durs = unit.phones.map((p, i) =>
-        i === 0 && stop(p) ? 0.045 : PHONEMES[p.symbol].manner === 'nasal' ? length * 0.9 : stop(p) ? 0.04 : Math.min(0.11, length * 0.7));
+        i === 0 && stop(p) ? 0.045 : ['nasal', 'trill'].includes(PHONEMES[p.symbol].manner) ? length * 0.9 : stop(p) ? 0.04 : Math.min(0.11, length * 0.7));
       const lead = stop(unit.phones[0]) ? durs[0] : 0;
       // The closure may start inside a preceding silence so the release lands on the beat.
       const last = segments[segments.length - 1];

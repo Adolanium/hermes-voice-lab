@@ -355,3 +355,28 @@ test('male and child bodies put the vowels near the published means for those sp
     assert.ok(sum / n < 0.06, `${id}: mean formant error ${(100 * sum / n).toFixed(1)}%`);
   }
 });
+
+test('trills flap at about 27 Hz: a lip trill, a rolled r and a uvular r', () => {
+  const sr = 48000;
+  for (const [text, symbol] of [['B R1 / P AA1 RR OW0', 'RR'], ['BR AA1', 'BR'], ['AA1 RU AA1', 'RU']] as const) {
+    const plan = planSpeech(text.replace('B R1 / ', ''), lexicon, {phonemes: true});
+    const seg = plan.segments.find(s => s.symbol === symbol)!;
+    assert.ok(seg, `${symbol} planned`);
+    const out = renderScore(engine(sr, 7), plan.score)[0];
+    // Envelope over the trill, then the strongest modulation rate.
+    const a = Math.round((seg.start + 0.01) * sr), b = Math.round((seg.end - 0.005) * sr);
+    const hop = 48, env: number[] = [];
+    for (let i = a; i + hop <= b; i += hop) { let s = 0; for (let j = 0; j < hop; j++) s += out[i + j] ** 2; env.push(Math.sqrt(s / hop)); }
+    const mean = env.reduce((x, y) => x + y, 0) / env.length;
+    let best = 0, bestHz = 0;
+    for (let hz = 10; hz <= 60; hz += 1) {
+      let re = 0, im = 0;
+      env.forEach((v, k) => { const t = (k * hop) / sr; re += (v - mean) * Math.cos(2 * Math.PI * hz * t); im += (v - mean) * Math.sin(2 * Math.PI * hz * t); });
+      if (Math.hypot(re, im) > best) { best = Math.hypot(re, im); bestHz = hz; }
+    }
+    assert.ok(Math.abs(bestHz - 27) <= 5, `${symbol} flaps at ${bestHz} Hz`);
+    for (const v of out) assert.ok(Number.isFinite(v) && Math.abs(v) < 1, 'bounded');
+  }
+  // "brr" in text is a lip trill.
+  assert.ok(planSpeech('brrr', lexicon).segments.some(s => s.symbol === 'BR'));
+});

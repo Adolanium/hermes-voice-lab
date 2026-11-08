@@ -43,6 +43,8 @@ Everything that ships lives in `plugin/`; paths below are relative to it. One en
 - **Growl** draws the ventricular folds (about 0.3–1 cm above the glottis) together, flapping at half the pitch. They never seal, so the airway itself doubles the period (−11 dB re H1).
 - **Twang** narrows the epilarynx tube (2.4 cm, toward 0.5 cm²), raises the larynx (1 cm shorter tract, wider pharynx) and firms the closure. The harmonics at 2.5–4 kHz rise 10 dB.
 
+**Trills.** With `trill` on, the narrowest constriction and its neighbors (tongue tip, lips or uvula, whichever is narrowest) are held near contact. They open toward 0.25 cm² and spring shut about 27 times a second, but only with a breath behind them (they are driven by effort × gate). The phonemes RR (rolled r), BR (lip trill) and RU (uvular r) set the place and turn the trill on for their segment. In text, "brr…" is a lip trill and "rrr…" a rolled r.
+
 **Bodies.** Tract length scales the whole airway. `pharynx` stretches or shrinks the part below the velum (sections 0–24 of 44) relative to the mouth, each section taking the nearest section of the unscaled tract so closures stay exact. A search over both against the Hillenbrand et al. (1995) means for men and for 10–12-year-old children puts the presets at a 16.4 cm tract with pharynx 1.0 (men, 3.9% mean F1/F2 error over 12 vowels) and a 12.6 cm tract with pharynx 1.1 (children, 4.3%). The search does not support the textbook shorter child pharynx for this model: errors rise to 5–9% below 1.05. The female vowel targets are used unchanged for all bodies.
 
 The `yodel` song style flips `register` across the middle of the song's range. The flip comes just before the vowel, with an 8 ms time constant, and the pitch snaps across the leap.

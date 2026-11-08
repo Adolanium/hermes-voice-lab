@@ -149,8 +149,17 @@ export interface Word {
   boundary: Boundary;
 }
 
+/** Trill words: "brr…" is a lip trill, "rrr…" a rolled tongue-tip r. */
+function trillWord(word: string): Phone[] | null {
+  if (/^br{2,}$/.test(word)) return [{symbol: 'BR', stress: 0}];
+  if (/^r{3,}$/.test(word)) return [{symbol: 'RR', stress: 0}];
+  return null;
+}
+
 export function phonemize(text: string, lexicon: Lexicon): Word[] {
   return tokenize(text).map((t): Word => {
+    const trill = trillWord(t.text);
+    if (trill) return {text: t.text, phones: trill, source: 'rules', boundary: t.boundary};
     const known = lexicon.lookup(t.text);
     return known
       ? {text: t.text, phones: known, source: 'dictionary', boundary: t.boundary}

@@ -34,7 +34,8 @@ var PARAM_NAMES = [
   "fry",
   "growl",
   "twang",
-  "pharynx"
+  "pharynx",
+  "trill"
 ];
 var META = {
   pitch: ["Pitch", "Hz", "source", "Fundamental frequency of the vocal folds."],
@@ -65,6 +66,7 @@ var META = {
   fry: ["Fry", "", "source", "Vocal fry: paired, irregular, creaky pulses."],
   growl: ["Growl", "", "source", "Ventricular folds flapping at half the pitch: a rough growl."],
   twang: ["Twang", "", "source", "Narrowed epilarynx: a bright, ringing, nasal-sounding twang."],
+  trill: ["Trill", "", "tract", "The narrowest constriction (tongue tip, lips or uvula) flaps in the airflow about 27 times a second."],
   pharynx: ["Pharynx", "\xD7", "tract", "Throat length relative to the mouth: longer in adult men (\u22481.15), shorter in children (\u22480.85)."]
 };
 var RANGES = {
@@ -96,7 +98,8 @@ var RANGES = {
   fry: [0, 1, 0],
   growl: [0, 1, 0],
   twang: [0, 1, 0],
-  pharynx: [0.75, 1.3, 1]
+  pharynx: [0.75, 1.3, 1],
+  trill: [0, 1, 0]
 };
 var PARAMS = PARAM_NAMES.map((name, id) => {
   const [min, max, def] = RANGES[name];
@@ -319,6 +322,10 @@ var PHONEMES = Object.fromEntries([
   P("CH", "t\u0283", "affricate", false, 115, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "chair"),
   P("JH", "d\u0292", "affricate", true, 95, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "joy"),
   P("L", "l", "approximant", true, 70, { tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3, tongueY: 0.5 }, "love"),
+  // Trills (not in ARPABET): a rolled tongue-tip r, a lip trill and a uvular r.
+  P("RR", "r", "trill", true, 110, { tipPlace: 0.42, tipClose: 0.9, trill: 1, jaw: 0.35 }, "Spanish perro"),
+  P("BR", "\u0299", "trill", true, 160, { lipOpen: 0.04, lipRound: 0.25, trill: 1 }, "brr"),
+  P("RU", "\u0280", "trill", true, 110, { dorsumClose: 0.9, tongueX: 0.02, tongueY: 0.55, trill: 1 }, "French rouge"),
   P("R", "\u0279", "approximant", true, 70, { rhotic: 1, lipRound: 0.7, tongueX: 0.15, tongueY: 0.85, lipOpen: 0.6 }, "red"),
   P("W", "w", "approximant", true, 65, { lipOpen: 0.15, lipRound: 1, tongueX: 0, tongueY: 0.9 }, "we"),
   P("Y", "j", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35 }, "yes"),
@@ -543,8 +550,15 @@ function letterToSound(word) {
   });
   return phones;
 }
+function trillWord(word) {
+  if (/^br{2,}$/.test(word)) return [{ symbol: "BR", stress: 0 }];
+  if (/^r{3,}$/.test(word)) return [{ symbol: "RR", stress: 0 }];
+  return null;
+}
 function phonemize(text, lexicon2) {
   return tokenize(text).map((t) => {
+    const trill = trillWord(t.text);
+    if (trill) return { text: t.text, phones: trill, source: "rules", boundary: t.boundary };
     const known = lexicon2.lookup(t.text);
     return known ? { text: t.text, phones: known, source: "dictionary", boundary: t.boundary } : { text: t.text, phones: letterToSound(t.text), source: "rules", boundary: t.boundary };
   }).filter((w) => w.phones.length > 0);
@@ -803,6 +817,10 @@ function articulate(segments, voice) {
         const rest = param === "lipOpen" ? vowelLips.lipOpen ?? 0.6 : 0;
         at(s.end - (param === "lipOpen" ? 4e-3 : 2e-3), param, rest, releaseTau, i);
       }
+    }
+    if (t.trill) {
+      at(Math.max(onset, s.start - 0.01), "trill", 1, 8, i);
+      at(s.end, "trill", 0, 8, i);
     }
     if (t.lateral) {
       at(Math.max(onset, s.start - 0.012), "lateral", 1, 10, i);
@@ -1084,7 +1102,7 @@ function planSong(notes, lyrics, lexicon2, opts) {
     if (unit && unit.phones.length && !unit.phones.some((p) => isVowel(p.symbol))) {
       const stop2 = (p) => ["stop", "affricate"].includes(PHONEMES[p.symbol].manner);
       const length = Math.max(0.05, Math.min(end, nextStart - 0.01) - start);
-      const durs = unit.phones.map((p, i) => i === 0 && stop2(p) ? 0.045 : PHONEMES[p.symbol].manner === "nasal" ? length * 0.9 : stop2(p) ? 0.04 : Math.min(0.11, length * 0.7));
+      const durs = unit.phones.map((p, i) => i === 0 && stop2(p) ? 0.045 : ["nasal", "trill"].includes(PHONEMES[p.symbol].manner) ? length * 0.9 : stop2(p) ? 0.04 : Math.min(0.11, length * 0.7));
       const lead2 = stop2(unit.phones[0]) ? durs[0] : 0;
       const last = segments[segments.length - 1];
       const floor = last && last.symbol === "SIL" && last.end >= cursor - 1e-6 ? last.start + 0.02 : cursor;

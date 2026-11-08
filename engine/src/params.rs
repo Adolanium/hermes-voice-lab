@@ -31,7 +31,8 @@ pub const FRY: usize = 25;
 pub const GROWL: usize = 26;
 pub const TWANG: usize = 27;
 pub const PHARYNX: usize = 28;
-pub const COUNT: usize = 29;
+pub const TRILL: usize = 29;
+pub const COUNT: usize = 30;
 
 pub struct Spec {
     pub min: f32,
@@ -78,6 +79,7 @@ pub const SPECS: [Spec; COUNT] = [
     s(0.0, 1.0, 0.0, 40.0),       // growl (ventricular folds flapping at half the pitch)
     s(0.0, 1.0, 0.0, 40.0),       // twang (narrowed epilarynx)
     s(0.75, 1.3, 1.0, 80.0),      // pharynx length relative to the mouth (adult male ≈1.15, child ≈0.85)
+    s(0.0, 1.0, 0.0, 15.0),       // trill: the narrowest constriction flaps in the airflow
 ];
 
 pub fn clamp(id: usize, value: f32) -> f32 {

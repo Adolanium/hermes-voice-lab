@@ -82,6 +82,10 @@ const TWANG_LENGTH: f32 = 2.4;
 const TWANG_AREA: f32 = 0.5;
 /// Twang: how far the larynx rises (cm).
 const TWANG_RAISE: f32 = 1.0;
+/// Trill: flapping rate (Hz) of a tongue tip, lips or uvula in the airflow,
+/// and the area (cm²) the constriction opens to between contacts.
+const TRILL_HZ: f32 = 27.0;
+const TRILL_OPEN: f32 = 0.25;
 
 /// Glottal opening over one cycle (0..1): a raised-cosine opening, then a
 /// closing that is smooth for a lax voice and steepens toward the moment of
@@ -118,6 +122,8 @@ pub struct Voice {
     odd_cycle: bool,
     /// Phase of the ventricular folds, which flap at half the pitch in a growl.
     ventricular_phase: f32,
+    /// Phase of a trilling articulator.
+    trill_phase: f32,
     period_scale: f32,
     period_amp: f32,
     vib_phase: f32,
@@ -212,6 +218,7 @@ impl Voice {
             phase: 0.0,
             odd_cycle: false,
             ventricular_phase: 0.0,
+            trill_phase: 0.0,
             period_scale: 1.0,
             period_amp: 1.0,
             vib_phase: 0.0,
@@ -440,6 +447,21 @@ impl Voice {
             let n = ((TWANG_LENGTH / dx).round() as usize).clamp(2, 12);
             for a in self.areas[..n].iter_mut() {
                 *a += (a.min(TWANG_AREA) - *a) * twang;
+            }
+        }
+        // A trill: the narrowest constriction (tongue tip, lips or uvula) is held
+        // loosely against its contact and the airflow pushes it open and lets it
+        // spring shut about 27 times a second. Without a breath behind it, it
+        // does not flap.
+        let trill = p[TRILL];
+        self.trill_phase = (self.trill_phase + TRILL_HZ * dt).fract();
+        if trill > 0.0 {
+            let drive = smooth(0.08, 0.3, p[LOUDNESS] * p[GATE]) * trill;
+            let closed = 0.5 * (1.0 - (2.0 * std::f32::consts::PI * self.trill_phase).cos());
+            let k = self.shape.min_index.clamp(8, N - 1);
+            for a in self.areas[k - 1..(k + 2).min(N)].iter_mut() {
+                let flap = a.max(TRILL_OPEN) * (1.0 - closed);
+                *a += (flap - *a) * drive;
             }
         }
         let growl = p[GROWL];

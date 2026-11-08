@@ -251,6 +251,15 @@
    "label": "Pharynx",
    "unit": "×",
    "help": "Throat length relative to the mouth: longer in adult men (≈1.15), shorter in children (≈0.85)."
+  },
+  {
+   "name": "trill",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Trill",
+   "unit": "",
+   "help": "The narrowest constriction (tongue tip, lips or uvula) flaps in the airflow about 27 times a second."
   }
  ],
  "voiceParams": [
@@ -283,7 +292,8 @@
   "velum",
   "voicing",
   "rhotic",
-  "lateral"
+  "lateral",
+  "trill"
  ],
  "voicePresets": [
   {
@@ -1025,6 +1035,21 @@
    "symbol": "L",
    "ipa": "l",
    "example": "love"
+  },
+  {
+   "symbol": "RR",
+   "ipa": "r",
+   "example": "Spanish perro"
+  },
+  {
+   "symbol": "BR",
+   "ipa": "ʙ",
+   "example": "brr"
+  },
+  {
+   "symbol": "RU",
+   "ipa": "ʀ",
+   "example": "French rouge"
   },
   {
    "symbol": "R",
