@@ -35,7 +35,13 @@ pub const TRILL: usize = 29;
 pub const GLOTTAL: usize = 30;
 pub const LARYNX: usize = 31;
 pub const SUCTION: usize = 32;
-pub const COUNT: usize = 33;
+pub const MIC: usize = 33;
+pub const EQ_LOW: usize = 34;
+pub const EQ_MID: usize = 35;
+pub const EQ_HIGH: usize = 36;
+pub const COMP: usize = 37;
+pub const DRIVE: usize = 38;
+pub const COUNT: usize = 39;
 
 pub struct Spec {
     pub min: f32,
@@ -86,6 +92,12 @@ pub const SPECS: [Spec; COUNT] = [
     s(0.0, 1.0, 0.0, 6.0),        // glottal closure: the folds pressed shut (glottal stop, ejectives)
     s(0.0, 1.0, 0.0, 25.0),       // larynx raising: squeezes the pharynx like a piston (ejectives)
     s(0.0, 1.0, 0.0, 15.0),       // tongue suction: the tongue body pulls down between two oral seals (clicks)
+    s(0.0, 1.0, 0.4, 60.0),       // microphone distance: close (proximity bass) .. far (thin, quiet, roomy); 0.4 is neutral
+    s(-12.0, 12.0, 0.0, 60.0),    // EQ low shelf (220 Hz), dB
+    s(-12.0, 12.0, 0.0, 60.0),    // EQ mid peak (1.6 kHz), dB
+    s(-12.0, 12.0, 0.0, 60.0),    // EQ high shelf (5.5 kHz), dB
+    s(0.0, 1.0, 0.0, 60.0),       // compressor amount
+    s(0.0, 1.0, 0.0, 60.0),       // drive (tanh saturation)
 ];
 
 pub fn clamp(id: usize, value: f32) -> f32 {

@@ -4,7 +4,7 @@
 //! driven by live parameter changes or a sample-accurate score.
 
 use crate::airway::{self, Airway};
-use crate::dsp::{Biquad, Dynamics, Resampler, Rng, Room};
+use crate::dsp::{Biquad, Dynamics, Resampler, Rng, Room, Strip, MIC_NEUTRAL};
 use crate::params::{self, *};
 use crate::tract::{self, Shape, N, TEETH};
 
@@ -124,6 +124,7 @@ pub struct Voice {
     int_rate: f32,
     resampler: Resampler,
     room: Room,
+    strip: Strip,
     dynamics: Dynamics,
     rng: Rng,
     phase: f32,
@@ -222,6 +223,7 @@ impl Voice {
             int_rate: 100_000.0,
             resampler: Resampler::new(out_rate),
             room: Room::new(out_rate),
+            strip: Strip::new(out_rate),
             dynamics: Dynamics::new(out_rate),
             rng: Rng::new(seed),
             phase: 0.0,
@@ -594,6 +596,10 @@ impl Voice {
     /// Render `count` output frames into out_l/out_r.
     pub fn render(&mut self, count: usize) -> usize {
         let count = count.min(MAX_BLOCK);
+        let p = &self.p;
+        self.strip.update([p[MIC], p[EQ_LOW], p[EQ_MID], p[EQ_HIGH], p[COMP], p[DRIVE]]);
+        // A distant microphone hears more of the room.
+        let room_send = 1.0 + 1.5 * ((p[MIC] - MIC_NEUTRAL) / (1.0 - MIC_NEUTRAL)).max(0.0);
         for n in 0..count {
             self.advance_score();
             let step = self.int_rate / self.out_rate;
@@ -605,9 +611,9 @@ impl Voice {
             }
             let raw = self.resampler.read(self.frac);
             let gain = self.p[GAIN];
-            let dry = self.dc.process(raw) * MASTER * gain * gain * 1.6;
+            let dry = self.strip.process(self.dc.process(raw) * MASTER * gain * gain * 1.6);
             let space = self.p[SPACE];
-            let (wl, wr) = self.room.process(dry * space);
+            let (wl, wr) = self.room.process(dry * (space * room_send).min(1.0));
             let (l, r) = (dry + 0.5 * wl, dry + 0.5 * wr);
             // A runaway (far beyond any physical level) is reset, not passed on.
             let (l, r) = if l.is_finite() && r.is_finite() && l.abs() < 1e3 && r.abs() < 1e3 {
@@ -629,6 +635,7 @@ impl Voice {
     }
 
     fn recover(&mut self) {
+        self.strip.reset();
         self.airway.reset();
         self.resampler.reset();
         self.room.reset();

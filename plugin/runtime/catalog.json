@@ -287,6 +287,60 @@
    "label": "Tongue suction",
    "unit": "",
    "help": "The tongue body pulls down between two oral seals (clicks)."
+  },
+  {
+   "name": "mic",
+   "min": 0,
+   "max": 1,
+   "default": 0.4,
+   "label": "Mic distance",
+   "unit": "",
+   "help": "Close: proximity bass and a bit louder. Far: thinner, duller, quieter and roomier. 0.4 is neutral."
+  },
+  {
+   "name": "eqLow",
+   "min": -12,
+   "max": 12,
+   "default": 0,
+   "label": "Low",
+   "unit": "dB",
+   "help": "EQ low shelf at 220 Hz."
+  },
+  {
+   "name": "eqMid",
+   "min": -12,
+   "max": 12,
+   "default": 0,
+   "label": "Mid",
+   "unit": "dB",
+   "help": "EQ peak at 1.6 kHz."
+  },
+  {
+   "name": "eqHigh",
+   "min": -12,
+   "max": 12,
+   "default": 0,
+   "label": "High",
+   "unit": "dB",
+   "help": "EQ high shelf at 5.5 kHz."
+  },
+  {
+   "name": "comp",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Compressor",
+   "unit": "",
+   "help": "Evens out the level (threshold falls and ratio rises with the amount)."
+  },
+  {
+   "name": "drive",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Drive",
+   "unit": "",
+   "help": "Tape-style saturation (tanh)."
   }
  ],
  "voiceParams": [
@@ -305,7 +359,13 @@
   "fry",
   "growl",
   "twang",
-  "pharynx"
+  "pharynx",
+  "mic",
+  "eqLow",
+  "eqMid",
+  "eqHigh",
+  "comp",
+  "drive"
  ],
  "shapeParams": [
   "tongueX",
@@ -343,7 +403,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -366,7 +432,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -389,7 +461,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -412,7 +490,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -435,7 +519,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -458,7 +548,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -481,7 +577,13 @@
     "fry": 0.15,
     "growl": 0.55,
     "twang": 0,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -504,7 +606,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0.8,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -527,7 +635,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0,
-    "pharynx": 1.1
+    "pharynx": 1.1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -550,7 +664,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -573,7 +693,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   },
   {
@@ -596,7 +722,13 @@
     "fry": 0,
     "growl": 0,
     "twang": 0,
-    "pharynx": 1
+    "pharynx": 1,
+    "mic": 0.4,
+    "eqLow": 0,
+    "eqMid": 0,
+    "eqHigh": 0,
+    "comp": 0,
+    "drive": 0
    }
   }
  ],
@@ -1266,7 +1398,13 @@
    "fry": 0,
    "growl": 0,
    "twang": 0,
-   "pharynx": 1
+   "pharynx": 1,
+   "mic": 0.4,
+   "eqLow": 0,
+   "eqMid": 0,
+   "eqHigh": 0,
+   "comp": 0,
+   "drive": 0
   },
   "shape": {
    "tipClose": 0,

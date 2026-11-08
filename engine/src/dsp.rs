@@ -79,6 +79,33 @@ impl Biquad {
         self.a1 = -2.0 * c / a0;
         self.a2 = (1.0 - alpha) / a0;
     }
+    /// Peaking EQ (gain in dB) and shelves, after the audio EQ cookbook formulas.
+    pub fn peak(&mut self, center: f32, q: f32, gain_db: f32, rate: f32) {
+        let a = 10f32.powf(gain_db / 40.0);
+        let w = 2.0 * PI * (center / rate).clamp(1e-4, 0.49);
+        let (s, c) = w.sin_cos();
+        let alpha = s / (2.0 * q);
+        let a0 = 1.0 + alpha / a;
+        self.b0 = (1.0 + alpha * a) / a0;
+        self.b1 = -2.0 * c / a0;
+        self.b2 = (1.0 - alpha * a) / a0;
+        self.a1 = -2.0 * c / a0;
+        self.a2 = (1.0 - alpha / a) / a0;
+    }
+    pub fn shelf(&mut self, corner: f32, gain_db: f32, high: bool, rate: f32) {
+        let a = 10f32.powf(gain_db / 40.0);
+        let w = 2.0 * PI * (corner / rate).clamp(1e-4, 0.49);
+        let (s, c) = w.sin_cos();
+        let alpha = s / std::f32::consts::SQRT_2;
+        let k = 2.0 * a.sqrt() * alpha;
+        let sign = if high { -1.0 } else { 1.0 };
+        let a0 = (a + 1.0) + sign * (a - 1.0) * c + k;
+        self.b0 = a * ((a + 1.0) - sign * (a - 1.0) * c + k) / a0;
+        self.b1 = sign * 2.0 * a * ((a - 1.0) - sign * (a + 1.0) * c) / a0;
+        self.b2 = a * ((a + 1.0) - sign * (a - 1.0) * c - k) / a0;
+        self.a1 = -sign * 2.0 * ((a - 1.0) + sign * (a + 1.0) * c) / a0;
+        self.a2 = ((a + 1.0) + sign * (a - 1.0) * c - k) / a0;
+    }
     #[inline]
     pub fn process(&mut self, x: f32) -> f32 {
         let y = self.b0 * x + self.b1 * self.x1 + self.b2 * self.x2 - self.a1 * self.y1 - self.a2 * self.y2;
@@ -286,5 +313,117 @@ impl Dynamics {
         self.delay_r[i] = r;
         self.pos = if i + 1 >= self.look { 0 } else { i + 1 };
         (dl * self.lim_gain, dr * self.lim_gain)
+    }
+}
+
+/// Recording chain on the dry voice: microphone distance (proximity bass up
+/// close, thinner and quieter far away), a three-band EQ, a compressor and
+/// drive (tanh saturation). At the defaults every stage is bypassed, so the
+/// voice is untouched.
+pub struct Strip {
+    prox: Biquad,
+    air: Biquad,
+    low: Biquad,
+    mid: Biquad,
+    high: Biquad,
+    set: [f32; 6],
+    on: [bool; 5],
+    level: f32,
+    env: f32,
+    comp_gain: f32,
+    rate: f32,
+}
+
+/// Microphone distance at which the chain is neutral.
+pub const MIC_NEUTRAL: f32 = 0.4;
+
+impl Strip {
+    pub fn new(rate: f32) -> Self {
+        Self {
+            prox: Biquad::default(),
+            air: Biquad::default(),
+            low: Biquad::default(),
+            mid: Biquad::default(),
+            high: Biquad::default(),
+            set: [f32::NAN; 6],
+            on: [false; 5],
+            level: 1.0,
+            env: 0.0,
+            comp_gain: 1.0,
+            rate,
+        }
+    }
+
+    /// `[mic, low dB, mid dB, high dB, comp, drive]`; filters update only when a value changes.
+    pub fn update(&mut self, v: [f32; 6]) {
+        if v == self.set {
+            return;
+        }
+        let [mic, low, mid, high, _, _] = v;
+        let near = ((MIC_NEUTRAL - mic) / MIC_NEUTRAL).max(0.0);
+        let far = ((mic - MIC_NEUTRAL) / (1.0 - MIC_NEUTRAL)).max(0.0);
+        // Up close a directional microphone boosts the bass (proximity effect);
+        // far away the voice is thinner, duller and quieter.
+        let prox_db = 8.0 * near - 4.0 * far;
+        self.on[0] = prox_db.abs() > 1e-3;
+        if self.on[0] {
+            self.prox.shelf(160.0, prox_db, false, self.rate);
+        }
+        self.on[1] = far > 1e-3;
+        if self.on[1] {
+            self.air.shelf(5000.0, -4.0 * far, true, self.rate);
+        }
+        self.level = 10f32.powf((3.0 * near - 6.0 * far) / 20.0);
+        self.on[2] = low.abs() > 1e-3;
+        if self.on[2] {
+            self.low.shelf(220.0, low, false, self.rate);
+        }
+        self.on[3] = mid.abs() > 1e-3;
+        if self.on[3] {
+            self.mid.peak(1600.0, 0.8, mid, self.rate);
+        }
+        self.on[4] = high.abs() > 1e-3;
+        if self.on[4] {
+            self.high.shelf(5500.0, high, true, self.rate);
+        }
+        self.set = v;
+    }
+
+    #[inline]
+    pub fn process(&mut self, x: f32) -> f32 {
+        let mut y = x * self.level;
+        if self.on[0] { y = self.prox.process(y); }
+        if self.on[1] { y = self.air.process(y); }
+        if self.on[2] { y = self.low.process(y); }
+        if self.on[3] { y = self.mid.process(y); }
+        if self.on[4] { y = self.high.process(y); }
+        let comp = self.set[4];
+        if comp > 1e-3 {
+            // RMS detector (10 ms attack, 150 ms release), threshold falling and
+            // ratio rising with the amount; make-up gain restores the level.
+            let k = if y * y > self.env { 1.0 - (-1.0 / (0.01 * self.rate)).exp() } else { 1.0 - (-1.0 / (0.15 * self.rate)).exp() };
+            self.env += (y * y - self.env) * k;
+            let level_db = 10.0 * (self.env + 1e-12).log10();
+            let threshold = -14.0 - 16.0 * comp;
+            let ratio = 1.0 + 7.0 * comp;
+            let over = (level_db - threshold).max(0.0);
+            let gain_db = -over * (1.0 - 1.0 / ratio) + 6.0 * comp;
+            self.comp_gain = 10f32.powf(gain_db / 20.0);
+            y *= self.comp_gain;
+        }
+        let drive = self.set[5];
+        if drive > 1e-3 {
+            // Unity gain for quiet signals, peaks rounded off; a little make-up gain.
+            let k = 1.0 + 8.0 * drive;
+            y = (k * y).tanh() / k * (1.0 + drive);
+        }
+        y
+    }
+
+    pub fn reset(&mut self) {
+        for f in [&mut self.prox, &mut self.air, &mut self.low, &mut self.mid, &mut self.high] {
+            f.reset();
+        }
+        self.env = 0.0;
     }
 }

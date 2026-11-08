@@ -38,7 +38,13 @@ var PARAM_NAMES = [
   "trill",
   "glottal",
   "larynx",
-  "suction"
+  "suction",
+  "mic",
+  "eqLow",
+  "eqMid",
+  "eqHigh",
+  "comp",
+  "drive"
 ];
 var META = {
   pitch: ["Pitch", "Hz", "source", "Fundamental frequency of the vocal folds."],
@@ -73,6 +79,12 @@ var META = {
   glottal: ["Glottal closure", "", "internal", "The vocal folds pressed shut: a glottal stop, and the seal behind an ejective."],
   larynx: ["Larynx raise", "", "internal", "The larynx rises like a piston and squeezes the pharynx (ejectives)."],
   suction: ["Tongue suction", "", "internal", "The tongue body pulls down between two oral seals (clicks)."],
+  mic: ["Mic distance", "", "output", "Close: proximity bass and a bit louder. Far: thinner, duller, quieter and roomier. 0.4 is neutral."],
+  eqLow: ["Low", "dB", "output", "EQ low shelf at 220 Hz."],
+  eqMid: ["Mid", "dB", "output", "EQ peak at 1.6 kHz."],
+  eqHigh: ["High", "dB", "output", "EQ high shelf at 5.5 kHz."],
+  comp: ["Compressor", "", "output", "Evens out the level (threshold falls and ratio rises with the amount)."],
+  drive: ["Drive", "", "output", "Tape-style saturation (tanh)."],
   pharynx: ["Pharynx", "\xD7", "tract", "Throat length relative to the mouth: longer in adult men (\u22481.15), shorter in children (\u22480.85)."]
 };
 var RANGES = {
@@ -108,7 +120,13 @@ var RANGES = {
   trill: [0, 1, 0],
   glottal: [0, 1, 0],
   larynx: [0, 1, 0],
-  suction: [0, 1, 0]
+  suction: [0, 1, 0],
+  mic: [0, 1, 0.4],
+  eqLow: [-12, 12, 0],
+  eqMid: [-12, 12, 0],
+  eqHigh: [-12, 12, 0],
+  comp: [0, 1, 0],
+  drive: [0, 1, 0]
 };
 var PARAMS = PARAM_NAMES.map((name, id) => {
   const [min, max, def] = RANGES[name];
@@ -155,7 +173,13 @@ var VOICE_PARAMS = [
   "fry",
   "growl",
   "twang",
-  "pharynx"
+  "pharynx",
+  "mic",
+  "eqLow",
+  "eqMid",
+  "eqHigh",
+  "comp",
+  "drive"
 ];
 var midiToHz = (m) => 440 * 2 ** ((m - 69) / 12);
 
@@ -1364,7 +1388,13 @@ var SIGNATURE = {
   fry: 0,
   growl: 0,
   twang: 0,
-  pharynx: 1
+  pharynx: 1,
+  mic: 0.4,
+  eqLow: 0,
+  eqMid: 0,
+  eqHigh: 0,
+  comp: 0,
+  drive: 0
 };
 var VOICE_PRESETS = [
   { id: "signature", name: "Signature", description: "Clear, warm, gently breathy \u2014 the default character voice.", voice: SIGNATURE },

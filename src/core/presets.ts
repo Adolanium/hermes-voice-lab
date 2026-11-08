@@ -14,6 +14,7 @@ export const SIGNATURE: Patch = {
   pitch: 212, loudness: 0.72, tenseness: 0.28, breath: 0.25, vibratoDepth: 0.18, vibratoRate: 5.4,
   tractLength: 14.2, throat: 0.5, gain: 0.7, humanize: 0.45, space: 0.18,
   register: 0, fry: 0, growl: 0, twang: 0, pharynx: 1,
+  mic: 0.4, eqLow: 0, eqMid: 0, eqHigh: 0, comp: 0, drive: 0,
 };
 
 export const VOICE_PRESETS: VoicePreset[] = [

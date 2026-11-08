@@ -37,6 +37,14 @@ Everything that ships lives in `plugin/`; paths below are relative to it. One en
 
 **Source.** The glottis is an orifice whose area opens and closes: a raised-cosine opening, then a closing that steepens toward contact for a pressed voice. Its resistance is Bernoulli plus slit viscosity plus inertance, driven by lung pressure minus the pressure above it. The flow pulse, its skew, source–tract interaction and devoicing behind a closure all follow from that. The folds vibrate only when adducted and when the pressure across them exceeds a phonation threshold of about 2.5 cmH₂O. Voiceless consonants pull the folds apart, and a small posterior gap never closes. Lung pressure ramps within each control period, because a stepped pressure would buzz at the control rate.
 
+**Recording chain.** On the dry voice, before the room:
+- microphone distance: a 160 Hz shelf up to +8 dB and +3 dB of level up close; far away −4 dB of bass, −4 dB above 5 kHz, −6 dB of level and up to 2.5× the room send;
+- low and high shelves at 220 Hz and 5.5 kHz and a 1.6 kHz peak;
+- an RMS compressor (10 ms attack, 150 ms release, threshold −14 to −30 dB, ratio 1–8, make-up gain);
+- drive (unity-gain tanh, so quiet signals pass and peaks round off).
+
+Every stage is bypassed at its default, so default renders are bit-identical to the plain voice.
+
 **Voice qualities.** Four controls change the larynx, not a filter:
 - **Falsetto** (`register`): only the thin edges of the folds vibrate. The pulse becomes smooth and symmetric with a smaller swing, and a posterior gap stays open, which adds aspiration. Measured on a held /ɑ/ at 220 Hz, H1−H2 rises from 3 to 15 dB, and the level drops about 8 dB.
 - **Fry** pairs the pulses: a short cycle with a weak pulse, then a long one, with an irregular rhythm and a short open phase. The half-pitch component reaches −1 dB re H1.

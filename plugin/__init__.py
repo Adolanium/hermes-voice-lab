@@ -179,7 +179,7 @@ def tool_render(args: dict, **_):
 
 SESSION = {"type": "string", "description": "Optional. Defaults to the active conversation; other conversations are refused."}
 PATCH_HELP = ("Parameter values. Voice: pitch (50–1100 Hz), loudness, tenseness, breath, vibratoDepth, vibratoRate (3–9 Hz), "
-              "tractLength (11–19 cm; child ≈12.6, woman 14.2, man ≈16.4), pharynx (0.75–1.3, throat length relative to the mouth), throat, humanize, space, gain, register (0 chest … 1 falsetto), fry, growl, twang. Shape: tongueX (back→front), tongueY (low→high), jaw, lipOpen, "
+              "tractLength (11–19 cm; child ≈12.6, woman 14.2, man ≈16.4), pharynx (0.75–1.3, throat length relative to the mouth), throat, humanize, space, gain, register (0 chest … 1 falsetto), fry, growl, twang; recording chain: mic (0 close … 1 far, 0.4 neutral), eqLow/eqMid/eqHigh (−12…12 dB), comp, drive. Shape: tongueX (back→front), tongueY (low→high), jaw, lipOpen, "
               "lipRound, tipPlace, tipClose, dorsumClose, velum, rhotic. All unitless values are 0–1.")
 
 TOOLS = [

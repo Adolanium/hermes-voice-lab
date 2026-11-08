@@ -32,6 +32,8 @@ export function formatValue(name: ParamName, v: number): string {
   if (name === 'pitch') return `${Math.round(v)} Hz`;
   if (name === 'tractLength') return `${v.toFixed(1)} cm`;
   if (name === 'vibratoRate') return `${v.toFixed(1)} Hz`;
+  if (spec.unit === 'dB') return `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`;
+  if (name === 'pharynx') return `×${v.toFixed(2)}`;
   if (spec.max === 1) return `${Math.round(v * 100)}%`;
   return v.toFixed(2);
 }

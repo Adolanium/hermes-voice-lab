@@ -7,6 +7,7 @@ export const PARAM_NAMES = [
   'tongueX', 'tongueY', 'tipPlace', 'tipClose', 'dorsumClose', 'jaw', 'lipOpen', 'lipRound',
   'velum', 'tractLength', 'throat', 'gain', 'humanize', 'space', 'lateral', 'rhotic',
   'register', 'fry', 'growl', 'twang', 'pharynx', 'trill', 'glottal', 'larynx', 'suction',
+  'mic', 'eqLow', 'eqMid', 'eqHigh', 'comp', 'drive',
 ] as const;
 
 export type ParamName = (typeof PARAM_NAMES)[number];
@@ -57,6 +58,12 @@ const META: Record<ParamName, [string, string, ParamSpec['group'], string]> = {
   glottal: ['Glottal closure', '', 'internal', 'The vocal folds pressed shut: a glottal stop, and the seal behind an ejective.'],
   larynx: ['Larynx raise', '', 'internal', 'The larynx rises like a piston and squeezes the pharynx (ejectives).'],
   suction: ['Tongue suction', '', 'internal', 'The tongue body pulls down between two oral seals (clicks).'],
+  mic: ['Mic distance', '', 'output', 'Close: proximity bass and a bit louder. Far: thinner, duller, quieter and roomier. 0.4 is neutral.'],
+  eqLow: ['Low', 'dB', 'output', 'EQ low shelf at 220 Hz.'],
+  eqMid: ['Mid', 'dB', 'output', 'EQ peak at 1.6 kHz.'],
+  eqHigh: ['High', 'dB', 'output', 'EQ high shelf at 5.5 kHz.'],
+  comp: ['Compressor', '', 'output', 'Evens out the level (threshold falls and ratio rises with the amount).'],
+  drive: ['Drive', '', 'output', 'Tape-style saturation (tanh).'],
   pharynx: ['Pharynx', '×', 'tract', 'Throat length relative to the mouth: longer in adult men (≈1.15), shorter in children (≈0.85).'],
 };
 
@@ -68,6 +75,7 @@ const RANGES: Record<ParamName, [number, number, number]> = {
   lipRound: [0, 1, 0.12], velum: [0, 1, 0], tractLength: [11, 19, 14.2], throat: [0, 1, 0.5], gain: [0, 1, 0.7],
   humanize: [0, 1, 0.45], space: [0, 1, 0.18], lateral: [0, 1, 0], rhotic: [0, 1, 0],
   register: [0, 1, 0], fry: [0, 1, 0], growl: [0, 1, 0], twang: [0, 1, 0], pharynx: [0.75, 1.3, 1], trill: [0, 1, 0], glottal: [0, 1, 0], larynx: [0, 1, 0], suction: [0, 1, 0],
+  mic: [0, 1, 0.4], eqLow: [-12, 12, 0], eqMid: [-12, 12, 0], eqHigh: [-12, 12, 0], comp: [0, 1, 0], drive: [0, 1, 0],
 };
 
 export const PARAMS: readonly ParamSpec[] = PARAM_NAMES.map((name, id) => {
@@ -110,6 +118,7 @@ export function clampParam(name: ParamName, value: number): number {
 export const VOICE_PARAMS: readonly ParamName[] = [
   'pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'tractLength', 'throat', 'gain', 'humanize', 'space',
   'register', 'fry', 'growl', 'twang', 'pharynx',
+  'mic', 'eqLow', 'eqMid', 'eqHigh', 'comp', 'drive',
 ];
 
 /** Articulation parameters a user can hold in Play mode. */

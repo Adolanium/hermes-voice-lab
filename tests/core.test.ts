@@ -479,3 +479,31 @@ test('beat mode: one sound per step, sung as bracketed phonemes on the grid', ()
   assert.throws(() => validateProject({beat: {bpm: 120, steps: ['tuba'], loop: true}}), /16 or 32/);
   assert.throws(() => validateProject({beat: {bpm: 120, steps: Array(16).fill('tuba'), loop: true}}), /must be one of/);
 });
+
+test('recording chain: neutral by default; mic, EQ, compressor and drive do what they say', () => {
+  const aa = VOWEL_PRESETS.find(v => v.label === 'AA')!.shape;
+  const sr = 48000;
+  const take = (patch: Record<string, number>) => {
+    const voice = {...SIGNATURE, pitch: 196, vibratoDepth: 0, humanize: 0, space: 0, ...patch};
+    return renderScore(engine(sr, 9), planSustain(aa, voice, 1.4), voice)[0].subarray(0.5 * sr, 1.3 * sr);
+  };
+  const band = (x: Float32Array, lo: number, hi: number) => {
+    let e = 0;
+    for (let k = 1; k * 196 < hi; k++) {
+      if (k * 196 < lo) continue;
+      let re = 0, im = 0;
+      for (let i = 0; i < x.length; i++) { re += x[i] * Math.cos((2 * Math.PI * k * 196 * i) / sr); im += x[i] * Math.sin((2 * Math.PI * k * 196 * i) / sr); }
+      e += re * re + im * im;
+    }
+    return 10 * Math.log10(e + 1e-12);
+  };
+  const neutral = take({});
+  assert.deepEqual(take({mic: 0.4, eqLow: 0, eqMid: 0, eqHigh: 0, comp: 0, drive: 0}), neutral, 'the defaults leave the voice untouched');
+  const close = take({mic: 0});
+  assert.ok(band(close, 150, 450) - band(neutral, 150, 450) > 3, 'a close microphone boosts the bass (proximity effect)');
+  const bright = take({eqHigh: 12});
+  assert.ok(band(bright, 5500, 9000) - band(neutral, 5500, 9000) > 8, 'the high shelf lifts 5.5–9 kHz');
+  const crest = (x: Float32Array) => { let peak = 0, s = 0; for (const v of x) { peak = Math.max(peak, Math.abs(v)); s += v * v; } return peak / Math.sqrt(s / x.length); };
+  assert.ok(crest(take({drive: 1})) < crest(neutral) * 0.85, 'drive squashes the peaks');
+  for (const p of [{mic: 1}, {comp: 1}, {drive: 1}, {eqLow: 12, eqMid: -12}]) for (const v of take(p)) assert.ok(Number.isFinite(v) && Math.abs(v) < 1, 'bounded');
+});

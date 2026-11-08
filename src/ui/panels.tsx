@@ -12,7 +12,8 @@ const SOURCE: ParamName[] = ['pitch', 'loudness', 'tenseness', 'breath', 'vibrat
 const SHAPE: ParamName[] = ['jaw', 'lipOpen', 'lipRound', 'tipPlace', 'tipClose', 'dorsumClose', 'velum', 'rhotic', 'throat', 'tractLength', 'pharynx'];
 const OUTPUT: ParamName[] = ['space', 'gain'];
 const QUALITY: ParamName[] = ['register', 'fry', 'growl', 'twang'];
-const VOICE_KEYS = new Set<ParamName>(['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize', 'throat', 'tractLength', 'pharynx', 'space', 'gain', ...QUALITY]);
+const RECORDING: ParamName[] = ['mic', 'eqLow', 'eqMid', 'eqHigh', 'comp', 'drive'];
+const VOICE_KEYS = new Set<ParamName>(['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize', 'throat', 'tractLength', 'pharynx', 'space', 'gain', ...QUALITY, ...RECORDING]);
 
 export const MANNER_COLORS: Record<string, string> = {
   vowel: 'var(--hvl-accent)', diphthong: 'var(--hvl-accent)', stop: 'var(--hvl-bad)', nasal: 'var(--ui-purple, #9b59d0)',
@@ -80,6 +81,12 @@ export function PlayPanel({project, live, agentKeys, onVoice, onShape, holding, 
         <div className="hvl-section-title"><h3>Voice quality</h3><span>Registers and larynx above the folds</span></div>
         <div className="hvl-sliders">
           {QUALITY.map(n => <Slider key={n} name={n} value={value(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
+        </div>
+      </div>
+      <div className="hvl-group">
+        <div className="hvl-section-title"><h3>Recording</h3><span>Microphone, EQ, compressor and drive after the voice</span></div>
+        <div className="hvl-sliders">
+          {RECORDING.map(n => <Slider key={n} name={n} value={value(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
         </div>
       </div>
       <div className="hvl-group">
