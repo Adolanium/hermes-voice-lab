@@ -20,6 +20,7 @@ What the tests establish:
 - **Resonances**: a uniform tube resonates at odd quarter-wavelengths (within 3% for 15 cm). Calibrated vowels are within 10% (F1) and 13% (F2) of the Hillenbrand et al. (1995) adult-female means. Most are within 2–5%. Fitting with natural-looking articulations leaves F2 short for /ɑ/ (−12%), /æ/ (−9%) and /i/ (−7%). The nasal branch moves resonances. /i/ is high-front, /ɑ/ low-back and /u/ low-F2.
 - **Aerodynamics**: a lip closure builds intraoral pressure and its release produces a burst. Gate release decays to silence.
 - **Planner**: events are ordered and in range. Voiceless fricatives devoice. Sung vowels start on note onsets (±20 ms) and melismas extend the vowel.
+- **Sung consonants**: with notes nearly touching at 120 bpm, no sung consonant is shorter than 45 ms (the planner used to squeeze onsets into the gap between notes, down to 14 ms), vowels still land on the beat, segments stay ordered and cues keep onset ≤ vowel < release.
 - **Cartoon singing**: one lyric cue per sung syllable (holds extend the previous cue, punctuation kept for display), cues in order with onset ≤ vowel < release, scoops add pitch events, the jaw opens wider on average, invalid styles are rejected, and the silly song renders finite with peak ≤ 0.81 (an earlier version jumped f0 instantly at each scoop and produced a 0.95 click; the test now guards it).
 - **I/O**: WAV headers and clipping are correct. The Node CLI renders, reports metadata and rejects unknown presets.
 
@@ -83,6 +84,15 @@ The judge set has 30 sentences: the 10 below, 10 Harvard sentences (IEEE 1969), 
 | + lossy nasal passages (murmur 10–13 dB below vowels) | 29.6% | 10.4% |
 | + breathiness from the glottal gap, sibilant balance | 31.4% | 12.4% |
 | + no hiss surges at /s/→/l/ and /s/→/tʃ/ (released) | **31–35% across runs** | **10.4%** |
+
+Sung diction is judged the same way. The 30 judge sentences are sung one syllable per eighth note at 120 bpm, on a gentle tune near her speaking pitch (A3–E4), with the last syllable held. Each sentence is transcribed alone (`research/tools/sung/sung_wer.py`, Whisper small.en):
+
+| Build | Spoken | Sung, natural | Sung, cartoon |
+|---|---|---|---|
+| Before | 34.4% | 79.3% | 78.6% |
+| Onset consonants take time from the previous vowel; phrase-initial onsets start in the silence; sung consonants near their spoken length | | **63.9%** | **63.1%** |
+
+Short sentences now come through ("Please call me when you get home", "What time is it now?", "I would like a cup of tea"). Dense consonant clusters at word ends ("box", "planks", "chopped") and the unpredictable sentences remain weak. Singing stays well behind speech; Whisper is also a harsher judge of singing than of speech. Weak forms of function words in songs were tried and made no difference (64.8%), so sung function words keep their full vowels.
 
 What each step fixed:
 - **Airway.** The old engine was buzzy and muffled at once: F2 and F3 sat 10–15 dB below natural values, while 4–8 kHz carried about 10 dB too much. In the new engine a held /ɑ/ has F2 −6 dB and F3 −29 dB relative to F1, against about −6 and −26 in natural female speech. The airway alone did not change the score, but every later step built on it.

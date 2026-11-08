@@ -982,6 +982,31 @@ function lyricSyllables(lyrics, lexicon2) {
   });
   return out;
 }
+function sungConsonant(p, cluster) {
+  return Math.min(0.13, PHONEMES[p.symbol].duration / 1e3 * (cluster ? 0.95 : 1.2));
+}
+function yieldPreviousVowel(segments, cues, cursor, onsetStart) {
+  if (onsetStart >= cursor) return cursor;
+  let i = segments.length - 1;
+  while (i > 0 && segments[i].symbol !== "SIL" && !isVowel(segments[i].symbol)) i--;
+  const vowel2 = segments[i];
+  if (!vowel2 || !isVowel(vowel2.symbol)) return cursor;
+  const coda = segments.slice(i + 1);
+  const codaLength = coda.reduce((a, s) => a + (s.end - s.start), 0);
+  const floor = vowel2.start + Math.max(0.05, 0.4 * (vowel2.end - vowel2.start));
+  const vowelEnd = Math.max(floor, Math.min(vowel2.end, onsetStart - codaLength));
+  const shift = vowel2.end - vowelEnd;
+  if (shift <= 0) return cursor;
+  vowel2.end = vowelEnd;
+  for (const s of coda) {
+    s.start -= shift;
+    s.end -= shift;
+  }
+  const end = cursor - shift;
+  const cue = cues[cues.length - 1];
+  if (cue && Math.abs(cue.end - cursor) < 0.02) cue.end = end;
+  return end;
+}
 function planSong(notes, lyrics, lexicon2, opts) {
   const bpm = Math.min(240, Math.max(30, opts.bpm));
   const beat = 60 / bpm;
@@ -1047,7 +1072,14 @@ function planSong(notes, lyrics, lexicon2, opts) {
     const onset = v > 0 ? phones.slice(0, v) : [];
     const nucleus = v >= 0 ? phones[v] : hum[0];
     const coda = v >= 0 ? phones.slice(v + 1) : [];
-    const onsetDur = onset.map((p) => Math.min(0.09, PHONEMES[p.symbol].duration / 1e3 * 0.85));
+    const onsetDur = onset.map((p) => sungConsonant(p, onset.length > 1));
+    const onsetStart = start - onsetDur.reduce((a, b) => a + b, 0);
+    cursor = yieldPreviousVowel(segments, cues, cursor, onsetStart);
+    const before = segments[segments.length - 1];
+    if (before && before.symbol === "SIL" && before.end >= cursor - 1e-6 && onsetStart < cursor) {
+      cursor = Math.max(before.start + 0.02, onsetStart);
+      before.end = cursor;
+    }
     const available = Math.max(0.03, start - cursor);
     const squeeze = Math.min(1, available / Math.max(1e-3, onsetDur.reduce((a, b) => a + b, 0)));
     let t = start - onsetDur.reduce((a, b) => a + b, 0) * squeeze;
@@ -1062,8 +1094,8 @@ function planSong(notes, lyrics, lexicon2, opts) {
       t += d;
     });
     const stop = Math.min(end, nextStart - 5e-3);
-    const codaDur = coda.map((p) => Math.min(0.08, PHONEMES[p.symbol].duration / 1e3 * 0.75));
-    const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.4);
+    const codaDur = coda.map((p) => sungConsonant(p, coda.length > 1));
+    const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.45);
     const vowelEnd = stop - codaTotal;
     if (unit) cues.push({ text: unit.text, start: onset.length ? segments[segments.length - onset.length].start : t, vowel: t, end: stop, midi: n.midi });
     segments.push({ symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text });

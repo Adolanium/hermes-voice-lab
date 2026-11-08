@@ -125,6 +125,24 @@ test('singing places vowels on the beat and holds melismas', () => {
   for (const m of [60, 64, 67]) assert.ok(pitches.includes(Math.round(midiToHz(m))), `pitch ${m}`);
 });
 
+test('sung consonants keep close to their spoken length when notes touch', () => {
+  // One eighth note per syllable at 120 bpm, notes nearly touching (as drawn in the piano roll).
+  const text = 'Please call me when you get home.';
+  const n = 7;
+  const notes = Array.from({length: n}, (_, k) => ({start: k * 0.5, length: 0.47, midi: 57 + (k % 4)}));
+  const plan = planSong(notes, text, lexicon, {bpm: 120});
+  const segs = plan.segments.filter(s => s.symbol !== 'SIL');
+  const consonants = segs.filter(s => !['IY', 'AO', 'EH', 'UW', 'OW'].includes(s.symbol));
+  const shortest = Math.min(...consonants.map(s => s.end - s.start));
+  assert.ok(shortest >= 0.045, `shortest sung consonant ${(shortest * 1000).toFixed(0)} ms (was 14 ms when squeezed)`);
+  // The phrase's first consonant starts inside the lead-in silence; vowels still land on the beat.
+  const vowels = segs.filter(s => ['IY', 'AO', 'EH', 'UW', 'OW'].includes(s.symbol));
+  vowels.forEach((v, k) => assert.ok(Math.abs(v.start - (0.25 + k * 0.25)) < 0.02, `vowel ${k} on its beat`));
+  // Segments stay ordered and gap-free.
+  for (let i = 1; i < plan.segments.length; i++) assert.ok(plan.segments[i].start >= plan.segments[i - 1].end - 1e-9, 'ordered');
+  assert.ok(plan.cues.every(c => c.start <= c.vowel && c.vowel < c.end), 'cues stay onset ≤ vowel < release');
+});
+
 test('project validation', () => {
   const p = validateProject(newProject('x'));
   assert.equal(p.version, 2);

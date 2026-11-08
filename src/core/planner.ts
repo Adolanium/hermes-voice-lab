@@ -480,6 +480,40 @@ export interface SongPlan extends Plan {
   cues: LyricCue[];
 }
 
+/** A sung consonant's length (s): its spoken length, a little shorter in clusters, capped. */
+function sungConsonant(p: Phone, cluster: boolean): number {
+  return Math.min(0.13, (PHONEMES[p.symbol].duration / 1000) * (cluster ? 0.95 : 1.2));
+}
+
+/**
+ * Make room for the next syllable's onset consonants by ending the previous
+ * vowel (and its coda) earlier, down to 40% of the vowel or 50 ms. Returns the
+ * new end of the previous syllable. Only a vowel and its coda move; a rest,
+ * a melisma's start or a vowel-less hit is left alone.
+ */
+function yieldPreviousVowel(segments: Segment[], cues: LyricCue[], cursor: number, onsetStart: number): number {
+  if (onsetStart >= cursor) return cursor;
+  let i = segments.length - 1;
+  while (i > 0 && segments[i].symbol !== 'SIL' && !isVowel(segments[i].symbol)) i--;
+  const vowel = segments[i];
+  if (!vowel || !isVowel(vowel.symbol)) return cursor;
+  const coda = segments.slice(i + 1);
+  const codaLength = coda.reduce((a, s) => a + (s.end - s.start), 0);
+  const floor = vowel.start + Math.max(0.05, 0.4 * (vowel.end - vowel.start));
+  const vowelEnd = Math.max(floor, Math.min(vowel.end, onsetStart - codaLength));
+  const shift = vowel.end - vowelEnd;
+  if (shift <= 0) return cursor;
+  vowel.end = vowelEnd;
+  for (const s of coda) {
+    s.start -= shift;
+    s.end -= shift;
+  }
+  const end = cursor - shift;
+  const cue = cues[cues.length - 1];
+  if (cue && Math.abs(cue.end - cursor) < 0.02) cue.end = end;
+  return end;
+}
+
 export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: SongOptions): SongPlan {
   const bpm = Math.min(240, Math.max(30, opts.bpm));
   const beat = 60 / bpm;
@@ -552,7 +586,18 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
     const nucleus = v >= 0 ? phones[v] : hum[0];
     const coda = v >= 0 ? phones.slice(v + 1) : [];
     // Onset consonants end where the note starts, so the vowel lands on the beat.
-    const onsetDur = onset.map(p => Math.min(0.09, PHONEMES[p.symbol].duration / 1000 * 0.85));
+    // They keep close to their spoken length: a singer takes the time from the end
+    // of the previous vowel, not from the consonant (squeezed consonants are what
+    // makes sung words hard to follow).
+    const onsetDur = onset.map(p => sungConsonant(p, onset.length > 1));
+    const onsetStart = start - onsetDur.reduce((a, b) => a + b, 0);
+    cursor = yieldPreviousVowel(segments, cues, cursor, onsetStart);
+    // After a rest (or at the very start) the onset begins inside the silence.
+    const before = segments[segments.length - 1];
+    if (before && before.symbol === 'SIL' && before.end >= cursor - 1e-6 && onsetStart < cursor) {
+      cursor = Math.max(before.start + 0.02, onsetStart);
+      before.end = cursor;
+    }
     const available = Math.max(0.03, start - cursor);
     const squeeze = Math.min(1, available / Math.max(1e-3, onsetDur.reduce((a, b) => a + b, 0)));
     let t = start - onsetDur.reduce((a, b) => a + b, 0) * squeeze;
@@ -567,8 +612,8 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
       t += d;
     });
     const stop = Math.min(end, nextStart - 0.005);
-    const codaDur = coda.map(p => Math.min(0.08, PHONEMES[p.symbol].duration / 1000 * 0.75));
-    const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.4);
+    const codaDur = coda.map(p => sungConsonant(p, coda.length > 1));
+    const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.45);
     const vowelEnd = stop - codaTotal;
     if (unit) cues.push({text: unit.text, start: onset.length ? segments[segments.length - onset.length].start : t, vowel: t, end: stop, midi: n.midi});
     segments.push({symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text});
