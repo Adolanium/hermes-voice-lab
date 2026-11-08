@@ -77,6 +77,11 @@ pub const STATE_CLOSED: usize = 22;
 pub const ENERGY_LEN: usize = N + crate::tract::NASAL_N;
 /// Points in the captured glottal-flow cycle (display).
 const PULSE_POINTS: usize = 96;
+/// Twang: the narrowed epilarynx tube's length (cm) and area (cm²).
+const TWANG_LENGTH: f32 = 2.4;
+const TWANG_AREA: f32 = 0.5;
+/// Twang: how far the larynx rises (cm).
+const TWANG_RAISE: f32 = 1.0;
 
 /// Glottal opening over one cycle (0..1): a raised-cosine opening, then a
 /// closing that is smooth for a lax voice and steepens toward the moment of
@@ -109,6 +114,10 @@ pub struct Voice {
     dynamics: Dynamics,
     rng: Rng,
     phase: f32,
+    /// Alternates every glottal cycle (fry and growl pair the pulses).
+    odd_cycle: bool,
+    /// Phase of the ventricular folds, which flap at half the pitch in a growl.
+    ventricular_phase: f32,
     period_scale: f32,
     period_amp: f32,
     vib_phase: f32,
@@ -124,6 +133,8 @@ pub struct Voice {
     speed_quotient: f32,
     sharpness: f32,
     transglottal: f32,
+    /// Breath plus the falsetto gap: drives the glottal aspiration.
+    breathiness: f32,
     voicing_amp: f32,
     glottal_area: f32,
     pulse: [f32; PULSE_POINTS],
@@ -199,6 +210,8 @@ impl Voice {
             dynamics: Dynamics::new(out_rate),
             rng: Rng::new(seed),
             phase: 0.0,
+            odd_cycle: false,
+            ventricular_phase: 0.0,
             period_scale: 1.0,
             period_amp: 1.0,
             vib_phase: 0.0,
@@ -213,6 +226,7 @@ impl Voice {
             speed_quotient: 1.8,
             sharpness: 0.3,
             transglottal: 0.0,
+            breathiness: 0.25,
             voicing_amp: 0.0,
             glottal_area: 0.0,
             pulse: [0.0; PULSE_POINTS],
@@ -294,7 +308,13 @@ impl Voice {
             self.p[i] = params::clamp(i, self.params[i].value);
         }
         let p = self.p;
-        self.shape = tract::area_function(&p, &mut self.areas);
+        // A twang raises the larynx: a shorter tract and a pharynx that is wide
+        // next to the narrowed epilarynx tube (see `larynx`).
+        let mut tract_p = p;
+        tract_p[TRACT_LEN] = params::clamp(TRACT_LEN, p[TRACT_LEN] - TWANG_RAISE * p[TWANG]);
+        tract_p[THROAT] = params::clamp(THROAT, p[THROAT] + 0.3 * p[TWANG]);
+        self.shape = tract::area_function(&tract_p, &mut self.areas);
+        self.larynx(&p, dt);
         self.int_rate = airway::internal_rate(self.shape.length_cm);
         self.resampler.design(self.int_rate);
         self.airway.set_length(self.shape.length_cm);
@@ -331,6 +351,23 @@ impl Voice {
         self.open_quotient = (0.82 - 0.4 * t + 0.1 * p[BREATH]).clamp(0.35, 0.95);
         self.speed_quotient = 1.4 + 1.6 * t;
         self.sharpness = (0.1 + 0.75 * t).clamp(0.0, 1.0);
+        // Falsetto: only the thin edges of the folds vibrate, so the pulse is
+        // smooth and symmetric, its swing small, and the folds never close
+        // fully (a posterior gap leaks air).
+        let r = p[REGISTER];
+        self.open_quotient += (0.92 - self.open_quotient) * r;
+        self.speed_quotient += (1.0 - self.speed_quotient) * r;
+        self.sharpness *= 1.0 - r;
+        self.swing *= 1.0 - 0.3 * r;
+        self.abduction += 0.035 * r;
+        self.breathiness = (p[BREATH] + 0.35 * r).min(1.0);
+        // Vocal fry: thick, slack folds open briefly.
+        self.open_quotient *= 1.0 - 0.45 * p[FRY];
+        // A twang is sung with firmly adducted folds: a shorter open phase and a
+        // sharper closure, so more high harmonics reach the narrowed epilarynx.
+        let tw = p[TWANG];
+        self.open_quotient *= 1.0 - 0.15 * tw;
+        self.sharpness = (self.sharpness + 0.4 * tw).min(1.0);
 
         // Turbulence sources: where the jet is, and whether it hits the teeth.
         self.jet_at = self.shape.min_index;
@@ -392,6 +429,30 @@ impl Voice {
         }
     }
 
+    /// The larynx above the folds. A twang narrows the epilarynx tube (about the
+    /// first 1.6 cm) toward 0.3 cm², which brightens the voice with a ring near
+    /// 3 kHz. A growl draws the ventricular folds (about 0.3–1 cm up) together,
+    /// flapping at half the pitch; they never seal, so the flow keeps going.
+    fn larynx(&mut self, p: &[f32; COUNT], dt: f32) {
+        let dx = self.shape.length_cm / N as f32;
+        let twang = p[TWANG];
+        if twang > 0.0 {
+            let n = ((TWANG_LENGTH / dx).round() as usize).clamp(2, 12);
+            for a in self.areas[..n].iter_mut() {
+                *a += (a.min(TWANG_AREA) - *a) * twang;
+            }
+        }
+        let growl = p[GROWL];
+        self.ventricular_phase = (self.ventricular_phase + 0.5 * self.f0 * dt).fract();
+        if growl > 0.0 {
+            let close = 0.5 * (1.0 - (2.0 * std::f32::consts::PI * self.ventricular_phase).cos());
+            let (a, b) = (((0.3 / dx) as usize).max(1), ((1.0 / dx).ceil() as usize).max(2));
+            for area in self.areas[a..b.min(N)].iter_mut() {
+                *area = (*area * (1.0 - 0.9 * growl * close)).max(0.06);
+            }
+        }
+    }
+
     #[inline]
     fn tick(&mut self) -> f32 {
         if self.counter % CONTROL == 0 {
@@ -405,6 +466,19 @@ impl Voice {
             let h = self.p[HUMANIZE];
             self.period_scale = 1.0 + 0.0065 * h * self.rng.gauss();
             self.period_amp = 1.0 + 0.05 * h * self.rng.gauss();
+            // Fry pairs the pulses (a short cycle with a weak pulse, then a long
+            // one) with an irregular rhythm; the ventricular folds of a growl
+            // load every other cycle, so the period doubles.
+            self.odd_cycle = !self.odd_cycle;
+            let (fry, growl) = (self.p[FRY], self.p[GROWL]);
+            if self.odd_cycle {
+                self.period_scale *= 1.0 - 0.35 * fry;
+                self.period_amp *= (1.0 - 0.75 * fry - 0.3 * growl).max(0.05);
+            } else {
+                self.period_scale *= 1.0 + 0.35 * fry;
+            }
+            self.period_scale += 0.04 * fry * self.rng.gauss();
+            self.period_scale = self.period_scale.max(0.3);
         }
         let open = glottal_pulse(self.phase, self.open_quotient, self.speed_quotient, self.sharpness);
         let ag = self.abduction + self.swing * self.voicing_amp * self.period_amp * open;
@@ -441,7 +515,7 @@ impl Voice {
             // A breathy voice's open posterior gap carries its own turbulent
             // jet, which the single-slit Reynolds number underrates. Only while
             // the folds vibrate: an /h/ is not louder in a breathy voice.
-            (2, GAIN_GLOTTIS * (1.0 + 60.0 * (self.p[BREATH] as f64).powi(3) * self.voicing_amp as f64) * glot * asp_noise),
+            (2, GAIN_GLOTTIS * (1.0 + 60.0 * (self.breathiness as f64).powi(3) * self.voicing_amp as f64) * glot * asp_noise),
         ];
         // Display: frication at a consonant constriction (the turbulence of
         // /h/ air through an open vowel tract is not a fricative's).

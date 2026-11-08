@@ -133,8 +133,8 @@ def tool_perform(args: dict, **_):
             if "loop" in args:
                 project["song"]["loop"] = bool(args["loop"])
             if "style" in args:
-                if args["style"] not in ("natural", "cartoon"):
-                    raise ValueError("style must be natural or cartoon")
+                if args["style"] not in ("natural", "cartoon", "yodel"):
+                    raise ValueError("style must be natural, cartoon or yodel")
                 project["song"]["style"] = args["style"]
             if not project["song"]["notes"]:
                 raise ValueError("A song needs notes (or a melody string like 'C4:1 E4:1 G4:2')")
@@ -170,7 +170,7 @@ def tool_render(args: dict, **_):
 
 SESSION = {"type": "string", "description": "Optional. Defaults to the active conversation; other conversations are refused."}
 PATCH_HELP = ("Parameter values. Voice: pitch (50–1100 Hz), loudness, tenseness, breath, vibratoDepth, vibratoRate (3–9 Hz), "
-              "tractLength (11–19 cm), throat, humanize, space, gain. Shape: tongueX (back→front), tongueY (low→high), jaw, lipOpen, "
+              "tractLength (11–19 cm), throat, humanize, space, gain, register (0 chest … 1 falsetto), fry, growl, twang. Shape: tongueX (back→front), tongueY (low→high), jaw, lipOpen, "
               "lipRound, tipPlace, tipClose, dorsumClose, velum, rhotic. All unitless values are 0–1.")
 
 TOOLS = [
@@ -204,8 +204,8 @@ TOOLS = [
       "lyrics": {"type": "string", "description": "Sing: lyrics, e.g. 'hel-lo my friend'."},
       "bpm": {"type": "number", "description": "Sing: tempo 30–240."},
       "loop": {"type": "boolean", "description": "Sing: loop in the live view."},
-      "style": {"type": "string", "enum": ["natural", "cartoon"],
-                "description": "Sing: 'cartoon' scoops into notes, slides, wobbles and exaggerates the mouth for funny songs; 'natural' (default) is plain."},
+      "style": {"type": "string", "enum": ["natural", "cartoon", "yodel"],
+                "description": "Sing: 'cartoon' scoops into notes, slides, wobbles and exaggerates the mouth for funny songs; 'yodel' flips to falsetto on the high notes and back to chest voice on the low ones (write leaps of a fifth or more, e.g. yo-de-lay-ee-hoo); 'natural' (default) is plain."},
       "render": {"type": "boolean", "description": "Render a WAV attachment (default true)."}},
      ["mode"]),
     ("voice_lab_render",

@@ -286,3 +286,49 @@ test('beatbox syllables and a show of speech and song', async () => {
   for (const v of left) peak = Math.max(peak, Math.abs(v));
   assert.ok(peak > 0.2 && peak <= 0.81, `peak ${peak}`);
 });
+
+test('voice qualities: falsetto, fry, growl and twang change the sound as the physiology says', () => {
+  const aa = VOWEL_PRESETS.find(v => v.label === 'AA')!.shape;
+  const sr = 48000, f0 = 220;
+  const harmonic = (x: Float32Array, f: number) => {
+    let re = 0, im = 0;
+    for (let i = 0; i < x.length; i++) {
+      const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / x.length);
+      re += w * x[i] * Math.cos((2 * Math.PI * f * i) / sr);
+      im += w * x[i] * Math.sin((2 * Math.PI * f * i) / sr);
+    }
+    return 20 * Math.log10(Math.hypot(re, im) + 1e-12);
+  };
+  const measureVoice = (patch: Record<string, number>) => {
+    const voice = {...SIGNATURE, pitch: f0, vibratoDepth: 0, humanize: 0, space: 0, ...patch};
+    const out = renderScore(engine(sr, 5), planSustain(aa, voice, 1.6), voice)[0].subarray(0.6 * sr, 1.4 * sr);
+    let ring = 0;
+    for (let k = 1; k * f0 < 4000; k++) if (k * f0 >= 2500) ring += 10 ** (harmonic(out, k * f0) / 10);
+    let peak = 0;
+    for (const v of out) peak = Math.max(peak, Math.abs(v));
+    return {h1h2: harmonic(out, f0) - harmonic(out, 2 * f0), sub: harmonic(out, f0 / 2) - harmonic(out, f0), ring: 10 * Math.log10(ring), peak};
+  };
+  const modal = measureVoice({});
+  const falsetto = measureVoice({register: 1});
+  const fry = measureVoice({fry: 1});
+  const growl = measureVoice({growl: 1});
+  const twang = measureVoice({twang: 1});
+  assert.ok(falsetto.h1h2 > modal.h1h2 + 8, `falsetto is nearly sinusoidal: H1−H2 ${falsetto.h1h2.toFixed(1)} vs ${modal.h1h2.toFixed(1)} dB`);
+  assert.ok(modal.sub < -40, 'a modal voice has no subharmonic');
+  assert.ok(fry.sub > -15, `fry pairs its pulses: subharmonic ${fry.sub.toFixed(1)} dB re H1`);
+  assert.ok(growl.sub > -20, `the ventricular folds double the period: subharmonic ${growl.sub.toFixed(1)} dB re H1`);
+  assert.ok(twang.ring > modal.ring + 6, `twang rings at 2.5–4 kHz: +${(twang.ring - modal.ring).toFixed(1)} dB`);
+  for (const r of [modal, falsetto, fry, growl, twang]) assert.ok(Number.isFinite(r.peak) && r.peak < 0.9, 'bounded');
+});
+
+test('yodel style flips to falsetto on the high notes and back on the low ones', () => {
+  const notes = [60, 67, 64, 72, 67].map((midi, k) => ({start: k * 0.5, length: 0.47, midi}));
+  const plan = planSong(notes, 'yo-del-lay-ee-hoo', lexicon, {bpm: 120, style: 'yodel'});
+  const id = PARAM_NAMES.indexOf('register');
+  const flips: number[] = [];
+  for (let i = 0; i < plan.score.events.length; i += 4) if (plan.score.events[i + 1] === id && plan.score.events[i] > 0) flips.push(plan.score.events[i + 2]);
+  // Break at the middle of the range (66): 67 up, 64 down, 72 up, 67 stays up.
+  assert.deepEqual(flips, [1, 0, 1]);
+  assert.throws(() => validateProject({song: {style: 'opera'}}), /natural, cartoon or yodel/);
+  assert.doesNotThrow(() => validateProject({song: {style: 'yodel'}}));
+});

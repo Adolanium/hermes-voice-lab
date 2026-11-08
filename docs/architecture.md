@@ -37,6 +37,14 @@ Everything that ships lives in `plugin/`; paths below are relative to it. One en
 
 **Source.** The glottis is an orifice whose area opens and closes: a raised-cosine opening, then a closing that steepens toward contact for a pressed voice. Its resistance is Bernoulli plus slit viscosity plus inertance, driven by lung pressure minus the pressure above it. The flow pulse, its skew, source–tract interaction and devoicing behind a closure all follow from that. The folds vibrate only when adducted and when the pressure across them exceeds a phonation threshold of about 2.5 cmH₂O. Voiceless consonants pull the folds apart, and a small posterior gap never closes. Lung pressure ramps within each control period, because a stepped pressure would buzz at the control rate.
 
+**Voice qualities.** Four controls change the larynx, not a filter:
+- **Falsetto** (`register`): only the thin edges of the folds vibrate. The pulse becomes smooth and symmetric with a smaller swing, and a posterior gap stays open, which adds aspiration. Measured on a held /ɑ/ at 220 Hz, H1−H2 rises from 3 to 15 dB, and the level drops about 8 dB.
+- **Fry** pairs the pulses: a short cycle with a weak pulse, then a long one, with an irregular rhythm and a short open phase. The half-pitch component reaches −1 dB re H1.
+- **Growl** draws the ventricular folds (about 0.3–1 cm above the glottis) together, flapping at half the pitch. They never seal, so the airway itself doubles the period (−11 dB re H1).
+- **Twang** narrows the epilarynx tube (2.4 cm, toward 0.5 cm²), raises the larynx (1 cm shorter tract, wider pharynx) and firms the closure. The harmonics at 2.5–4 kHz rise 10 dB.
+
+The `yodel` song style flips `register` across the middle of the song's range. The flip comes just before the vowel, with an 8 ms time constant, and the pitch snaps across the leap.
+
 **Turbulence.** Each sample, the Reynolds number of the actual flow drives a dipole source ∝ Re² − Re_c² (critical ≈ 1800, saturating near 12 000), injected as a series pressure source. There are three sources:
 - the jet about 1 cm downstream of the narrowest constriction;
 - the incisors, when a coronal jet strikes them (sibilants), weighted by place so /s/ and /ʃ/ come out at similar levels;

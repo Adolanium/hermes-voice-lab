@@ -26,7 +26,11 @@ pub const HUMANIZE: usize = 20;
 pub const SPACE: usize = 21;
 pub const LATERAL: usize = 22;
 pub const RHOTIC: usize = 23;
-pub const COUNT: usize = 24;
+pub const REGISTER: usize = 24;
+pub const FRY: usize = 25;
+pub const GROWL: usize = 26;
+pub const TWANG: usize = 27;
+pub const COUNT: usize = 28;
 
 pub struct Spec {
     pub min: f32,
@@ -68,6 +72,10 @@ pub const SPECS: [Spec; COUNT] = [
     s(0.0, 1.0, 0.18, 80.0),      // space (room)
     s(0.0, 1.0, 0.0, 25.0),       // lateral channel for /l/
     s(0.0, 1.0, 0.0, 40.0),       // rhotic bunching (pharyngeal + palatal narrowing)
+    s(0.0, 1.0, 0.0, 15.0),       // register: chest (0) .. falsetto (1); fast, for yodel breaks
+    s(0.0, 1.0, 0.0, 40.0),       // vocal fry (alternating, irregular pulses)
+    s(0.0, 1.0, 0.0, 40.0),       // growl (ventricular folds flapping at half the pitch)
+    s(0.0, 1.0, 0.0, 40.0),       // twang (narrowed epilarynx)
 ];
 
 pub fn clamp(id: usize, value: f32) -> f32 {

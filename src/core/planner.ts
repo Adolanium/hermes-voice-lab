@@ -426,12 +426,14 @@ export interface SongOptions {
   /**
    * 'cartoon' sings like an animated character: pitch scoops into every note,
    * slides on held syllables, fall-offs at phrase ends, wide wobbly vibrato and
-   * a deliberately oversized jaw and lips. 'natural' (default) is plain.
+   * a deliberately oversized jaw and lips. 'yodel' flips the register: notes in the
+   * upper half of the song's range are sung in falsetto, the rest in chest voice,
+   * and the pitch snaps across the break. 'natural' (default) is plain.
    */
   style?: SongStyle;
 }
 
-export type SongStyle = 'natural' | 'cartoon';
+export type SongStyle = 'natural' | 'cartoon' | 'yodel';
 
 export interface SungSyllable {
   phones: Phone[];
@@ -543,6 +545,10 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
   const cues: LyricCue[] = [];
   const hum: Phone[] = [{symbol: opts.hum ?? 'AA', stress: 1}];
   const cartoon = opts.style === 'cartoon';
+  const yodel = opts.style === 'yodel';
+  // The yodel break sits halfway through the song's range.
+  const breakMidi = sorted.length ? (Math.min(...sorted.map(n => n.midi)) + Math.max(...sorted.map(n => n.midi))) / 2 : 0;
+  let register = voice.register;
   let syl = 0;
   let cursor = lead;
   sorted.forEach((n, k) => {
@@ -657,7 +663,14 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
       if (end - start > 0.4 && nextStart - end > 0.15) pitchEvents.push([end - 0.17, 'pitch', hz * 0.72, 70]);
     } else {
       const glide = Math.min(legato ? 45 : 20, Math.max(8, 150 * noteLength), Math.max(8, 400 * (start - onsetAt)));
-      pitchEvents.push([Math.min(onsetAt, start - 0.03), 'pitch', hz, glide]);
+      pitchEvents.push([Math.min(onsetAt, start - 0.03), 'pitch', hz, yodel ? 6 : glide]);
+    }
+    if (yodel) {
+      // The register flips with the leap, just before the vowel: the folds snap
+      // between full vibration and their thin edges.
+      const r = n.midi > breakMidi ? 1 : 0;
+      if (r !== register) pitchEvents.push([start - 0.02, 'register', r, 8]);
+      register = r;
     }
     // Delayed vibrato on held notes.
     if (end - start > 0.45) {

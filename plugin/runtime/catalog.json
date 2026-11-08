@@ -206,6 +206,42 @@
    "label": "Rhotic",
    "unit": "",
    "help": "Bunched-r narrowing of pharynx and palate; lowers F3."
+  },
+  {
+   "name": "register",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Falsetto",
+   "unit": "",
+   "help": "Vocal register, chest (0) to falsetto (1): thin, never fully closed folds. Flip it fast for a yodel."
+  },
+  {
+   "name": "fry",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Fry",
+   "unit": "",
+   "help": "Vocal fry: paired, irregular, creaky pulses."
+  },
+  {
+   "name": "growl",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Growl",
+   "unit": "",
+   "help": "Ventricular folds flapping at half the pitch: a rough growl."
+  },
+  {
+   "name": "twang",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "label": "Twang",
+   "unit": "",
+   "help": "Narrowed epilarynx: a bright, ringing, nasal-sounding twang."
   }
  ],
  "voiceParams": [
@@ -219,7 +255,11 @@
   "throat",
   "gain",
   "humanize",
-  "space"
+  "space",
+  "register",
+  "fry",
+  "growl",
+  "twang"
  ],
  "shapeParams": [
   "tongueX",
@@ -251,7 +291,11 @@
     "throat": 0.5,
     "gain": 0.7,
     "humanize": 0.45,
-    "space": 0.18
+    "space": 0.18,
+    "register": 0,
+    "fry": 0,
+    "growl": 0,
+    "twang": 0
    }
   },
   {
@@ -269,7 +313,11 @@
     "throat": 0.72,
     "gain": 0.7,
     "humanize": 0.45,
-    "space": 0.22
+    "space": 0.22,
+    "register": 0,
+    "fry": 0,
+    "growl": 0,
+    "twang": 0
    }
   },
   {
@@ -287,7 +335,11 @@
     "throat": 0.34,
     "gain": 0.7,
     "humanize": 0.45,
-    "space": 0.18
+    "space": 0.18,
+    "register": 0,
+    "fry": 0,
+    "growl": 0,
+    "twang": 0
    }
   },
   {
@@ -305,7 +357,11 @@
     "throat": 0.5,
     "gain": 0.7,
     "humanize": 0.5,
-    "space": 0.12
+    "space": 0.12,
+    "register": 0,
+    "fry": 0,
+    "growl": 0,
+    "twang": 0
    }
   },
   {
@@ -323,7 +379,77 @@
     "throat": 0.5,
     "gain": 0.7,
     "humanize": 0.45,
-    "space": 0.38
+    "space": 0.38,
+    "register": 0,
+    "fry": 0,
+    "growl": 0,
+    "twang": 0
+   }
+  },
+  {
+   "id": "head",
+   "name": "Head voice",
+   "description": "Light falsetto: thin folds that never quite close, high and airy.",
+   "voice": {
+    "pitch": 440,
+    "loudness": 0.72,
+    "tenseness": 0.3,
+    "breath": 0.2,
+    "vibratoDepth": 0.22,
+    "vibratoRate": 5.4,
+    "tractLength": 14.2,
+    "throat": 0.5,
+    "gain": 0.7,
+    "humanize": 0.45,
+    "space": 0.18,
+    "register": 1,
+    "fry": 0,
+    "growl": 0,
+    "twang": 0
+   }
+  },
+  {
+   "id": "gravel",
+   "name": "Gravel",
+   "description": "Low and rough: the ventricular folds growl, with a little fry.",
+   "voice": {
+    "pitch": 165,
+    "loudness": 0.82,
+    "tenseness": 0.5,
+    "breath": 0.12,
+    "vibratoDepth": 0.18,
+    "vibratoRate": 5.4,
+    "tractLength": 14.8,
+    "throat": 0.5,
+    "gain": 0.7,
+    "humanize": 0.45,
+    "space": 0.18,
+    "register": 0,
+    "fry": 0.15,
+    "growl": 0.55,
+    "twang": 0
+   }
+  },
+  {
+   "id": "twang",
+   "name": "Twang",
+   "description": "Bright and ringing: a narrowed epilarynx, firm and forward.",
+   "voice": {
+    "pitch": 250,
+    "loudness": 0.72,
+    "tenseness": 0.48,
+    "breath": 0.12,
+    "vibratoDepth": 0.18,
+    "vibratoRate": 5.4,
+    "tractLength": 14.2,
+    "throat": 0.3,
+    "gain": 0.7,
+    "humanize": 0.45,
+    "space": 0.18,
+    "register": 0,
+    "fry": 0,
+    "growl": 0,
+    "twang": 0.8
    }
   },
   {
@@ -341,7 +467,11 @@
     "throat": 0.62,
     "gain": 0.7,
     "humanize": 0.45,
-    "space": 0.18
+    "space": 0.18,
+    "register": 0,
+    "fry": 0,
+    "growl": 0,
+    "twang": 0
    }
   }
  ],
@@ -851,7 +981,11 @@
    "throat": 0.5,
    "gain": 0.7,
    "humanize": 0.45,
-   "space": 0.18
+   "space": 0.18,
+   "register": 0,
+   "fry": 0,
+   "growl": 0,
+   "twang": 0
   },
   "shape": {
    "tipClose": 0,

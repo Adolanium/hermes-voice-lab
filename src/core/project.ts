@@ -96,7 +96,7 @@ export function validateProject(input: unknown): Project {
   num(song.bpm, 30, 240, 'song.bpm');
   if (typeof song.lyrics !== 'string' || song.lyrics.length > LIMITS.lyrics) throw new TypeError(`song.lyrics must be up to ${LIMITS.lyrics} characters`);
   if (typeof song.loop !== 'boolean') throw new TypeError('song.loop must be true or false');
-  if (song.style !== 'natural' && song.style !== 'cartoon') throw new TypeError('song.style must be natural or cartoon');
+  if (!['natural', 'cartoon', 'yodel'].includes(song.style)) throw new TypeError('song.style must be natural, cartoon or yodel');
   if (!Array.isArray(song.notes) || song.notes.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
   const notes: Note[] = song.notes.map((n: any, i: number) => {
     if (!n || typeof n !== 'object') throw new TypeError(`note ${i} must be an object`);

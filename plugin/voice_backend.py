@@ -155,8 +155,8 @@ def validate_project(project: Any) -> dict:
         raise ValueError(f"song.lyrics must be up to {limits['lyrics']} characters")
     if not isinstance(song.get("loop"), bool):
         raise ValueError("song.loop must be true or false")
-    if song.get("style", "natural") not in ("natural", "cartoon"):
-        raise ValueError("song.style must be natural or cartoon")
+    if song.get("style", "natural") not in ("natural", "cartoon", "yodel"):
+        raise ValueError("song.style must be natural, cartoon or yodel")
     song["style"] = song.get("style", "natural")
     song["notes"] = validate_notes(song.get("notes"))
     seconds = max([(n["start"] + n["length"]) * 60 / song["bpm"] for n in song["notes"]] or [0])

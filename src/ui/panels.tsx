@@ -11,7 +11,8 @@ import {cssVar, Icon, Range, Seg, Slider, useCanvas} from './controls';
 const SOURCE: ParamName[] = ['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize'];
 const SHAPE: ParamName[] = ['jaw', 'lipOpen', 'lipRound', 'tipPlace', 'tipClose', 'dorsumClose', 'velum', 'rhotic', 'throat', 'tractLength'];
 const OUTPUT: ParamName[] = ['space', 'gain'];
-const VOICE_KEYS = new Set<ParamName>(['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize', 'throat', 'tractLength', 'space', 'gain']);
+const QUALITY: ParamName[] = ['register', 'fry', 'growl', 'twang'];
+const VOICE_KEYS = new Set<ParamName>(['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize', 'throat', 'tractLength', 'space', 'gain', ...QUALITY]);
 
 export const MANNER_COLORS: Record<string, string> = {
   vowel: 'var(--hvl-accent)', diphthong: 'var(--hvl-accent)', stop: 'var(--hvl-bad)', nasal: 'var(--ui-purple, #9b59d0)',
@@ -73,6 +74,12 @@ export function PlayPanel({project, live, agentKeys, onVoice, onShape, holding, 
         <div className="hvl-section-title"><h3>Voice source</h3><span>Pitch and timbre are independent</span></div>
         <div className="hvl-sliders">
           {SOURCE.map(n => <Slider key={n} name={n} value={value(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
+        </div>
+      </div>
+      <div className="hvl-group">
+        <div className="hvl-section-title"><h3>Voice quality</h3><span>Registers and larynx above the folds</span></div>
+        <div className="hvl-sliders">
+          {QUALITY.map(n => <Slider key={n} name={n} value={value(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
         </div>
       </div>
       <div className="hvl-group">
@@ -427,6 +434,8 @@ export function SingPanel({project, plan, onChange, onSing, onStop, playing, pos
           <button className={`hvl-btn ${song.loop ? 'is-on' : ''}`} onClick={() => onChange({loop: !song.loop})} aria-pressed={song.loop}>{Icon.loop} Loop</button>
           <button className={`hvl-btn ${song.style === 'cartoon' ? 'is-on' : ''}`} onClick={() => onChange({style: song.style === 'cartoon' ? 'natural' : 'cartoon'})} aria-pressed={song.style === 'cartoon'}
             title="Cartoon singing: scoops, slides, wobbly vibrato and an oversized mouth">Cartoon</button>
+          <button className={`hvl-btn ${song.style === 'yodel' ? 'is-on' : ''}`} onClick={() => onChange({style: song.style === 'yodel' ? 'natural' : 'yodel'})} aria-pressed={song.style === 'yodel'}
+            title="Yodel: high notes flip to falsetto, low notes stay in chest voice, and the leaps between them snap">Yodel</button>
           <button className="hvl-btn is-ghost" onClick={() => { onChange({...SILLY_SONG, notes: SILLY_SONG.notes.map(n => ({...n}))}); setSelected(null); }}
             title="Load the novelty demo song">Silly song</button>
         </div>

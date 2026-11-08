@@ -6,6 +6,7 @@ export const PARAM_NAMES = [
   'pitch', 'loudness', 'gate', 'tenseness', 'breath', 'voicing', 'vibratoDepth', 'vibratoRate',
   'tongueX', 'tongueY', 'tipPlace', 'tipClose', 'dorsumClose', 'jaw', 'lipOpen', 'lipRound',
   'velum', 'tractLength', 'throat', 'gain', 'humanize', 'space', 'lateral', 'rhotic',
+  'register', 'fry', 'growl', 'twang',
 ] as const;
 
 export type ParamName = (typeof PARAM_NAMES)[number];
@@ -48,6 +49,10 @@ const META: Record<ParamName, [string, string, ParamSpec['group'], string]> = {
   space: ['Room', '', 'output', 'Small room reverberation.'],
   lateral: ['Lateral', '', 'internal', 'Side channel around the tongue tip for l.'],
   rhotic: ['Rhotic', '', 'tract', 'Bunched-r narrowing of pharynx and palate; lowers F3.'],
+  register: ['Falsetto', '', 'source', 'Vocal register, chest (0) to falsetto (1): thin, never fully closed folds. Flip it fast for a yodel.'],
+  fry: ['Fry', '', 'source', 'Vocal fry: paired, irregular, creaky pulses.'],
+  growl: ['Growl', '', 'source', 'Ventricular folds flapping at half the pitch: a rough growl.'],
+  twang: ['Twang', '', 'source', 'Narrowed epilarynx: a bright, ringing, nasal-sounding twang.'],
 };
 
 /** Fallback ranges matching the Rust table; replaced by the engine's own values. */
@@ -57,6 +62,7 @@ const RANGES: Record<ParamName, [number, number, number]> = {
   tipPlace: [0, 1, 0.35], tipClose: [0, 1, 0], dorsumClose: [0, 1, 0], jaw: [0, 1, 0.62], lipOpen: [0, 1, 0.62],
   lipRound: [0, 1, 0.12], velum: [0, 1, 0], tractLength: [11, 19, 14.2], throat: [0, 1, 0.5], gain: [0, 1, 0.7],
   humanize: [0, 1, 0.45], space: [0, 1, 0.18], lateral: [0, 1, 0], rhotic: [0, 1, 0],
+  register: [0, 1, 0], fry: [0, 1, 0], growl: [0, 1, 0], twang: [0, 1, 0],
 };
 
 export const PARAMS: readonly ParamSpec[] = PARAM_NAMES.map((name, id) => {
@@ -98,6 +104,7 @@ export function clampParam(name: ParamName, value: number): number {
 /** Parameters that define the voice's character (persisted in a voice patch). */
 export const VOICE_PARAMS: readonly ParamName[] = [
   'pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'tractLength', 'throat', 'gain', 'humanize', 'space',
+  'register', 'fry', 'growl', 'twang',
 ];
 
 /** Articulation parameters a user can hold in Play mode. */

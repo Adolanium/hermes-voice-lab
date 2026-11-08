@@ -29,7 +29,11 @@ var PARAM_NAMES = [
   "humanize",
   "space",
   "lateral",
-  "rhotic"
+  "rhotic",
+  "register",
+  "fry",
+  "growl",
+  "twang"
 ];
 var META = {
   pitch: ["Pitch", "Hz", "source", "Fundamental frequency of the vocal folds."],
@@ -55,7 +59,11 @@ var META = {
   humanize: ["Humanize", "", "source", "Jitter, shimmer and slow pitch drift."],
   space: ["Room", "", "output", "Small room reverberation."],
   lateral: ["Lateral", "", "internal", "Side channel around the tongue tip for l."],
-  rhotic: ["Rhotic", "", "tract", "Bunched-r narrowing of pharynx and palate; lowers F3."]
+  rhotic: ["Rhotic", "", "tract", "Bunched-r narrowing of pharynx and palate; lowers F3."],
+  register: ["Falsetto", "", "source", "Vocal register, chest (0) to falsetto (1): thin, never fully closed folds. Flip it fast for a yodel."],
+  fry: ["Fry", "", "source", "Vocal fry: paired, irregular, creaky pulses."],
+  growl: ["Growl", "", "source", "Ventricular folds flapping at half the pitch: a rough growl."],
+  twang: ["Twang", "", "source", "Narrowed epilarynx: a bright, ringing, nasal-sounding twang."]
 };
 var RANGES = {
   pitch: [50, 1100, 210],
@@ -81,7 +89,11 @@ var RANGES = {
   humanize: [0, 1, 0.45],
   space: [0, 1, 0.18],
   lateral: [0, 1, 0],
-  rhotic: [0, 1, 0]
+  rhotic: [0, 1, 0],
+  register: [0, 1, 0],
+  fry: [0, 1, 0],
+  growl: [0, 1, 0],
+  twang: [0, 1, 0]
 };
 var PARAMS = PARAM_NAMES.map((name, id) => {
   const [min, max, def] = RANGES[name];
@@ -123,7 +135,11 @@ var VOICE_PARAMS = [
   "throat",
   "gain",
   "humanize",
-  "space"
+  "space",
+  "register",
+  "fry",
+  "growl",
+  "twang"
 ];
 var midiToHz = (m) => 440 * 2 ** ((m - 69) / 12);
 
@@ -1029,6 +1045,9 @@ function planSong(notes, lyrics, lexicon2, opts) {
   const cues = [];
   const hum = [{ symbol: opts.hum ?? "AA", stress: 1 }];
   const cartoon = opts.style === "cartoon";
+  const yodel = opts.style === "yodel";
+  const breakMidi = sorted.length ? (Math.min(...sorted.map((n) => n.midi)) + Math.max(...sorted.map((n) => n.midi))) / 2 : 0;
+  let register = voice.register;
   let syl = 0;
   let cursor = lead;
   sorted.forEach((n, k) => {
@@ -1126,7 +1145,12 @@ function planSong(notes, lyrics, lexicon2, opts) {
       if (end - start > 0.4 && nextStart - end > 0.15) pitchEvents.push([end - 0.17, "pitch", hz * 0.72, 70]);
     } else {
       const glide = Math.min(legato ? 45 : 20, Math.max(8, 150 * noteLength), Math.max(8, 400 * (start - onsetAt)));
-      pitchEvents.push([Math.min(onsetAt, start - 0.03), "pitch", hz, glide]);
+      pitchEvents.push([Math.min(onsetAt, start - 0.03), "pitch", hz, yodel ? 6 : glide]);
+    }
+    if (yodel) {
+      const r = n.midi > breakMidi ? 1 : 0;
+      if (r !== register) pitchEvents.push([start - 0.02, "register", r, 8]);
+      register = r;
     }
     if (end - start > 0.45) {
       pitchEvents.push([start - 0.06, "vibratoDepth", 0, 60]);
@@ -1169,7 +1193,11 @@ var SIGNATURE = {
   throat: 0.5,
   gain: 0.7,
   humanize: 0.45,
-  space: 0.18
+  space: 0.18,
+  register: 0,
+  fry: 0,
+  growl: 0,
+  twang: 0
 };
 var VOICE_PRESETS = [
   { id: "signature", name: "Signature", description: "Clear, warm, gently breathy \u2014 the default character voice.", voice: SIGNATURE },
@@ -1177,6 +1205,9 @@ var VOICE_PRESETS = [
   { id: "bright", name: "Bright", description: "Higher and firmer with a shorter tract.", voice: { ...SIGNATURE, pitch: 238, tenseness: 0.5, breath: 0.14, tractLength: 13.6, throat: 0.34 } },
   { id: "airy", name: "Airy", description: "Soft and breathy, close to the microphone.", voice: { ...SIGNATURE, pitch: 222, tenseness: 0.1, breath: 0.62, humanize: 0.5, space: 0.12 } },
   { id: "lyric", name: "Lyric", description: "Singing voice with fuller vibrato and a little hall.", voice: { ...SIGNATURE, pitch: 330, tenseness: 0.42, breath: 0.18, vibratoDepth: 0.34, vibratoRate: 5.6, space: 0.38, loudness: 0.8 } },
+  { id: "head", name: "Head voice", description: "Light falsetto: thin folds that never quite close, high and airy.", voice: { ...SIGNATURE, pitch: 440, register: 1, tenseness: 0.3, breath: 0.2, vibratoDepth: 0.22 } },
+  { id: "gravel", name: "Gravel", description: "Low and rough: the ventricular folds growl, with a little fry.", voice: { ...SIGNATURE, pitch: 165, growl: 0.55, fry: 0.15, tenseness: 0.5, breath: 0.12, loudness: 0.82, tractLength: 14.8 } },
+  { id: "twang", name: "Twang", description: "Bright and ringing: a narrowed epilarynx, firm and forward.", voice: { ...SIGNATURE, pitch: 250, twang: 0.8, tenseness: 0.48, breath: 0.12, throat: 0.3 } },
   { id: "alto", name: "Alto", description: "Darker, lower feminine voice.", voice: { ...SIGNATURE, pitch: 176, tenseness: 0.3, breath: 0.22, tractLength: 15.2, throat: 0.62 } }
 ];
 var closed = { tipClose: 0, dorsumClose: 0, velum: 0, lateral: 0, voicing: 1 };
@@ -1306,7 +1337,7 @@ function validateProject(input) {
   num(song.bpm, 30, 240, "song.bpm");
   if (typeof song.lyrics !== "string" || song.lyrics.length > LIMITS.lyrics) throw new TypeError(`song.lyrics must be up to ${LIMITS.lyrics} characters`);
   if (typeof song.loop !== "boolean") throw new TypeError("song.loop must be true or false");
-  if (song.style !== "natural" && song.style !== "cartoon") throw new TypeError("song.style must be natural or cartoon");
+  if (!["natural", "cartoon", "yodel"].includes(song.style)) throw new TypeError("song.style must be natural, cartoon or yodel");
   if (!Array.isArray(song.notes) || song.notes.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
   const notes = song.notes.map((n, i) => {
     if (!n || typeof n !== "object") throw new TypeError(`note ${i} must be an object`);
