@@ -119,7 +119,7 @@ const CARD_CSS = `
 .hvl-card-media .open{width:auto;height:26px;border-radius:7px;padding:0 9px;background:transparent;color:var(--ui-text-secondary);border:1px solid var(--ui-stroke-secondary,#ddd);font-size:11.5px}
 `;
 
-function AudioCard({file, args, result, fallback}: any) {
+function AudioCard({ctx, file, args, result, fallback}: any) {
   const [src, setSrc] = useState<string | null>(null);
   const [peaks, setPeaks] = useState<Float32Array | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -128,36 +128,26 @@ function AudioCard({file, args, result, fallback}: any) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     let live = true;
-    file.resolveUrl().then((url: string) => live && setSrc(url), () => live && setSrc(''));
+    file.resolveUrl().then((url: string) => live && setSrc(url), (e: unknown) => {
+      console.warn('[voice-lab] could not resolve audio', e);
+      if (live) setSrc('');
+    });
     return () => {
       live = false;
     };
   }, [file]);
   useEffect(() => {
-    if (!src) return;
     let live = true;
-    (async () => {
-      try {
-        const buf = await (await fetch(src)).arrayBuffer();
-        const decoded = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(buf);
-        const data = decoded.getChannelData(0);
-        const bins = 120;
-        const out = new Float32Array(bins);
-        const step = Math.floor(data.length / bins) || 1;
-        for (let b = 0; b < bins; b++) {
-          let m = 0;
-          for (let i = b * step; i < Math.min(data.length, (b + 1) * step); i++) m = Math.max(m, Math.abs(data[i]));
-          out[b] = m;
-        }
-        if (live) setPeaks(out);
-      } catch {
-        /* waveform is decorative */
-      }
-    })();
+    // Peaks come from this plugin's backend (it reads the rendered WAV), so the
+    // card shows the real output even when the media URL is stream-only.
+    ctx.rest(`/peaks?path=${encodeURIComponent(file.path)}&bins=120`).then(
+      (r: any) => live && Array.isArray(r?.peaks) && setPeaks(Float32Array.from(r.peaks)),
+      () => live && setPeaks(null),
+    );
     return () => {
       live = false;
     };
-  }, [src]);
+  }, [file]);
   useEffect(() => {
     const c = canvas.current;
     if (!c || !peaks) return;
@@ -196,7 +186,10 @@ function AudioCard({file, args, result, fallback}: any) {
       audio.current = a;
     }
     if (audio.current.paused) {
-      void audio.current.play();
+      audio.current.play().catch(e => {
+        console.warn('[voice-lab] playback failed', e);
+        setPlaying(false);
+      });
       setPlaying(true);
     } else {
       audio.current.pause();
@@ -210,7 +203,7 @@ function AudioCard({file, args, result, fallback}: any) {
     a.currentTime = ((e.clientX - r.left) / r.width) * a.duration;
   };
   return (
-    <figure className="hvl-card-media" style={{margin: 0}}>
+    <figure className="hvl-card-media" style={{margin: 0}} data-src={src ? src.slice(0, 40) : String(src)}>
       <style>{CARD_CSS}</style>
       <button onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
         {playing ? <svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="1.5" width="3" height="9" fill="currentColor" /><rect x="7" y="1.5" width="3" height="9" fill="currentColor" /></svg>
@@ -218,7 +211,8 @@ function AudioCard({file, args, result, fallback}: any) {
       </button>
       <div className="meta">
         <figcaption className="t">{String(title).slice(0, 90)}</figcaption>
-        <canvas ref={canvas} onClick={seek} aria-label="Waveform" />
+        {peaks ? <canvas ref={canvas} onClick={seek} aria-label="Waveform of the rendered audio" />
+          : <div style={{height: 4, borderRadius: 2, background: 'var(--ui-stroke-secondary)', overflow: 'hidden'}}><div style={{height: '100%', width: `${progress * 100}%`, background: 'var(--a)'}} /></div>}
         <span className="s">Voice Lab · {mode}{seconds ? ` · ${Number(seconds).toFixed(1)} s` : ''} · local articulatory engine</span>
       </div>
       <Mark />
@@ -271,7 +265,7 @@ export default {
       ctx.register({
         id: 'voice-lab-audio-card',
         area: mediaArea,
-        data: {tools: ['voice_lab_perform', 'voice_lab_render', 'voice_lab_set_voice'], render: (props: any) => <AudioCard {...props} />},
+        data: {tools: ['voice_lab_perform', 'voice_lab_render', 'voice_lab_set_voice'], render: (props: any) => <AudioCard ctx={ctx} {...props} />},
       });
     }
     ctx.registerSettingsPage?.({id: 'settings', title: 'Voice Lab', icon: 'unmute', render: () => <Settings ctx={ctx} />});

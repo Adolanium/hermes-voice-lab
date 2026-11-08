@@ -44,3 +44,8 @@ def render(body: dict):
     session_id = body.get("session_id")
     _call(_service.identity, session_id, "session_id")
     return _call(_service.render_project, session_id, body.get("project"), body.get("mode"), label="export")
+
+
+@router.get("/peaks")
+def peaks(path: str, bins: int = 120):
+    return {"peaks": _call(_service.waveform_peaks, path, bins)}

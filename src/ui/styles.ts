@@ -9,7 +9,7 @@ export const CSS = `
   --hvl-line2: var(--ui-stroke-tertiary, #ebe8e0);
   --hvl-accent: var(--ui-accent, #5b5bd6);
   --hvl-bg: var(--ui-bg-editor, transparent);
-  --hvl-card: color-mix(in oklab, var(--ui-bg-elevated, #fff) 70%, transparent);
+  --hvl-card: color-mix(in oklab, var(--ui-bg-elevated, #fff) 45%, transparent);
   --hvl-ink: var(--ui-text-primary, #16151a);
   --hvl-skin: var(--ui-bg-elevated, #fff);
   --hvl-paper: color-mix(in oklab, var(--hvl-accent) 5%, var(--ui-bg-elevated, #fff));
@@ -49,7 +49,7 @@ export const CSS = `
 .hvl-dot.is-starting { background: var(--hvl-warm); }
 .hvl-dot.is-error { background: var(--hvl-bad); }
 
-.hvl-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 8px;
+.hvl-btn { -webkit-appearance: none; appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 8px;
   border: 1px solid var(--hvl-line); background: var(--hvl-card); font-size: 12.5px; font-weight: 550; cursor: pointer; white-space: nowrap;
   transition: background .12s, border-color .12s, transform .06s; }
 .hvl-btn:hover { border-color: color-mix(in oklab, var(--hvl-fg) 25%, var(--hvl-line)); }
@@ -66,12 +66,12 @@ export const CSS = `
 /* Main stage */
 .hvl-main { display: grid; grid-template-columns: minmax(340px, 1.05fr) minmax(360px, 1fr); gap: 14px; align-items: stretch; }
 .hvl-card { border: 1px solid var(--hvl-line); border-radius: var(--hvl-radius); background: var(--hvl-card); position: relative; }
-.hvl-stage { display: flex; flex-direction: column; overflow: hidden; min-height: 420px; }
+.hvl-stage { display: flex; flex-direction: column; overflow: hidden; min-height: 420px; align-self: start; position: sticky; top: 12px; }
 .hvl-stage-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 0 14px; gap: 8px; }
 .hvl-kicker { font: 600 10px var(--hvl-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--hvl-fg3); }
-.hvl-portrait-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 8px; min-height: 0; position: relative; }
-.hvl-portrait { width: 100%; height: 100%; max-height: 600px; touch-action: none; user-select: none; }
-.hvl-readouts { position: absolute; right: 14px; bottom: 12px; display: grid; grid-template-columns: auto auto; gap: 2px 12px; font: 500 11px var(--hvl-mono);
+.hvl-portrait-wrap { display: flex; align-items: center; justify-content: center; padding: 0 8px; position: relative; }
+.hvl-portrait { width: 100%; height: auto; aspect-ratio: 1; max-height: min(70vh, 640px); touch-action: none; user-select: none; display: block; }
+.hvl-readouts { position: absolute; right: 12px; top: 2px; margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 12px; font: 500 11px var(--hvl-mono);
   color: var(--hvl-fg2); background: color-mix(in oklab, var(--hvl-skin) 82%, transparent); border: 1px solid var(--hvl-line2); border-radius: 8px; padding: 8px 10px;
   backdrop-filter: blur(6px); font-variant-numeric: tabular-nums; }
 .hvl-readouts dt { color: var(--hvl-fg4); }
@@ -86,8 +86,9 @@ export const CSS = `
 .hvl-handle-ring { fill: color-mix(in oklab, var(--hvl-accent) 16%, transparent); stroke: var(--hvl-accent); stroke-width: 1.5; transition: r .15s; }
 .hvl-handle:hover .hvl-handle-ring { fill: color-mix(in oklab, var(--hvl-accent) 30%, transparent); }
 .hvl-handle-dot { fill: var(--hvl-accent); }
-.hvl-label path { stroke: var(--hvl-fg4); stroke-width: .8; }
-.hvl-label text { font: 600 9px var(--hvl-mono); fill: var(--hvl-fg3); letter-spacing: .1em; text-transform: uppercase; }
+.hvl-label path { stroke-width: .9; }
+.hvl-label text { font: 600 9px var(--hvl-mono); fill: var(--hvl-fg2); letter-spacing: .1em; text-transform: uppercase; paint-order: stroke; stroke: var(--hvl-skin); stroke-width: 2.4px; stroke-opacity: .9; stroke-linejoin: round; }
+.hvl-label path { stroke: var(--hvl-accent); stroke-opacity: .7; }
 .hvl-air path { animation: hvl-flow 1.1s linear infinite; }
 .hvl-air.is-fast path { animation-duration: .6s; }
 @keyframes hvl-flow { to { stroke-dashoffset: -22; } }
@@ -96,7 +97,7 @@ export const CSS = `
 /* Console */
 .hvl-console { display: flex; flex-direction: column; min-width: 0; }
 .hvl-tabs { display: flex; gap: 2px; padding: 6px; border-bottom: 1px solid var(--hvl-line2); }
-.hvl-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; height: 34px; border-radius: 7px; border: 0; background: transparent;
+.hvl-tab { -webkit-appearance: none; appearance: none; flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; height: 34px; border-radius: 7px; border: 0; background: transparent;
   font-size: 13px; font-weight: 600; color: var(--hvl-fg3); cursor: pointer; }
 .hvl-tab:hover { color: var(--hvl-fg); background: color-mix(in oklab, var(--hvl-fg) 5%, transparent); }
 .hvl-tab.is-active { color: var(--hvl-fg); background: color-mix(in oklab, var(--hvl-accent) 11%, transparent); box-shadow: inset 0 -2px 0 var(--hvl-accent); }

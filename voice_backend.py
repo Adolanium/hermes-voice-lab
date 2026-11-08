@@ -269,3 +269,22 @@ def render_text(text: str, output: Path, *, voice: str = "signature", speed: flo
     if run.returncode or not output.is_file():
         raise RuntimeError(f"Voice Lab speech failed: {run.stderr.strip()[-800:]}")
     return json.loads(run.stdout.strip().splitlines()[-1])
+
+
+def waveform_peaks(path: str, bins: int = 120) -> list[float]:
+    """Peak envelope of a rendered WAV inside this plugin's data folder (for the chat card)."""
+    import array
+    import wave
+    target = Path(path).resolve()
+    root = _data_dir().resolve()
+    if not target.is_relative_to(root) or target.suffix.lower() != ".wav" or not target.is_file():
+        raise ValueError("Only Voice Lab renders can be summarised")
+    bins = max(16, min(512, int(bins)))
+    with wave.open(str(target)) as w:
+        if w.getsampwidth() != 2:
+            raise ValueError("Unsupported WAV format")
+        channels, frames = w.getnchannels(), w.getnframes()
+        data = array.array("h", w.readframes(min(frames, 48000 * 180)))
+    mono = data[::channels]
+    step = max(1, len(mono) // bins)
+    return [round(max((abs(v) for v in mono[i * step:(i + 1) * step]), default=0) / 32768, 4) for i in range(bins)]

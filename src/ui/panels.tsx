@@ -89,8 +89,8 @@ function VowelPad({x, y, liveX, liveY, running, onChange}: {x: number; y: number
   const ref = useRef<HTMLDivElement>(null);
   const update = (e: React.PointerEvent) => {
     const r = ref.current!.getBoundingClientRect();
-    const nx = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-    const ny = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+    const nx = Math.min(1, Math.max(0, ((e.clientX - r.left) / r.width - 0.08) / 0.84));
+    const ny = Math.min(1, Math.max(0, 1 - ((e.clientY - r.top) / r.height - 0.08) / 0.84));
     onChange(Number(nx.toFixed(3)), Number(ny.toFixed(3)));
   };
   return (
@@ -107,13 +107,13 @@ function VowelPad({x, y, liveX, liveY, running, onChange}: {x: number; y: number
         e.preventDefault();
       }}>
       {VOWEL_PRESETS.filter(v => v.shape.tongueX !== undefined && !['hum'].includes(v.id)).map(v => (
-        <span key={v.id} className="mark" style={{left: `${v.shape.tongueX! * 100}%`, top: `${(1 - v.shape.tongueY!) * 100}%`}}>{v.ipa}</span>
+        <span key={v.id} className="mark" style={{left: `${8 + v.shape.tongueX! * 84}%`, top: `${8 + (1 - v.shape.tongueY!) * 84}%`}}>{v.ipa}</span>
       ))}
       <span className="axis" style={{left: 6, bottom: 4}}>back</span>
       <span className="axis" style={{right: 6, bottom: 4}}>front</span>
       <span className="axis" style={{left: 6, top: 4}}>high</span>
-      <div className="puck" style={{left: `${x * 100}%`, top: `${(1 - y) * 100}%`}} />
-      {running && liveX !== undefined && liveY !== undefined && <div className="live" style={{left: `${liveX * 100}%`, top: `${(1 - liveY) * 100}%`}} />}
+      <div className="puck" style={{left: `${8 + x * 84}%`, top: `${8 + (1 - y) * 84}%`}} />
+      {running && liveX !== undefined && liveY !== undefined && <div className="live" style={{left: `${8 + liveX * 84}%`, top: `${8 + (1 - liveY) * 84}%`}} />}
     </div>
   );
 }
