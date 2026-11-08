@@ -4,6 +4,8 @@ import type {Patch} from '../core/params';
 import type {Plan, SongPlan} from '../core/planner';
 import type {Mode, Project} from '../core/project';
 import {PlayPanel, SingPanel, SpeakPanel} from './panels';
+import {BeatPanel} from './BeatPanel';
+import type {Beat} from '../core/beat';
 
 interface Props {
   project: Project;
@@ -34,9 +36,12 @@ interface Props {
   onLiveRestart: () => void;
   onTry: (symbol: string) => void;
   trying: string | null;
+  onBeat: (b: Partial<Beat>) => void;
+  onPad: (id: string) => void;
+  beatStep: number;
 }
 
-const TABS: Array<[Mode, string, string]> = [['play', 'Play', 'Hold a shape and play notes'], ['speak', 'Speak', 'Phrases and phonemes'], ['sing', 'Sing', 'Lyrics on a melody']];
+const TABS: Array<[Mode, string, string]> = [['play', 'Play', 'Hold a shape and play notes'], ['speak', 'Speak', 'Phrases and phonemes'], ['sing', 'Sing', 'Lyrics on a melody'], ['beat', 'Beat', 'Beatbox pads and steps']];
 
 export function PlaySpeakSingTabs(p: Props) {
   return (
@@ -55,6 +60,10 @@ export function PlaySpeakSingTabs(p: Props) {
       {p.mode === 'speak' && (
         <SpeakPanel project={p.project} plan={p.speechPlan} onChange={p.onSpeech} onSpeak={() => p.onPlay('speak')} onStop={p.onStop}
           playing={p.scorePlaying} position={p.position} ready={p.ready} onTry={p.onTry} trying={p.trying} />
+      )}
+      {p.mode === 'beat' && (
+        <BeatPanel beat={p.project.beat} onChange={p.onBeat} onPlay={() => p.onPlay('beat')} onStop={p.onStop} onPad={p.onPad}
+          playing={p.scorePlaying} step={p.scorePlaying ? p.beatStep : -1} ready={p.ready} />
       )}
       {p.mode === 'sing' && (
         <SingPanel project={p.project} plan={p.songPlan} onChange={p.onSong} onSing={() => p.onPlay('sing')} onStop={p.onStop}

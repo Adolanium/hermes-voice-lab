@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent
 RUNTIME = ROOT / "runtime"
 _LOCK = threading.RLock()
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}")
-MODES = ("play", "speak", "sing")
+MODES = ("play", "speak", "sing", "beat")
 RENDER_TIMEOUT = 120
 
 
@@ -126,7 +126,7 @@ def validate_project(project: Any) -> dict:
     """Structural validation mirroring src/core/project.ts (the renderer re-validates)."""
     if not isinstance(project, dict) or len(json.dumps(project, allow_nan=False)) > 300_000:
         raise ValueError("Project must be an object smaller than 300 KB")
-    allowed = {"version", "name", "mode", "voice", "shape", "speech", "song", "sustain"}
+    allowed = {"version", "name", "mode", "voice", "shape", "speech", "song", "beat", "sustain"}
     unknown = set(project) - allowed
     if unknown:
         raise ValueError(f"Unknown project fields: {', '.join(sorted(unknown))}")
@@ -138,7 +138,7 @@ def validate_project(project: Any) -> dict:
         raise ValueError("name must be text up to 120 characters")
     out["mode"] = project.get("mode", base["mode"])
     if out["mode"] not in MODES:
-        raise ValueError("mode must be play, speak or sing")
+        raise ValueError("mode must be play, speak, sing or beat")
     out["voice"] = {**base["voice"], **validate_patch(project.get("voice", {}), "voice")}
     out["shape"] = validate_patch(project.get("shape", base["shape"]), "shape")
     speech = {**base["speech"], **(project.get("speech") or {})}
@@ -163,6 +163,7 @@ def validate_project(project: Any) -> dict:
     if seconds > limits["seconds"]:
         raise ValueError(f"Song is longer than {limits['seconds']} seconds")
     out["song"] = {k: song[k] for k in ("bpm", "lyrics", "notes", "loop", "style")}
+    out["beat"] = validate_beat(project.get("beat", base["beat"]))
     out["sustain"] = _number(project.get("sustain", base["sustain"]), 0.2, 30, "sustain")
     out["version"] = 2
     return out
@@ -193,12 +194,36 @@ def load_project(session_id: str, project_id: str = "main") -> dict | None:
             return None
 
 
+def validate_beat(beat: Any) -> dict:
+    """A beatbox pattern: bpm 50–200, 16 or 32 steps of sound ids or "" (rest), loop."""
+    if not isinstance(beat, dict) or set(beat) - {"bpm", "steps", "loop"}:
+        raise ValueError("beat must be an object with bpm, steps and loop")
+    base = catalog()["defaultProject"]["beat"]
+    out = {**base, **beat}
+    _number(out.get("bpm"), 50, 200, "beat.bpm")
+    ids = {s["id"] for s in catalog()["beatSounds"]}
+    steps = out.get("steps")
+    if not isinstance(steps, list) or len(steps) not in (16, 32):
+        raise ValueError("beat.steps must be a list of 16 or 32 steps")
+    clean = []
+    for i, s in enumerate(steps):
+        if s in ("", None, "."):
+            clean.append("")
+        elif isinstance(s, str) and s in ids:
+            clean.append(s)
+        else:
+            raise ValueError(f"beat step {i} must be one of {', '.join(sorted(ids))}, or '.' for a rest")
+    if not isinstance(out.get("loop"), bool):
+        raise ValueError("beat.loop must be true or false")
+    return {"bpm": out["bpm"], "steps": clean, "loop": out["loop"]}
+
+
 def _diff(old: dict | None, new: dict) -> list[str]:
     if old is None:
         return ["project"]
     changed = [k for k in new["voice"] if old.get("voice", {}).get(k) != new["voice"][k]]
     changed += [k for k in new["shape"] if old.get("shape", {}).get(k) != new["shape"][k]]
-    for section in ("speech", "song", "mode", "name"):
+    for section in ("speech", "song", "beat", "mode", "name"):
         if old.get(section) != new.get(section):
             changed.append(section)
     return changed
@@ -237,7 +262,7 @@ def render_project(session_id: str | None, project: dict, mode: str | None = Non
     project = validate_project(project)
     mode = mode or project["mode"]
     if mode not in MODES:
-        raise ValueError("mode must be play, speak or sing")
+        raise ValueError("mode must be play, speak, sing or beat")
     node = node_binary()
     if not node:
         raise RuntimeError("Node.js 20+ is required on the Hermes host for offline rendering")

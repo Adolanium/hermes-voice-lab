@@ -9,7 +9,7 @@
  */
 import {compileScore, type Score, type ScoreEvent} from './engine';
 import {clampParam, defaultPatch, PARAM_ID, type ParamName, type Patch, VOICE_PARAMS, midiToHz} from './params';
-import {AFFRICATE_RELEASE, isVowel, PHONEMES, SCHWA, vowelTarget, type Phone} from './phonemes';
+import {AFFRICATE_RELEASE, isVowel, parsePhone, PHONEMES, SCHWA, vowelTarget, type Phone} from './phonemes';
 import {phonemize, parsePhonemeInput, reduceFunctionWords, syllabify, type Boundary, type Lexicon, type Word} from './text';
 
 export interface Segment {
@@ -475,6 +475,13 @@ export function lyricSyllables(lyrics: string, lexicon: Lexicon): SungSyllable[]
   parts.forEach((part, wi) => {
     if (part === '-' || part === '_') {
       out.push({phones: [], text: '–', word: wi});
+      return;
+    }
+    // Bracketed phonemes are one syllable as written: [T+S], [PE], [BR].
+    const bracket = /^\[([A-Za-z0-9+]+)\]([!?.,]*)$/.exec(part);
+    if (bracket) {
+      const phones = bracket[1].split('+').map(t => parsePhone(t.toUpperCase())).filter((p): p is Phone => !!p);
+      if (phones.length) out.push({phones, text: phones.map(p => PHONEMES[p.symbol].ipa).join(''), word: wi});
       return;
     }
     const spelled = part.replace(/[^A-Za-z'-]/g, '').split('-').filter(Boolean);

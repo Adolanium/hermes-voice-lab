@@ -4,6 +4,7 @@ import {PARAMS, VOICE_PARAMS, SHAPE_PARAMS} from '../core/params';
 import {VOICE_PRESETS, VOWEL_PRESETS} from '../core/presets';
 import {LIMITS, newProject} from '../core/project';
 import {PHONEMES} from '../core/phonemes';
+import {BEAT_PRESETS, BEAT_SOUNDS} from '../core/beat';
 
 const catalog = {
   params: PARAMS.filter(p => p.name !== 'gate').map(p => ({name: p.name, min: p.min, max: p.max, default: p.default, label: p.label, unit: p.unit, help: p.help})),
@@ -12,6 +13,8 @@ const catalog = {
   voicePresets: VOICE_PRESETS.map(p => ({id: p.id, name: p.name, description: p.description, voice: p.voice})),
   vowels: VOWEL_PRESETS.map(v => ({id: v.id, arpabet: v.label, ipa: v.ipa, example: v.example, shape: v.shape})),
   phonemes: Object.values(PHONEMES).map(p => ({symbol: p.symbol, ipa: p.ipa, example: p.example})),
+  beatSounds: BEAT_SOUNDS.map(s => ({id: s.id, label: s.label, help: s.help})),
+  beatPresets: BEAT_PRESETS,
   limits: LIMITS,
   defaultProject: newProject('Voice study'),
 };

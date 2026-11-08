@@ -192,6 +192,20 @@ export const CSS = `
 .hvl-textarea:focus, .hvl-input:focus { outline: none; border-color: var(--hvl-accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--hvl-accent) 15%, transparent); }
 .hvl-input { height: 30px; border-radius: 8px; border: 1px solid var(--hvl-line); background: transparent; color: inherit; font: 13px var(--hvl-sans); padding: 0 10px; }
 .hvl-phones { display: flex; flex-wrap: wrap; gap: 8px 10px; }
+.hvl-pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.hvl-pad-btn { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--hvl-line);
+  background: color-mix(in oklab, var(--hvl-fg) 3%, transparent); transition: transform .06s, background .1s; }
+.hvl-pad-btn:hover { background: color-mix(in oklab, var(--hvl-accent) 10%, transparent); }
+.hvl-pad-btn:active { transform: scale(.97); }
+.hvl-pad-btn b { font-size: 13px; }
+.hvl-pad-btn span { font-size: 10.5px; color: var(--hvl-fg3); line-height: 1.3; }
+.hvl-seq { display: grid; gap: 3px; overflow-x: auto; }
+.hvl-seq-row { display: grid; grid-template-columns: 64px repeat(var(--steps), minmax(16px, 1fr)); gap: 3px; align-items: center; }
+.hvl-seq-label { font-size: 11px; color: var(--hvl-fg3); }
+.hvl-seq-cell { all: unset; cursor: pointer; height: 22px; border-radius: 5px; background: color-mix(in oklab, var(--hvl-fg) 6%, transparent); }
+.hvl-seq-cell.is-beat { background: color-mix(in oklab, var(--hvl-fg) 11%, transparent); }
+.hvl-seq-cell.is-on { background: var(--hvl-accent); }
+.hvl-seq-cell.is-now { outline: 2px solid color-mix(in oklab, var(--hvl-accent) 55%, transparent); outline-offset: 1px; }
 .hvl-chart { display: grid; gap: 2px; overflow-x: auto; }
 .hvl-chart-row { display: grid; grid-template-columns: 74px repeat(9, minmax(40px, 1fr)); gap: 2px; }
 .hvl-chart-head { font-size: 10.5px; color: var(--hvl-fg3); padding: 4px 4px; align-self: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

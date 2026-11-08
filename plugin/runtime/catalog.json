@@ -1134,6 +1134,111 @@
    "example": "hat"
   }
  ],
+ "beatSounds": [
+  {
+   "id": "kick",
+   "label": "Kick",
+   "help": "p′, an ejective: the larynx is the piston"
+  },
+  {
+   "id": "snare",
+   "label": "Snare",
+   "help": "pf: a lip burst into a hiss"
+  },
+  {
+   "id": "hat",
+   "label": "Hat",
+   "help": "ts: a tip burst into a short hiss"
+  },
+  {
+   "id": "open",
+   "label": "Open hat",
+   "help": "tss: the hiss held"
+  },
+  {
+   "id": "click",
+   "label": "Click",
+   "help": "ǃ, a click: the tongue pulls a vacuum"
+  },
+  {
+   "id": "bass",
+   "label": "Bass",
+   "help": "brr: a lip trill at a low pitch"
+  },
+  {
+   "id": "hum",
+   "label": "Hum",
+   "help": "mm: a hummed note"
+  }
+ ],
+ "beatPresets": [
+  {
+   "id": "boots",
+   "name": "Boots",
+   "steps": [
+    "kick",
+    "",
+    "hat",
+    "",
+    "snare",
+    "",
+    "hat",
+    "",
+    "kick",
+    "kick",
+    "hat",
+    "",
+    "snare",
+    "",
+    "hat",
+    ""
+   ]
+  },
+  {
+   "id": "four",
+   "name": "Four on the floor",
+   "steps": [
+    "kick",
+    "",
+    "hat",
+    "",
+    "kick",
+    "",
+    "hat",
+    "",
+    "kick",
+    "",
+    "hat",
+    "",
+    "kick",
+    "",
+    "open",
+    ""
+   ]
+  },
+  {
+   "id": "bounce",
+   "name": "Bounce",
+   "steps": [
+    "kick",
+    "",
+    "",
+    "click",
+    "snare",
+    "",
+    "bass",
+    "",
+    "",
+    "kick",
+    "hat",
+    "",
+    "snare",
+    "",
+    "hum",
+    ""
+   ]
+  }
+ ],
  "limits": {
   "notes": 512,
   "text": 1000,
@@ -1280,6 +1385,28 @@
    ],
    "loop": false,
    "style": "natural"
+  },
+  "beat": {
+   "bpm": 92,
+   "steps": [
+    "kick",
+    "",
+    "hat",
+    "",
+    "snare",
+    "",
+    "hat",
+    "",
+    "kick",
+    "kick",
+    "hat",
+    "",
+    "snare",
+    "",
+    "hat",
+    ""
+   ],
+   "loop": true
   },
   "sustain": 2
  }

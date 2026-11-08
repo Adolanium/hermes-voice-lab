@@ -1146,6 +1146,12 @@ function lyricSyllables(lyrics, lexicon2) {
       out.push({ phones: [], text: "\u2013", word: wi });
       return;
     }
+    const bracket = /^\[([A-Za-z0-9+]+)\]([!?.,]*)$/.exec(part);
+    if (bracket) {
+      const phones = bracket[1].split("+").map((t) => parsePhone(t.toUpperCase())).filter((p) => !!p);
+      if (phones.length) out.push({ phones, text: phones.map((p) => PHONEMES[p.symbol].ipa).join(""), word: wi });
+      return;
+    }
     const spelled = part.replace(/[^A-Za-z'-]/g, "").split("-").filter(Boolean);
     const word = phonemize(spelled.join(""), lexicon2)[0];
     if (!word) return;
@@ -1387,6 +1393,56 @@ var VOWEL_PRESETS = [
   { id: "hum", label: "M", ipa: "m", example: "hum", shape: { ...closed, ...SCHWA, lipOpen: 0, velum: 1 } }
 ];
 
+// src/core/beat.ts
+var BEAT_SOUNDS = [
+  { id: "kick", label: "Kick", phones: "PE", length: 0.25, midi: 48, help: "p\u2032, an ejective: the larynx is the piston" },
+  { id: "snare", label: "Snare", phones: "P+F", length: 0.25, midi: 48, help: "pf: a lip burst into a hiss" },
+  { id: "hat", label: "Hat", phones: "T+S", length: 0.125, midi: 48, help: "ts: a tip burst into a short hiss" },
+  { id: "open", label: "Open hat", phones: "T+S", length: 0.5, midi: 48, help: "tss: the hiss held" },
+  { id: "click", label: "Click", phones: "CA", length: 0.25, midi: 48, help: "\u01C3, a click: the tongue pulls a vacuum" },
+  { id: "bass", label: "Bass", phones: "BR", length: 0.5, midi: 41, help: "brr: a lip trill at a low pitch" },
+  { id: "hum", label: "Hum", phones: "M", length: 0.5, midi: 48, help: "mm: a hummed note" }
+];
+var pattern = (s) => s.trim().split(/\s+/).map((t) => t === "." ? "" : t);
+var BEAT_PRESETS = [
+  { id: "boots", name: "Boots", steps: pattern("kick . hat . snare . hat . kick kick hat . snare . hat .") },
+  { id: "four", name: "Four on the floor", steps: pattern("kick . hat . kick . hat . kick . hat . kick . open .") },
+  { id: "bounce", name: "Bounce", steps: pattern("kick . . click snare . bass . . kick hat . snare . hum .") }
+];
+function newBeat() {
+  return { bpm: 92, steps: [...BEAT_PRESETS[0].steps], loop: true };
+}
+function validateBeat(input) {
+  const base = newBeat();
+  if (input === void 0) return base;
+  if (!input || typeof input !== "object") throw new TypeError("beat must be an object");
+  const b = { ...base, ...input };
+  if (typeof b.bpm !== "number" || !Number.isFinite(b.bpm) || b.bpm < 50 || b.bpm > 200) throw new RangeError("beat.bpm must be a number from 50 to 200");
+  if (!Array.isArray(b.steps) || b.steps.length !== 16 && b.steps.length !== 32) throw new TypeError("beat.steps must be a list of 16 or 32 steps");
+  const ids = new Set(BEAT_SOUNDS.map((s) => s.id));
+  const steps = b.steps.map((s, i) => {
+    if (s === "" || s === null) return "";
+    if (typeof s !== "string" || !ids.has(s)) throw new TypeError(`beat step ${i} must be one of ${[...ids].join(", ")} or empty`);
+    return s;
+  });
+  if (typeof b.loop !== "boolean") throw new TypeError("beat.loop must be true or false");
+  return { bpm: b.bpm, steps, loop: b.loop };
+}
+function beatSong(beat) {
+  const notes = [];
+  const words = [];
+  beat.steps.forEach((id, i) => {
+    const sound = BEAT_SOUNDS.find((s) => s.id === id);
+    if (!sound) return;
+    let next = i + 1;
+    while (next < beat.steps.length && !beat.steps[next]) next++;
+    const room = (next - i) * 0.25;
+    notes.push({ start: i * 0.25, length: Math.max(0.0625, Math.min(sound.length, room) - 0.02), midi: sound.midi });
+    words.push(`[${sound.phones}]`);
+  });
+  return { notes, lyrics: words.join(" ") };
+}
+
 // src/core/project.ts
 var LIMITS = { notes: 512, text: 1e3, lyrics: 2e3, seconds: 120, name: 120 };
 var DEMO_PHRASE = "Hello there! I shape every sound with my tongue, my lips and a little breath. Shall we sing?";
@@ -1474,6 +1530,7 @@ function newProject(name = "Untitled voice") {
     shape: { ...VOWEL_PRESETS.find((v) => v.id === "aa").shape },
     speech: { text: DEMO_PHRASE, phonemes: false, rate: 1, expression: 0.6 },
     song: { bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map((n) => ({ ...n })), loop: false, style: "natural" },
+    beat: newBeat(),
     sustain: 2
   };
 }
@@ -1485,13 +1542,13 @@ function validateProject(input) {
   if (!input || typeof input !== "object") throw new TypeError("Project must be an object");
   const p = input;
   const base = newProject();
-  const allowed = /* @__PURE__ */ new Set(["version", "name", "mode", "voice", "shape", "speech", "song", "sustain"]);
+  const allowed = /* @__PURE__ */ new Set(["version", "name", "mode", "voice", "shape", "speech", "song", "beat", "sustain"]);
   for (const k of Object.keys(p)) if (!allowed.has(k)) throw new TypeError(`Unknown project field "${k}"`);
   if (p.version !== void 0 && p.version !== 2) throw new TypeError("Unsupported project version");
   const name = p.name ?? base.name;
   if (typeof name !== "string" || name.length > LIMITS.name) throw new TypeError(`name must be text up to ${LIMITS.name} characters`);
   const mode2 = p.mode ?? base.mode;
-  if (!["play", "speak", "sing"].includes(mode2)) throw new TypeError("mode must be play, speak or sing");
+  if (!["play", "speak", "sing", "beat"].includes(mode2)) throw new TypeError("mode must be play, speak, sing or beat");
   const speech = { ...base.speech, ...p.speech ?? {} };
   if (typeof speech.text !== "string" || speech.text.length > LIMITS.text) throw new TypeError(`speech.text must be up to ${LIMITS.text} characters`);
   if (typeof speech.phonemes !== "boolean") throw new TypeError("speech.phonemes must be true or false");
@@ -1517,6 +1574,7 @@ function validateProject(input) {
     shape: { ...validatePatch(p.shape ?? base.shape, "shape") },
     speech,
     song: { bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes },
+    beat: validateBeat(p.beat),
     sustain: num(p.sustain ?? base.sustain, 0.2, 30, "sustain")
   };
 }
@@ -1527,6 +1585,11 @@ function projectScore(project2, lexicon2, mode2 = project2.mode) {
   }
   if (mode2 === "sing") {
     const plan = planSong(project2.song.notes, project2.song.lyrics, lexicon2, { bpm: project2.song.bpm, voice: project2.voice, style: project2.song.style });
+    return { score: plan.score, warnings: plan.warnings };
+  }
+  if (mode2 === "beat") {
+    const { notes, lyrics } = beatSong(project2.beat);
+    const plan = planSong(notes, lyrics, lexicon2, { bpm: project2.beat.bpm, voice: project2.voice });
     return { score: plan.score, warnings: plan.warnings };
   }
   return { score: planSustain(project2.shape, project2.voice, project2.sustain), warnings: [] };
@@ -1599,7 +1662,7 @@ if (args.has("speed")) {
   project = { ...project, speech: { ...project.speech, rate: speed } };
 }
 var mode = args.get("mode") || project.mode;
-if (!["play", "speak", "sing"].includes(mode)) fail("mode must be play, speak or sing");
+if (!["play", "speak", "sing", "beat"].includes(mode)) fail("mode must be play, speak, sing or beat");
 var rate = Number(args.get("rate") || 48e3);
 if (![8e3, 16e3, 22050, 24e3, 32e3, 44100, 48e3, 96e3].includes(rate)) fail("unsupported sample rate");
 var lexicon = decodeLexicon(gunzipSync(readFileSync(join(here, "lexicon.txt.gz"))).toString("utf8"));

@@ -42,7 +42,7 @@ if (args.has('speed')) {
   project = {...project, speech: {...project.speech, rate: speed}};
 }
 const mode = (args.get('mode') as Mode) || project.mode;
-if (!['play', 'speak', 'sing'].includes(mode)) fail('mode must be play, speak or sing');
+if (!['play', 'speak', 'sing', 'beat'].includes(mode)) fail('mode must be play, speak, sing or beat');
 const rate = Number(args.get('rate') || 48000);
 if (![8000, 16000, 22050, 24000, 32000, 44100, 48000, 96000].includes(rate)) fail('unsupported sample rate');
 

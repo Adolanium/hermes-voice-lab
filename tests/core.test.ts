@@ -11,6 +11,7 @@ import {PARAMS, PARAM_NAMES, validatePatch, parseNoteName, midiToHz} from '../sr
 import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, planSustain} from '../src/core/planner';
 import {decodeLexicon, letterToSound, parsePhonemeInput, syllabify, tokenize} from '../src/core/text';
 import {newProject, projectScore, SILLY_SONG, validateProject} from '../src/core/project';
+import {beatSong} from '../src/core/beat';
 import {SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
 import {PHONEMES, VOWEL_CALIBRATION, isVowel as isVowelSymbol} from '../src/core/phonemes';
 const PHONEMES_TARGET = (symbol: string) => PHONEMES[symbol].target;
@@ -455,4 +456,26 @@ test('live singing: key down sings the onset and holds the vowel, legato carries
   for (let i = Math.round(0.45 * sr); i < off.length; i++) tail = Math.max(tail, Math.abs(off[i]));
   assert.ok(tail < 0.01, 'silent after the key is released');
   for (const x of [a, legato, off]) for (const v of x) assert.ok(Number.isFinite(v) && Math.abs(v) < 1, 'bounded');
+});
+
+test('beat mode: one sound per step, sung as bracketed phonemes on the grid', () => {
+  const project = validateProject({mode: 'beat', beat: {bpm: 120, steps: 'kick . hat . snare . hat . kick . open . click . bass .'.split(' ').map(t => (t === '.' ? '' : t)), loop: false}});
+  const {notes, lyrics} = beatSong(project.beat);
+  assert.equal(notes.length, 8);
+  assert.equal(lyrics.split(' ')[0], '[PE]');
+  assert.deepEqual(notes.map(n => n.start), [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]);
+  const syl = lyricSyllables(lyrics, lexicon);
+  assert.deepEqual(syl.map(s => s.phones.map(p => p.symbol).join('+')), ['PE', 'T+S', 'P+F', 'T+S', 'PE', 'T+S', 'CA', 'BR']);
+  const {score} = projectScore(project, lexicon, 'beat');
+  const out = renderScore(engine(48000, 6), score)[0];
+  // Each hit sounds near its step: the loudest 30 ms in the step's window beats the quiet between.
+  const step = 15 / 120;
+  for (const k of [0, 4, 8]) {
+    let hit = 0;
+    for (let i = Math.round((0.25 + k * step - 0.03) * 48000); i < Math.round((0.25 + k * step + 0.05) * 48000); i++) hit = Math.max(hit, Math.abs(out[i]));
+    assert.ok(hit > 0.02, `step ${k} sounds (${hit.toFixed(3)})`);
+  }
+  for (const v of out) assert.ok(Number.isFinite(v) && Math.abs(v) < 1, 'bounded');
+  assert.throws(() => validateProject({beat: {bpm: 120, steps: ['tuba'], loop: true}}), /16 or 32/);
+  assert.throws(() => validateProject({beat: {bpm: 120, steps: Array(16).fill('tuba'), loop: true}}), /must be one of/);
 });

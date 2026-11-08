@@ -7,6 +7,7 @@ import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, type Plan
 import {isVowel, type Phone} from '../core/phonemes';
 import {VOICE_PRESETS} from '../core/presets';
 import {newProject, projectScore, validateProject, type Mode, type Project} from '../core/project';
+import {beatSong} from '../core/beat';
 import type {Lexicon} from '../core/text';
 import type {VoiceLabBridge} from '../bridge';
 import {loadLexicon} from './assets';
@@ -77,7 +78,7 @@ export default function VoiceLab({bridge}: Props) {
         setAgentKeys(keys);
         setTimeout(() => live && setAgentKeys(new Set()), 5000);
         const what = changed?.length ? changed.slice(0, 5).join(', ') : 'the project';
-        setToast({text: `Hermes updated ${what}.`, action: p.mode !== 'play' ? {label: p.mode === 'sing' ? 'Sing it' : 'Speak it', run: () => playMode(p.mode, p)} : undefined});
+        setToast({text: `Hermes updated ${what}.`, action: p.mode !== 'play' ? {label: p.mode === 'sing' ? 'Sing it' : p.mode === 'beat' ? 'Play it' : 'Speak it', run: () => playMode(p.mode, p)} : undefined});
       }
     });
     return () => {
@@ -230,9 +231,20 @@ export default function VoiceLab({bridge}: Props) {
     setHolding(false);
     setTrying(null);
     const {score} = projectScore(source, lexicon, mode);
+    if (mode === 'beat' && source.beat.loop) {
+      // A looping beat repeats exactly one bar, so it never drifts off the grid.
+      audio.play({...score, length: (source.beat.steps.length * 15) / source.beat.bpm}, true);
+      return;
+    }
     audio.play(score, mode === 'sing' && source.song.loop);
   };
   // Hear one consonant between two vowels ("ah-X-ah").
+  const playPad = async (id: string) => {
+    if (!lexicon || !(await ensureAudio())) return;
+    setHolding(false);
+    const {notes, lyrics} = beatSong({bpm: projectRef.current.beat.bpm, steps: [id], loop: false});
+    audio.play(planSong(notes, lyrics, lexicon, {bpm: projectRef.current.beat.bpm, voice: projectRef.current.voice}).score);
+  };
   const [trying, setTrying] = useState<string | null>(null);
   const trySound = async (symbol: string) => {
     if (!lexicon || !(await ensureAudio())) return;
@@ -544,6 +556,9 @@ export default function VoiceLab({bridge}: Props) {
             onLiveRestart={restartLive}
             onTry={symbol => void trySound(symbol)}
             trying={trying}
+            onBeat={b => update(p => ({...p, beat: {...p.beat, ...b}, mode: 'beat'}))}
+            onPad={id => void playPad(id)}
+            beatStep={project.mode === 'beat' ? Math.floor((position - 0.25) / (15 / project.beat.bpm)) % project.beat.steps.length : -1}
           />
         </main>
 

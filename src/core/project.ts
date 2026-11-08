@@ -7,8 +7,9 @@ import {planSong, planSpeech, planSustain, type Note, type SongStyle} from './pl
 import {SIGNATURE, VOWEL_PRESETS} from './presets';
 import type {Score} from './engine';
 import type {Lexicon} from './text';
+import {beatSong, newBeat, validateBeat, type Beat} from './beat';
 
-export type Mode = 'play' | 'speak' | 'sing';
+export type Mode = 'play' | 'speak' | 'sing' | 'beat';
 
 export interface Project {
   version: 2;
@@ -18,6 +19,8 @@ export interface Project {
   shape: Patch;
   speech: {text: string; phonemes: boolean; rate: number; expression: number};
   song: {bpm: number; lyrics: string; notes: Note[]; loop: boolean; style: SongStyle};
+  /** Beatbox pattern (Beat mode). */
+  beat: Beat;
   /** Seconds rendered for Play mode exports. */
   sustain: number;
 }
@@ -66,6 +69,7 @@ export function newProject(name = 'Untitled voice'): Project {
     shape: {...VOWEL_PRESETS.find(v => v.id === 'aa')!.shape},
     speech: {text: DEMO_PHRASE, phonemes: false, rate: 1, expression: 0.6},
     song: {bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map(n => ({...n})), loop: false, style: 'natural'},
+    beat: newBeat(),
     sustain: 2,
   };
 }
@@ -80,13 +84,13 @@ export function validateProject(input: unknown): Project {
   if (!input || typeof input !== 'object') throw new TypeError('Project must be an object');
   const p = input as Record<string, any>;
   const base = newProject();
-  const allowed = new Set(['version', 'name', 'mode', 'voice', 'shape', 'speech', 'song', 'sustain']);
+  const allowed = new Set(['version', 'name', 'mode', 'voice', 'shape', 'speech', 'song', 'beat', 'sustain']);
   for (const k of Object.keys(p)) if (!allowed.has(k)) throw new TypeError(`Unknown project field "${k}"`);
   if (p.version !== undefined && p.version !== 2) throw new TypeError('Unsupported project version');
   const name = p.name ?? base.name;
   if (typeof name !== 'string' || name.length > LIMITS.name) throw new TypeError(`name must be text up to ${LIMITS.name} characters`);
   const mode = p.mode ?? base.mode;
-  if (!['play', 'speak', 'sing'].includes(mode)) throw new TypeError('mode must be play, speak or sing');
+  if (!['play', 'speak', 'sing', 'beat'].includes(mode)) throw new TypeError('mode must be play, speak, sing or beat');
   const speech = {...base.speech, ...(p.speech ?? {})};
   if (typeof speech.text !== 'string' || speech.text.length > LIMITS.text) throw new TypeError(`speech.text must be up to ${LIMITS.text} characters`);
   if (typeof speech.phonemes !== 'boolean') throw new TypeError('speech.phonemes must be true or false');
@@ -112,6 +116,7 @@ export function validateProject(input: unknown): Project {
     shape: {...validatePatch(p.shape ?? base.shape, 'shape')},
     speech,
     song: {bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes},
+    beat: validateBeat(p.beat),
     sustain: num(p.sustain ?? base.sustain, 0.2, 30, 'sustain'),
   };
 }
@@ -124,6 +129,11 @@ export function projectScore(project: Project, lexicon: Lexicon, mode: Mode = pr
   }
   if (mode === 'sing') {
     const plan = planSong(project.song.notes, project.song.lyrics, lexicon, {bpm: project.song.bpm, voice: project.voice, style: project.song.style});
+    return {score: plan.score, warnings: plan.warnings};
+  }
+  if (mode === 'beat') {
+    const {notes, lyrics} = beatSong(project.beat);
+    const plan = planSong(notes, lyrics, lexicon, {bpm: project.beat.bpm, voice: project.voice});
     return {score: plan.score, warnings: plan.warnings};
   }
   return {score: planSustain(project.shape, project.voice, project.sustain), warnings: []};

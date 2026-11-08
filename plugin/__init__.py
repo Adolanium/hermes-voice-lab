@@ -110,8 +110,8 @@ def tool_perform(args: dict, **_):
         session = _session(args)
         project = copy.deepcopy(vb.current_or_new(session))
         mode = args.get("mode")
-        if mode not in ("speak", "sing"):
-            raise ValueError("mode must be 'speak' or 'sing'")
+        if mode not in ("speak", "sing", "beat"):
+            raise ValueError("mode must be 'speak', 'sing' or 'beat'")
         if mode == "speak":
             text = args.get("text")
             if not isinstance(text, str) or not text.strip():
@@ -121,6 +121,15 @@ def tool_perform(args: dict, **_):
                 project["speech"]["rate"] = vb._number(args["rate"], 0.4, 2.5, "rate")
             if "expression" in args:
                 project["speech"]["expression"] = vb._number(args["expression"], 0, 1, "expression")
+        elif mode == "beat":
+            beat = dict(project.get("beat") or {})
+            if args.get("pattern"):
+                beat["steps"] = str(args["pattern"]).split()
+            if "bpm" in args:
+                beat["bpm"] = args["bpm"]
+            if "loop" in args:
+                beat["loop"] = bool(args["loop"])
+            project["beat"] = vb.validate_beat(beat)
         else:
             if args.get("melody"):
                 project["song"]["notes"] = vb.parse_melody(str(args["melody"]))
@@ -141,7 +150,7 @@ def tool_perform(args: dict, **_):
         project["mode"] = mode
         saved = vb.save_project(session, PROJECT_ID, project, origin="agent")
         result = {"session_id": session, "project": _summary(saved),
-                  "message": f"Loaded the {'phrase' if mode == 'speak' else 'song'} into Voice Lab. The user can press {'Speak' if mode == 'speak' else 'Sing'} to hear it live."}
+                  "message": f"Loaded the {dict(speak='phrase', sing='song', beat='beat')[mode]} into Voice Lab. The user can press {dict(speak='Speak', sing='Sing', beat='Play')[mode]} to hear it live."}
         if args.get("render", True):
             rendered = vb.render_project(session, saved, mode=mode, label="take")
             return _ok(**result, render=rendered) + "\n" + _media(rendered)
@@ -188,12 +197,15 @@ TOOLS = [
       "render": {"type": "boolean", "description": "Also render a 2-second preview WAV (default false)."}},
      []),
     ("voice_lab_perform",
-     "Make the voice speak a short English phrase or sing a melody with lyrics. The phrase/song is loaded into the Voice Lab view for the user to replay and edit, "
+     "Make the voice speak a short English phrase, sing a melody with lyrics, or beatbox a pattern. The phrase/song is loaded into the Voice Lab view for the user to replay and edit, "
      "and (by default) rendered to a WAV attachment. Singing: give `melody` as space-separated NOTE:BEATS tokens (e.g. 'E4:0.5 G4:0.5 A4:1 r:0.5 C5:2', r = rest) "
-     "or explicit `notes`, plus `lyrics` (each note takes the next syllable; hyphens split syllables; a lone '-' holds the previous vowel).",
+     "or explicit `notes`, plus `lyrics` (each note takes the next syllable; hyphens split syllables; a lone '-' holds the previous vowel; "
+     "a bracketed phoneme group such as [T+S] or [PE] is one syllable sung as written). Beat: `pattern` of 16 or 32 steps (16ths), each one of "
+     "kick, snare, hat, open, click, bass, hum, or '.' for a rest, e.g. 'kick . hat . snare . hat . kick kick hat . snare . hat .'.",
      tool_perform,
      {"session_id": SESSION,
-      "mode": {"type": "string", "enum": ["speak", "sing"]},
+      "mode": {"type": "string", "enum": ["speak", "sing", "beat"]},
+      "pattern": {"type": "string", "description": "Beat: 16 or 32 space-separated steps: kick, snare, hat, open, click, bass, hum or '.' (rest)."},
       "text": {"type": "string", "description": "Speak: the phrase (max 1000 chars), or ARPABET when phonemes=true (words separated by '/')."},
       "phonemes": {"type": "boolean", "description": "Speak: treat text as ARPABET phonemes."},
       "rate": {"type": "number", "description": "Speak: rate multiplier 0.4–2.5 (default 1)."},
@@ -202,7 +214,7 @@ TOOLS = [
       "notes": {"type": "array", "items": {"type": "object", "properties": {"start": {"type": "number"}, "length": {"type": "number"}, "midi": {"type": "number"}, "note": {"type": "string"}}},
                 "description": "Sing: explicit notes with start/length in beats and midi (36–96) or note name."},
       "lyrics": {"type": "string", "description": "Sing: lyrics, e.g. 'hel-lo my friend'."},
-      "bpm": {"type": "number", "description": "Sing: tempo 30–240."},
+      "bpm": {"type": "number", "description": "Sing: tempo 30–240. Beat: 50–200."},
       "loop": {"type": "boolean", "description": "Sing: loop in the live view."},
       "style": {"type": "string", "enum": ["natural", "cartoon", "yodel"],
                 "description": "Sing: 'cartoon' scoops into notes, slides, wobbles and exaggerates the mouth for funny songs; 'yodel' flips to falsetto on the high notes and back to chest voice on the low ones (write leaps of a fifth or more, e.g. yo-de-lay-ee-hoo); 'natural' (default) is plain."},
@@ -212,7 +224,7 @@ TOOLS = [
      "Render this conversation's Voice Lab project (or a variation with parameter overrides that are not saved) to a WAV file attachment.",
      tool_render,
      {"session_id": SESSION,
-      "mode": {"type": "string", "enum": ["play", "speak", "sing"], "description": "Defaults to the project's current mode."},
+      "mode": {"type": "string", "enum": ["play", "speak", "sing", "beat"], "description": "Defaults to the project's current mode."},
       "variation": {"type": "object", "description": "Temporary parameter overrides for this render only. " + PATCH_HELP, "additionalProperties": {"type": "number"}},
       "name": {"type": "string", "description": "Name used in the file name."}},
      []),
