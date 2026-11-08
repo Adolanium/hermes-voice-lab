@@ -181,7 +181,8 @@ export function articulate(segments: Segment[], voice: Patch): ScoreEvent[] {
       // point where the folds start to vibrate, so the command leads it.
       const vot = ph.manner === 'stop' ? (aspirated ? 0.055 : 0.015) : ph.manner === 'affricate' ? 0.02 : 0.0;
       const following = next && next.symbol !== 'SIL' && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
-      if (!following) at(s.end + Math.max(0, vot - 0.012), 'voicing', 1, 8, i);
+      // After a fricative the folds adduct as the constriction opens (no gap).
+      if (!following) at(s.end + (ph.manner === "fricative" || ph.manner === "aspirate" ? -0.02 : vot - 0.012), "voicing", 1, 8, i);
     } else if (phraseInitial && (ph.manner === 'stop' || ph.manner === 'affricate')) {
       // Utterance-initial /b d g/ in English are short-lag, not prevoiced:
       // the folds are apart but not vibrating during the closure; voicing

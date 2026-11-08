@@ -295,7 +295,7 @@ impl Voice {
             } else {
                 self.burst_filter.bandpass(2600.0, 0.9, self.int_rate);
                 self.burst_index = (self.shape.min_index + 1).min(N - 1);
-                (0.8, 7.0)
+                (3.0, 9.0)
             };
             self.burst_gain = kind;
             self.burst_decay = (-1.0 / (decay_ms * 1e-3 * self.int_rate)).exp();
