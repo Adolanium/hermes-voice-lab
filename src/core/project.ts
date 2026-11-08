@@ -8,6 +8,7 @@ import {SIGNATURE, VOWEL_PRESETS} from './presets';
 import type {Score} from './engine';
 import type {Lexicon} from './text';
 import {beatSong, newBeat, validateBeat, type Beat} from './beat';
+import {duetNotes, duetVoice, newDuet, validateDuet, type Duet} from './duet';
 
 export type Mode = 'play' | 'speak' | 'sing' | 'beat';
 
@@ -18,7 +19,7 @@ export interface Project {
   voice: Patch;
   shape: Patch;
   speech: {text: string; phonemes: boolean; rate: number; expression: number};
-  song: {bpm: number; lyrics: string; notes: Note[]; loop: boolean; style: SongStyle};
+  song: {bpm: number; lyrics: string; notes: Note[]; loop: boolean; style: SongStyle; duet: Duet};
   /** Beatbox pattern (Beat mode). */
   beat: Beat;
   /** Seconds rendered for Play mode exports. */
@@ -58,6 +59,7 @@ export const SILLY_SONG: Project['song'] = {
   notes: SILLY.map(([, start, length, midi]) => ({start, length, midi})),
   loop: false,
   style: 'cartoon',
+  duet: newDuet(),
 };
 
 export function newProject(name = 'Untitled voice'): Project {
@@ -68,7 +70,7 @@ export function newProject(name = 'Untitled voice'): Project {
     voice: {...SIGNATURE},
     shape: {...VOWEL_PRESETS.find(v => v.id === 'aa')!.shape},
     speech: {text: DEMO_PHRASE, phonemes: false, rate: 1, expression: 0.6},
-    song: {bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map(n => ({...n})), loop: false, style: 'natural'},
+    song: {bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map(n => ({...n})), loop: false, style: 'natural', duet: newDuet()},
     beat: newBeat(),
     sustain: 2,
   };
@@ -102,10 +104,15 @@ export function validateProject(input: unknown): Project {
   if (typeof song.loop !== 'boolean') throw new TypeError('song.loop must be true or false');
   if (!['natural', 'cartoon', 'yodel'].includes(song.style)) throw new TypeError('song.style must be natural, cartoon or yodel');
   if (!Array.isArray(song.notes) || song.notes.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
-  const notes: Note[] = song.notes.map((n: any, i: number) => {
-    if (!n || typeof n !== 'object') throw new TypeError(`note ${i} must be an object`);
-    return {start: num(n.start, 0, 1024, `note ${i} start`), length: num(n.length, 0.0625, 64, `note ${i} length`), midi: Math.round(num(n.midi, 36, 96, `note ${i} midi`))};
-  });
+  const checkNotes = (list: unknown): Note[] => {
+    if (!Array.isArray(list) || list.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
+    return list.map((n: any, i: number) => {
+      if (!n || typeof n !== 'object') throw new TypeError(`note ${i} must be an object`);
+      return {start: num(n.start, 0, 1024, `note ${i} start`), length: num(n.length, 0.0625, 64, `note ${i} length`), midi: Math.round(num(n.midi, 36, 96, `note ${i} midi`))};
+    });
+  };
+  const notes = checkNotes(song.notes);
+  const duet = validateDuet(song.duet, checkNotes);
   const seconds = notes.reduce((m, n) => Math.max(m, ((n.start + n.length) * 60) / song.bpm), 0);
   if (seconds > LIMITS.seconds) throw new RangeError(`Song is longer than ${LIMITS.seconds} seconds`);
   return {
@@ -115,10 +122,20 @@ export function validateProject(input: unknown): Project {
     voice: {...SIGNATURE, ...validatePatch(p.voice ?? base.voice, 'voice')},
     shape: {...validatePatch(p.shape ?? base.shape, 'shape')},
     speech,
-    song: {bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes},
+    song: {bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes, duet},
     beat: validateBeat(p.beat),
     sustain: num(p.sustain ?? base.sustain, 0.2, 30, 'sustain'),
   };
+}
+
+/** The duet's second singer (Sing mode), or null when there is none. */
+export function duetScore(project: Project, lexicon: Lexicon): {score: Score; voice: Patch} | null {
+  const duet = project.song.duet;
+  const notes = duetNotes(project.song.notes, duet);
+  if (!notes.length) return null;
+  const voice = {...SIGNATURE, ...duetVoice(duet)};
+  const plan = planSong(notes, duet.part === 'custom' && duet.lyrics ? duet.lyrics : project.song.lyrics, lexicon, {bpm: project.song.bpm, voice, style: project.song.style});
+  return {score: plan.score, voice};
 }
 
 /** Build the engine score for the project's current mode. */

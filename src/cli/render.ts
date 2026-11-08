@@ -10,7 +10,7 @@ import {gunzipSync} from 'node:zlib';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Engine, renderScore} from '../core/engine';
-import {newProject, projectScore, validateProject, type Mode} from '../core/project';
+import {duetScore, newProject, projectScore, validateProject, type Mode} from '../core/project';
 import {decodeLexicon} from '../core/text';
 import {validatePatch} from '../core/params';
 import {VOICE_PRESETS} from '../core/presets';
@@ -51,7 +51,15 @@ const module = new WebAssembly.Module(readFileSync(join(here, 'voice_lab_engine.
 const engine = new Engine(module, rate, Number(args.get('seed') || 1));
 const {score, warnings} = projectScore(project, lexicon, mode);
 const started = performance.now();
-const [left, right] = renderScore(engine, score);
+let [left, right] = renderScore(engine, score);
+// A duet: the second singer from a second engine, mixed in (both slightly lower).
+const second = mode === 'sing' ? duetScore(project, lexicon) : null;
+if (second) {
+  const [l2, r2] = renderScore(new Engine(module, rate, Number(args.get('seed') || 1) + 1), second.score, second.voice);
+  const n = Math.max(left.length, l2.length);
+  const mix = (a: Float32Array, b: Float32Array) => { const out = new Float32Array(n); for (let i = 0; i < n; i++) out[i] = 0.72 * ((a[i] ?? 0) + (b[i] ?? 0)); return out; };
+  [left, right] = [mix(left, l2), mix(right, r2)];
+}
 const elapsed = (performance.now() - started) / 1000;
 const mono = args.get('channels') === '1';
 writeFileSync(output, encodeWav(mono ? [left] : [left, right], rate));

@@ -1542,7 +1542,13 @@
     }
    ],
    "loop": false,
-   "style": "natural"
+   "style": "natural",
+   "duet": {
+    "part": "off",
+    "voice": "baritone",
+    "notes": [],
+    "lyrics": ""
+   }
   },
   "beat": {
    "bpm": 92,

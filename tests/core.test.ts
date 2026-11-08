@@ -1,7 +1,7 @@
 /** Core tests: parameters, text front end, planner, project validation, engine behaviour, WAV and CLI. */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync, mkdtempSync, rmSync} from 'node:fs';
+import {readFileSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {execFileSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
@@ -10,7 +10,8 @@ import {compileScore, Engine, renderScore} from '../src/core/engine';
 import {PARAMS, PARAM_NAMES, validatePatch, parseNoteName, midiToHz} from '../src/core/params';
 import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, planSustain} from '../src/core/planner';
 import {decodeLexicon, letterToSound, parsePhonemeInput, syllabify, tokenize} from '../src/core/text';
-import {newProject, projectScore, SILLY_SONG, validateProject} from '../src/core/project';
+import {duetScore, newProject, projectScore, SILLY_SONG, validateProject} from '../src/core/project';
+import {duetNotes} from '../src/core/duet';
 import {beatSong} from '../src/core/beat';
 import {CREATURES} from '../src/core/bestiary';
 import {SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
@@ -528,5 +529,29 @@ test('bestiary: every call is audible and bounded, the songbird sings in kHz, an
     let last = -1;
     for (let i = 0; i < score.events.length; i += 4) if (score.events[i + 1] === creatureId) last = score.events[i + 2];
     assert.equal(last, 0, `${c.id}/${call.id} ends on the human airway`);
+  }
+});
+
+test('duet: a second singer with their own voice on a derived or written part, mixed by the renderer', () => {
+  const melody = [60, 62, 64, 65, 67, 69, 71, 72].map((midi, k) => ({start: k, length: 0.9, midi}));
+  const third = duetNotes(melody, {part: 'thirdAbove', voice: 'tenor', notes: [], lyrics: ''}).map(n => n.midi);
+  // Key of C (the song ends on C): diatonic thirds above.
+  assert.deepEqual(third, [64, 65, 67, 69, 71, 72, 74, 76]);
+  assert.deepEqual(duetNotes(melody, {part: 'octaveBelow', voice: 'tenor', notes: [], lyrics: ''}).map(n => n.midi), melody.map(n => n.midi - 12));
+  const project = validateProject({mode: 'sing', song: {bpm: 120, lyrics: 'do re mi fa sol la ti do', notes: melody, loop: false, style: 'natural', duet: {part: 'octaveBelow', voice: 'baritone'}}});
+  const second = duetScore(project, lexicon)!;
+  assert.ok(second, 'a second score');
+  assert.equal(second.voice.tractLength, VOICE_PRESETS.find(v => v.id === 'baritone')!.voice.tractLength, 'the second singer has the baritone body');
+  assert.equal(duetScore({...project, song: {...project.song, duet: {...project.song.duet, part: 'off'}}}, lexicon), null);
+  assert.throws(() => validateProject({song: {duet: {part: 'canon'}}}), /song.duet.part/);
+  // The CLI mixes both singers.
+  const dir = mkdtempSync(join(tmpdir(), 'hvl-duet-'));
+  try {
+    const file = join(dir, 'duet.json');
+    writeFileSync(file, JSON.stringify(project));
+    const meta = JSON.parse(execFileSync(process.execPath, ['plugin/runtime/render.mjs', '--project', file, '--output', join(dir, 'duet.wav')], {encoding: 'utf8'}));
+    assert.ok(meta.ok && meta.peak < 1 && meta.rms > 0.02, `duet render (rms ${meta.rms})`);
+  } finally {
+    rmSync(dir, {recursive: true, force: true});
   }
 });

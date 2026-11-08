@@ -141,6 +141,17 @@ def tool_perform(args: dict, **_):
                 project["song"]["bpm"] = vb._number(args["bpm"], 30, 240, "bpm")
             if "loop" in args:
                 project["song"]["loop"] = bool(args["loop"])
+            if "duet" in args or "second_voice" in args or "second_melody" in args:
+                duet = dict(project["song"].get("duet") or {})
+                if "duet" in args:
+                    duet["part"] = args["duet"]
+                if "second_voice" in args:
+                    duet["voice"] = args["second_voice"]
+                if args.get("second_melody"):
+                    duet["part"] = "custom"
+                    duet["notes"] = vb.parse_melody(str(args["second_melody"]))
+                    duet["lyrics"] = str(args.get("second_lyrics", ""))
+                project["song"]["duet"] = vb.validate_duet(duet)
             if "style" in args:
                 if args["style"] not in ("natural", "cartoon", "yodel"):
                     raise ValueError("style must be natural, cartoon or yodel")
@@ -218,6 +229,11 @@ TOOLS = [
       "loop": {"type": "boolean", "description": "Sing: loop in the live view."},
       "style": {"type": "string", "enum": ["natural", "cartoon", "yodel"],
                 "description": "Sing: 'cartoon' scoops into notes, slides, wobbles and exaggerates the mouth for funny songs; 'yodel' flips to falsetto on the high notes and back to chest voice on the low ones (write leaps of a fifth or more, e.g. yo-de-lay-ee-hoo); 'natural' (default) is plain."},
+      "duet": {"type": "string", "enum": ["off", "octaveBelow", "fifthBelow", "thirdAbove", "custom"],
+               "description": "Sing: a second singer on a harmony part derived from the melody (octave below, fifth below, a third above in the song's key), or 'custom' with second_melody."},
+      "second_voice": {"type": "string", "description": "Sing, duet: the second singer's voice preset id (e.g. baritone, tenor, child, head, alto)."},
+      "second_melody": {"type": "string", "description": "Sing, duet: a written second part as NOTE:BEATS tokens (sets duet to custom)."},
+      "second_lyrics": {"type": "string", "description": "Sing, duet: lyrics for the written second part (default: the song's)."},
       "render": {"type": "boolean", "description": "Render a WAV attachment (default true)."}},
      ["mode"]),
     ("voice_lab_render",

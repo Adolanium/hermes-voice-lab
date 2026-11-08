@@ -1479,6 +1479,41 @@ function beatSong(beat) {
   return { notes, lyrics: words.join(" ") };
 }
 
+// src/core/duet.ts
+var DUET_PARTS = [["off", "Off"], ["octaveBelow", "Octave below"], ["fifthBelow", "Fifth below"], ["thirdAbove", "Third above"], ["custom", "Written part"]];
+function newDuet() {
+  return { part: "off", voice: "baritone", notes: [], lyrics: "" };
+}
+var MAJOR = [0, 2, 4, 5, 7, 9, 11];
+function duetNotes(melody, duet) {
+  if (duet.part === "off") return [];
+  if (duet.part === "custom") return duet.notes;
+  const sorted = [...melody].sort((a, b) => a.start - b.start);
+  const tonic = sorted.length ? (sorted[sorted.length - 1].midi % 12 + 12) % 12 : 0;
+  const shift = (m) => {
+    if (duet.part === "octaveBelow") return m - 12;
+    if (duet.part === "fifthBelow") return m - 7;
+    const degree = MAJOR.indexOf(((m - tonic) % 12 + 12) % 12);
+    if (degree < 0) return m + 4;
+    const up = MAJOR[(degree + 2) % 7] + (degree + 2 >= 7 ? 12 : 0) - MAJOR[degree];
+    return m + up;
+  };
+  return melody.map((n) => ({ ...n, midi: Math.min(96, Math.max(36, shift(n.midi))) }));
+}
+function duetVoice(duet) {
+  return (VOICE_PRESETS.find((v) => v.id === duet.voice) ?? VOICE_PRESETS.find((v) => v.id === "baritone")).voice;
+}
+function validateDuet(input, validateNotes) {
+  const base = newDuet();
+  if (input === void 0) return base;
+  if (!input || typeof input !== "object") throw new TypeError("song.duet must be an object");
+  const d = { ...base, ...input };
+  if (!DUET_PARTS.some(([id]) => id === d.part)) throw new TypeError(`song.duet.part must be one of ${DUET_PARTS.map((p) => p[0]).join(", ")}`);
+  if (typeof d.voice !== "string" || !VOICE_PRESETS.some((v) => v.id === d.voice)) throw new TypeError(`song.duet.voice must be a voice preset id (${VOICE_PRESETS.map((v) => v.id).join(", ")})`);
+  if (typeof d.lyrics !== "string" || d.lyrics.length > 2e3) throw new TypeError("song.duet.lyrics must be text up to 2000 characters");
+  return { part: d.part, voice: d.voice, notes: validateNotes(d.notes), lyrics: d.lyrics };
+}
+
 // src/core/project.ts
 var LIMITS = { notes: 512, text: 1e3, lyrics: 2e3, seconds: 120, name: 120 };
 var DEMO_PHRASE = "Hello there! I shape every sound with my tongue, my lips and a little breath. Shall we sing?";
@@ -1555,7 +1590,8 @@ var SILLY_SONG = {
   lyrics: SILLY.map((s) => s[0]).join(" "),
   notes: SILLY.map(([, start, length, midi]) => ({ start, length, midi })),
   loop: false,
-  style: "cartoon"
+  style: "cartoon",
+  duet: newDuet()
 };
 function newProject(name = "Untitled voice") {
   return {
@@ -1565,7 +1601,7 @@ function newProject(name = "Untitled voice") {
     voice: { ...SIGNATURE },
     shape: { ...VOWEL_PRESETS.find((v) => v.id === "aa").shape },
     speech: { text: DEMO_PHRASE, phonemes: false, rate: 1, expression: 0.6 },
-    song: { bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map((n) => ({ ...n })), loop: false, style: "natural" },
+    song: { bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map((n) => ({ ...n })), loop: false, style: "natural", duet: newDuet() },
     beat: newBeat(),
     sustain: 2
   };
@@ -1596,10 +1632,15 @@ function validateProject(input) {
   if (typeof song.loop !== "boolean") throw new TypeError("song.loop must be true or false");
   if (!["natural", "cartoon", "yodel"].includes(song.style)) throw new TypeError("song.style must be natural, cartoon or yodel");
   if (!Array.isArray(song.notes) || song.notes.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
-  const notes = song.notes.map((n, i) => {
-    if (!n || typeof n !== "object") throw new TypeError(`note ${i} must be an object`);
-    return { start: num(n.start, 0, 1024, `note ${i} start`), length: num(n.length, 0.0625, 64, `note ${i} length`), midi: Math.round(num(n.midi, 36, 96, `note ${i} midi`)) };
-  });
+  const checkNotes = (list) => {
+    if (!Array.isArray(list) || list.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
+    return list.map((n, i) => {
+      if (!n || typeof n !== "object") throw new TypeError(`note ${i} must be an object`);
+      return { start: num(n.start, 0, 1024, `note ${i} start`), length: num(n.length, 0.0625, 64, `note ${i} length`), midi: Math.round(num(n.midi, 36, 96, `note ${i} midi`)) };
+    });
+  };
+  const notes = checkNotes(song.notes);
+  const duet = validateDuet(song.duet, checkNotes);
   const seconds = notes.reduce((m, n) => Math.max(m, (n.start + n.length) * 60 / song.bpm), 0);
   if (seconds > LIMITS.seconds) throw new RangeError(`Song is longer than ${LIMITS.seconds} seconds`);
   return {
@@ -1609,10 +1650,18 @@ function validateProject(input) {
     voice: { ...SIGNATURE, ...validatePatch(p.voice ?? base.voice, "voice") },
     shape: { ...validatePatch(p.shape ?? base.shape, "shape") },
     speech,
-    song: { bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes },
+    song: { bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes, duet },
     beat: validateBeat(p.beat),
     sustain: num(p.sustain ?? base.sustain, 0.2, 30, "sustain")
   };
+}
+function duetScore(project2, lexicon2) {
+  const duet = project2.song.duet;
+  const notes = duetNotes(project2.song.notes, duet);
+  if (!notes.length) return null;
+  const voice = { ...SIGNATURE, ...duetVoice(duet) };
+  const plan = planSong(notes, duet.part === "custom" && duet.lyrics ? duet.lyrics : project2.song.lyrics, lexicon2, { bpm: project2.song.bpm, voice, style: project2.song.style });
+  return { score: plan.score, voice };
 }
 function projectScore(project2, lexicon2, mode2 = project2.mode) {
   if (mode2 === "speak") {
@@ -1707,6 +1756,17 @@ var engine = new Engine(module, rate, Number(args.get("seed") || 1));
 var { score, warnings } = projectScore(project, lexicon, mode);
 var started = performance.now();
 var [left, right] = renderScore(engine, score);
+var second = mode === "sing" ? duetScore(project, lexicon) : null;
+if (second) {
+  const [l2, r2] = renderScore(new Engine(module, rate, Number(args.get("seed") || 1) + 1), second.score, second.voice);
+  const n = Math.max(left.length, l2.length);
+  const mix = (a, b) => {
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) out[i] = 0.72 * ((a[i] ?? 0) + (b[i] ?? 0));
+    return out;
+  };
+  [left, right] = [mix(left, l2), mix(right, r2)];
+}
 var elapsed = (performance.now() - started) / 1e3;
 var mono = args.get("channels") === "1";
 writeFileSync(output, encodeWav(mono ? [left] : [left, right], rate));

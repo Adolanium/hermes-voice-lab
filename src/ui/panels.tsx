@@ -6,6 +6,8 @@ import {midiToHz, noteName, type ParamName, type Patch} from '../core/params';
 import {PHONEMES, isVowel} from '../core/phonemes';
 import {VOWEL_PRESETS} from '../core/presets';
 import {SILLY_SONG, type Project} from '../core/project';
+import {DUET_PARTS, type DuetPart} from '../core/duet';
+import {VOICE_PRESETS as ALL_VOICES} from '../core/presets';
 import {cssVar, Icon, Range, Seg, Slider, useCanvas} from './controls';
 
 const SOURCE: ParamName[] = ['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize'];
@@ -497,6 +499,16 @@ export function SingPanel({project, plan, onChange, onSing, onStop, playing, pos
             title="Yodel: high notes flip to falsetto, low notes stay in chest voice, and the leaps between them snap">Yodel</button>
           <button className={`hvl-btn ${liveSing ? 'is-on' : ''}`} onClick={() => onLiveSing(!liveSing)} aria-pressed={liveSing}
             title="Live: each key you press (keyboard, computer keys or MIDI) sings the next syllable of the lyrics, held until you let go">Live</button>
+          <label className="hvl-note" title="A second singer with their own body and voice">Duet{' '}
+            <select className="hvl-input" style={{height: 28}} value={song.duet.part} onChange={e => onChange({duet: {...song.duet, part: e.target.value as DuetPart}})}>
+              {DUET_PARTS.filter(([id]) => id !== 'custom' || song.duet.part === 'custom').map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          </label>
+          {song.duet.part !== 'off' && (
+            <select className="hvl-input" style={{height: 28}} aria-label="Second singer's voice" value={song.duet.voice} onChange={e => onChange({duet: {...song.duet, voice: e.target.value}})}>
+              {ALL_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          )}
           {liveSing && <span className="hvl-note" aria-live="polite">Next: <b>{nextSyllable}</b> <button className="hvl-btn is-ghost" onClick={onLiveRestart} title="Back to the first syllable">↺</button></span>}
           <button className="hvl-btn is-ghost" onClick={() => { onChange({...SILLY_SONG, notes: SILLY_SONG.notes.map(n => ({...n}))}); setSelected(null); }}
             title="Load the novelty demo song">Silly song</button>

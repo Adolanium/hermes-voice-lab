@@ -6,7 +6,7 @@ import {midiToHz, noteName, hzToMidi, PARAM_NAMES, type ParamName, type Patch, V
 import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, type Plan, type SongPlan} from '../core/planner';
 import {isVowel, type Phone} from '../core/phonemes';
 import {VOICE_PRESETS} from '../core/presets';
-import {newProject, projectScore, validateProject, type Mode, type Project} from '../core/project';
+import {duetScore, newProject, projectScore, validateProject, type Mode, type Project} from '../core/project';
 import {beatSong} from '../core/beat';
 import type {Lexicon} from '../core/text';
 import type {VoiceLabBridge} from '../bridge';
@@ -236,6 +236,11 @@ export default function VoiceLab({bridge}: Props) {
       audio.play({...score, length: (source.beat.steps.length * 15) / source.beat.bpm}, true);
       return;
     }
+    const second = mode === 'sing' ? duetScore(source, lexicon) : null;
+    if (second) {
+      audio.playDuet(score, second, source.song.loop);
+      return;
+    }
     audio.play(score, mode === 'sing' && source.song.loop);
   };
   // Hear one consonant between two vowels ("ah-X-ah").
@@ -368,7 +373,7 @@ export default function VoiceLab({bridge}: Props) {
   const exportLocal = async (mode: Mode) => {
     if (!lexicon) throw new Error('Dictionary still loading');
     const {score} = projectScore(project, lexicon, mode);
-    const wav = await renderWav(score, project.voice, 48000);
+    const wav = await renderWav(score, project.voice, 48000, undefined, mode === 'sing' ? duetScore(project, lexicon) ?? undefined : undefined);
     const url = URL.createObjectURL(new Blob([wav.bytes as BlobPart], {type: 'audio/wav'}));
     const a = document.createElement('a');
     a.href = url;

@@ -162,7 +162,8 @@ def validate_project(project: Any) -> dict:
     seconds = max([(n["start"] + n["length"]) * 60 / song["bpm"] for n in song["notes"]] or [0])
     if seconds > limits["seconds"]:
         raise ValueError(f"Song is longer than {limits['seconds']} seconds")
-    out["song"] = {k: song[k] for k in ("bpm", "lyrics", "notes", "loop", "style")}
+    song["duet"] = validate_duet(song.get("duet", base["song"].get("duet")))
+    out["song"] = {k: song[k] for k in ("bpm", "lyrics", "notes", "loop", "style", "duet")}
     out["beat"] = validate_beat(project.get("beat", base["beat"]))
     out["sustain"] = _number(project.get("sustain", base["sustain"]), 0.2, 30, "sustain")
     out["version"] = 2
@@ -192,6 +193,29 @@ def load_project(session_id: str, project_id: str = "main") -> dict | None:
             return validate_project(json.loads(path.read_text()))
         except (ValueError, json.JSONDecodeError):
             return None
+
+
+DUET_PARTS = ("off", "octaveBelow", "fifthBelow", "thirdAbove", "custom")
+
+
+def validate_duet(duet: Any) -> dict:
+    """A second singer: part (off, octaveBelow, fifthBelow, thirdAbove, custom), a voice preset id, and for a
+    written part its notes (and optional lyrics)."""
+    base = {"part": "off", "voice": "baritone", "notes": [], "lyrics": ""}
+    if duet is None:
+        return base
+    if not isinstance(duet, dict) or set(duet) - set(base):
+        raise ValueError("song.duet must be an object with part, voice, notes and lyrics")
+    out = {**base, **duet}
+    if out["part"] not in DUET_PARTS:
+        raise ValueError(f"song.duet.part must be one of {', '.join(DUET_PARTS)}")
+    ids = {p["id"] for p in catalog()["voicePresets"]}
+    if out["voice"] not in ids:
+        raise ValueError(f"song.duet.voice must be a voice preset id: {', '.join(sorted(ids))}")
+    if not isinstance(out["lyrics"], str) or len(out["lyrics"]) > 2000:
+        raise ValueError("song.duet.lyrics must be text up to 2000 characters")
+    out["notes"] = validate_notes(out["notes"]) if out["notes"] else []
+    return out
 
 
 def validate_beat(beat: Any) -> dict:

@@ -32,6 +32,8 @@ export class VoiceAudio {
   analyser: AnalyserNode | null = null;
   private ctx: AudioContext | null = null;
   private node: AudioWorkletNode | null = null;
+  /** A second engine for a duet's second singer, made on first use. */
+  private partner: AudioWorkletNode | null = null;
   private master: GainNode | null = null;
   private listeners = new Set<Listener>();
   private telemetryListeners = new Set<Listener>();
@@ -157,15 +159,37 @@ export class VoiceAudio {
   }
   play(score: Score, loop = false) {
     this.claim();
+    this.partner?.port.postMessage({type: 'silence'});
     const events = score.events.slice();
     this.post({type: 'score', events, length: score.length, loop}, [events.buffer]);
   }
+  /** A duet: both singers start together, each from its own engine. */
+  playDuet(score: Score, second: {score: Score; voice: Patch}, loop = false) {
+    if (!this.ctx || !this.node || !this.analyser) return this.play(score, loop);
+    this.claim();
+    if (!this.partner) {
+      this.partner = new AudioWorkletNode(this.ctx, 'hermes-voice-lab', {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        processorOptions: {wasm: engineBytes().slice().buffer, seed: ((Math.random() * 2 ** 31) | 0) + 1, patch: second.voice, telemetryHz: 0},
+      });
+      this.partner.connect(this.analyser);
+    }
+    const a = score.events.slice();
+    const b = second.score.events.slice();
+    const length = Math.max(score.length, second.score.length);
+    this.post({type: 'score', events: a, length, loop}, [a.buffer]);
+    this.partner.port.postMessage({type: 'score', events: b, length, loop}, [b.buffer]);
+  }
   stopScore() {
     this.post({type: 'stop'});
+    this.partner?.port.postMessage({type: 'stop'});
   }
   /** Stop everything audible (score + held note). */
   silence() {
     this.post({type: 'silence'});
+    this.partner?.port.postMessage({type: 'silence'});
   }
 
   setVolume(v: number) {
@@ -175,6 +199,8 @@ export class VoiceAudio {
   private async close() {
     try {
       this.post({type: 'dispose'});
+      this.partner?.port.postMessage({type: 'dispose'});
+      this.partner?.disconnect();
       this.node?.disconnect();
       this.analyser?.disconnect();
       this.master?.disconnect();
@@ -184,6 +210,7 @@ export class VoiceAudio {
       /* already closed */
     }
     this.node = null;
+    this.partner = null;
     this.analyser = null;
     this.master = null;
     this.ctx = null;
@@ -219,7 +246,7 @@ export function analysis(): Engine {
  * Render a score to WAV bytes with the same engine, off the audio thread, in
  * slices so the UI stays responsive.
  */
-export async function renderWav(score: Score, patch: Patch, sampleRate = 48000, onProgress?: (f: number) => void) {
+export async function renderWav(score: Score, patch: Patch, sampleRate = 48000, onProgress?: (f: number) => void, second?: {score: Score; voice: Patch}) {
   const engine = new Engine(engineModule(), sampleRate, 1);
   // renderScore is synchronous; render in chunks by splitting the work.
   const total = Math.ceil((score.length + 0.6) * sampleRate);
@@ -237,6 +264,14 @@ export async function renderWav(score: Score, patch: Patch, sampleRate = 48000, 
     }
     onProgress?.(at / total);
     await new Promise(r => setTimeout(r, 0));
+  }
+  if (second) {
+    // A duet: the second singer from a second engine, mixed in.
+    const [l2, r2] = renderScore(new Engine(engineModule(), sampleRate, 2), second.score, second.voice);
+    for (let i = 0; i < total; i++) {
+      left[i] = 0.72 * (left[i] + (l2[i] ?? 0));
+      right[i] = 0.72 * (right[i] + (r2[i] ?? 0));
+    }
   }
   return {bytes: encodeWav([left, right], sampleRate), seconds: total / sampleRate, ...measure(left)};
 }
