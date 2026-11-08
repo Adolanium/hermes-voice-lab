@@ -90,7 +90,10 @@ Sung diction is judged the same way. The 30 judge sentences are sung one syllabl
 | Build | Spoken | Sung, natural | Sung, cartoon |
 |---|---|---|---|
 | Before | 34.4% | 79.3% | 78.6% |
-| Onset consonants take time from the previous vowel; phrase-initial onsets start in the silence; sung consonants near their spoken length | | **63.9%** | **63.1%** |
+| Onset consonants take time from the previous vowel; phrase-initial onsets start in the silence; sung consonants near their spoken length | | 63.9% | 63.1% |
+| + firmer singing voice (more tension and effort, half the breath), pitch moves during the onset consonants, shorter glides on short notes, a breath at phrase-final punctuation | | **61.3%** | |
+
+Singing the same sentences with each note placed where the vowel falls in speech (one pitch) gives 41.5%. The singing path itself is close to speech; most of the remaining loss comes from setting every syllable to an equal note. A reference physical-modeling synthesizer sung through the same test scored 52.0%.
 
 Short sentences now come through ("Please call me when you get home", "What time is it now?", "I would like a cup of tea"). Dense consonant clusters at word ends ("box", "planks", "chopped") and the unpredictable sentences remain weak. Singing stays well behind speech; Whisper is also a harsher judge of singing than of speech. Weak forms of function words in songs were tried and made no difference (64.8%), so sung function words keep their full vowels.
 

@@ -982,8 +982,17 @@ function lyricSyllables(lyrics, lexicon2) {
   });
   return out;
 }
+var BREATH = 0.13;
+function singingVoice(voice) {
+  return {
+    ...voice,
+    tenseness: clampParam("tenseness", Math.max(voice.tenseness, Math.min(0.6, voice.tenseness + 0.25))),
+    breath: clampParam("breath", voice.breath * 0.45),
+    loudness: clampParam("loudness", voice.loudness + 0.1)
+  };
+}
 function sungConsonant(p, cluster) {
-  return Math.min(0.13, PHONEMES[p.symbol].duration / 1e3 * (cluster ? 0.95 : 1.2));
+  return Math.min(0.1, PHONEMES[p.symbol].duration / 1e3 * (cluster ? 0.7 : 0.85));
 }
 function yieldPreviousVowel(segments, cues, cursor, onsetStart) {
   if (onsetStart >= cursor) return cursor;
@@ -1010,7 +1019,7 @@ function yieldPreviousVowel(segments, cues, cursor, onsetStart) {
 function planSong(notes, lyrics, lexicon2, opts) {
   const bpm = Math.min(240, Math.max(30, opts.bpm));
   const beat = 60 / bpm;
-  const voice = { ...defaultPatch(), ...opts.voice ?? {} };
+  const voice = singingVoice({ ...defaultPatch(), ...opts.voice ?? {} });
   const syllables = lyricSyllables(lyrics, lexicon2);
   const sorted = notes.map((n, i) => ({ ...n, index: i })).sort((a, b) => a.start - b.start || a.midi - b.midi);
   const lead = 0.25;
@@ -1093,7 +1102,8 @@ function planSong(notes, lyrics, lexicon2, opts) {
       segments.push({ symbol: p.symbol, stress: 0, start: t, end: t + d, word: k });
       t += d;
     });
-    const stop = Math.min(end, nextStart - 5e-3);
+    const breath = unit && /[,.!?;:]$/.test(unit.text) && nextStart - end < BREATH && Math.min(end, nextStart) - start > 0.3;
+    const stop = breath ? nextStart - BREATH : Math.min(end, nextStart - 5e-3);
     const codaDur = coda.map((p) => sungConsonant(p, coda.length > 1));
     const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.45);
     const vowelEnd = stop - codaTotal;
@@ -1107,13 +1117,16 @@ function planSong(notes, lyrics, lexicon2, opts) {
     });
     cursor = c;
     const hz = midiToHz(n.midi);
+    const onsetAt = onset.length ? segments[segments.length - coda.length - 1 - onset.length].start : start - 0.05;
+    const noteLength = Math.min(end, nextStart) - start;
     if (cartoon) {
       const scoop = end - start > 0.4 ? 4 : 2;
-      pitchEvents.push([start - 0.1, "pitch", hz * 2 ** (-scoop / 12), 12]);
+      pitchEvents.push([Math.min(start - 0.1, onsetAt), "pitch", hz * 2 ** (-scoop / 12), 12]);
       pitchEvents.push([start - 0.055, "pitch", hz, 30]);
       if (end - start > 0.4 && nextStart - end > 0.15) pitchEvents.push([end - 0.17, "pitch", hz * 0.72, 70]);
     } else {
-      pitchEvents.push([start - (legato ? 0.04 : 0.06), "pitch", hz, legato ? 45 : 20]);
+      const glide = Math.min(legato ? 45 : 20, Math.max(8, 150 * noteLength), Math.max(8, 400 * (start - onsetAt)));
+      pitchEvents.push([Math.min(onsetAt, start - 0.03), "pitch", hz, glide]);
     }
     if (end - start > 0.45) {
       pitchEvents.push([start - 0.06, "vibratoDepth", 0, 60]);

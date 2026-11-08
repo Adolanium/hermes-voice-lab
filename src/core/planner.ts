@@ -480,9 +480,25 @@ export interface SongPlan extends Plan {
   cues: LyricCue[];
 }
 
+/** Time (s) a phrase-final note gives up for a breath when the next phrase follows at once. */
+const BREATH = 0.13;
+
+/**
+ * Singers use a firmer, louder, less breathy voice than speakers: more tension
+ * and effort, half the breath, relative to the chosen voice. Words carry better.
+ */
+function singingVoice(voice: Patch & ReturnType<typeof defaultPatch>) {
+  return {
+    ...voice,
+    tenseness: clampParam('tenseness', Math.max(voice.tenseness, Math.min(0.6, voice.tenseness + 0.25))),
+    breath: clampParam('breath', voice.breath * 0.45),
+    loudness: clampParam('loudness', voice.loudness + 0.1),
+  };
+}
+
 /** A sung consonant's length (s): its spoken length, a little shorter in clusters, capped. */
 function sungConsonant(p: Phone, cluster: boolean): number {
-  return Math.min(0.13, (PHONEMES[p.symbol].duration / 1000) * (cluster ? 0.95 : 1.2));
+  return Math.min(0.1, (PHONEMES[p.symbol].duration / 1000) * (cluster ? 0.7 : 0.85));
 }
 
 /**
@@ -517,7 +533,7 @@ function yieldPreviousVowel(segments: Segment[], cues: LyricCue[], cursor: numbe
 export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: SongOptions): SongPlan {
   const bpm = Math.min(240, Math.max(30, opts.bpm));
   const beat = 60 / bpm;
-  const voice = {...defaultPatch(), ...(opts.voice ?? {})};
+  const voice = singingVoice({...defaultPatch(), ...(opts.voice ?? {})});
   const syllables = lyricSyllables(lyrics, lexicon);
   const sorted = notes.map((n, i) => ({...n, index: i})).sort((a, b) => a.start - b.start || a.midi - b.midi);
   const lead = 0.25;
@@ -611,7 +627,9 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
       segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: k});
       t += d;
     });
-    const stop = Math.min(end, nextStart - 0.005);
+    // A phrase that ends in punctuation leaves room for a breath when the next note follows at once.
+    const breath = unit && /[,.!?;:]$/.test(unit.text) && nextStart - end < BREATH && Math.min(end, nextStart) - start > 0.3;
+    const stop = breath ? nextStart - BREATH : Math.min(end, nextStart - 0.005);
     const codaDur = coda.map(p => sungConsonant(p, coda.length > 1));
     const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.45);
     const vowelEnd = stop - codaTotal;
@@ -625,16 +643,21 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
     });
     cursor = c;
     const hz = midiToHz(n.midi);
+    // The pitch moves during the onset consonants, as a singer's does, so the vowel starts
+    // in tune; on short notes the glide shortens so it doesn't pull the previous vowel off.
+    const onsetAt = onset.length ? segments[segments.length - coda.length - 1 - onset.length].start : start - 0.05;
+    const noteLength = Math.min(end, nextStart) - start;
     if (cartoon) {
       // Scoop up into the note from below (further on long notes).
       const scoop = end - start > 0.4 ? 4 : 2;
       // (A fast glide, not a jump: an instant f0 step clicks.)
-      pitchEvents.push([start - 0.1, 'pitch', hz * 2 ** (-scoop / 12), 12]);
+      pitchEvents.push([Math.min(start - 0.1, onsetAt), 'pitch', hz * 2 ** (-scoop / 12), 12]);
       pitchEvents.push([start - 0.055, 'pitch', hz, 30]);
       // Fall off the end of a held note before a rest.
       if (end - start > 0.4 && nextStart - end > 0.15) pitchEvents.push([end - 0.17, 'pitch', hz * 0.72, 70]);
     } else {
-      pitchEvents.push([start - (legato ? 0.04 : 0.06), 'pitch', hz, legato ? 45 : 20]);
+      const glide = Math.min(legato ? 45 : 20, Math.max(8, 150 * noteLength), Math.max(8, 400 * (start - onsetAt)));
+      pitchEvents.push([Math.min(onsetAt, start - 0.03), 'pitch', hz, glide]);
     }
     // Delayed vibrato on held notes.
     if (end - start > 0.45) {
