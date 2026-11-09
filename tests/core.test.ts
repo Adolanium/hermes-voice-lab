@@ -12,7 +12,8 @@ import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, planSusta
 import {decodeLexicon, letterToSound, parsePhonemeInput, syllabify, tokenize} from '../src/core/text';
 import {duetScore, newProject, projectScore, SILLY_SONG, validateProject} from '../src/core/project';
 import {duetNotes} from '../src/core/duet';
-import {beatSong} from '../src/core/beat';
+import {beatSong, BEAT_SOUNDS} from '../src/core/beat';
+import {planHit} from '../src/core/hits';
 import {CREATURES} from '../src/core/bestiary';
 import {SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
 import {PHONEMES, VOWEL_CALIBRATION, isVowel as isVowelSymbol} from '../src/core/phonemes';
@@ -583,4 +584,26 @@ test('live keys reach their vowel at once and hold the nucleus of a diphthong', 
   const p = run(planLiveOn(my, 60, SIGNATURE), 1.5);
   assert.ok(Math.abs(p[id('tongueX')] - PHONEMES_TARGET(nucleus.symbol).tongueX!) < 0.06, `held ${nucleus.symbol} nucleus ${p[id('tongueX')].toFixed(3)}`);
   assert.ok(p[id('gate')] > 0.9, 'still sounding after 1.5 s');
+});
+
+test('beat pads sound at once and keep their character', () => {
+  const sr = 48000;
+  const stats = (score: {events: Float32Array; length: number}) => {
+    const [l] = renderScore(engine(sr, 1), score, {}, 0.3);
+    let peak = 0, energy = 0;
+    for (const v of l) { peak = Math.max(peak, Math.abs(v)); energy += v * v; }
+    let at = 0;
+    while (Math.abs(l[at]) < peak) at++;
+    return {peakMs: (at / sr) * 1000, energy};
+  };
+  const limit: Record<string, number> = {kick: 90, snare: 130, hat: 100, open: 160, click: 230, bass: 230, hum: 230};
+  for (const s of BEAT_SOUNDS) {
+    const hit = stats(planHit(s.id, SIGNATURE, lexicon));
+    const {notes, lyrics} = beatSong({bpm: 92, steps: [s.id], loop: false});
+    const song = stats(planSong(notes, lyrics, lexicon, {bpm: 92, voice: SIGNATURE}).score);
+    assert.ok(hit.peakMs < limit[s.id], `${s.id} peaks at ${hit.peakMs.toFixed(0)} ms`);
+    assert.ok(hit.peakMs < song.peakMs - 100, `${s.id} sooner than the sequenced hit`);
+    assert.ok(hit.energy > 0.45 * song.energy, `${s.id} keeps its energy (${hit.energy.toFixed(1)} vs ${song.energy.toFixed(1)})`);
+  }
+  assert.throws(() => planHit('nope', SIGNATURE, lexicon));
 });
