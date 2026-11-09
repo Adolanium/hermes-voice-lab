@@ -68,3 +68,11 @@ export function bodyAt(x: number): Patch {
   for (const k of BODY_FIELDS) out[k] = a[k]! + (b[k]! - a[k]!) * w;
   return out;
 }
+
+/** Where a voice's body sits on the bodyAt scale (by tract length). */
+export function bodyPosition(voice: Patch): number {
+  const length = voice.tractLength ?? SIGNATURE.tractLength!;
+  const child = bodyAt(-1).tractLength!, adult = bodyAt(1).tractLength!, hers = SIGNATURE.tractLength!;
+  const x = length < hers ? -(hers - length) / (hers - child) : (length - hers) / (adult - hers);
+  return Math.max(-1, Math.min(1, x));
+}

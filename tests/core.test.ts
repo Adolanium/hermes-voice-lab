@@ -15,7 +15,7 @@ import {duetNotes} from '../src/core/duet';
 import {beatSong, BEAT_SOUNDS} from '../src/core/beat';
 import {planHit} from '../src/core/hits';
 import {CREATURES} from '../src/core/bestiary';
-import {bodyAt, SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
+import {bodyAt, bodyPosition, SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
 import {PHONEMES, VOWEL_CALIBRATION, isVowel as isVowelSymbol} from '../src/core/phonemes';
 const PHONEMES_TARGET = (symbol: string) => PHONEMES[symbol].target;
 import {encodeWav, measure} from '../src/core/wav';
@@ -644,4 +644,5 @@ test('a body morph moves the resonances smoothly from child to adult male', () =
   assert.deepEqual(bodyAt(0), {tractLength: SIGNATURE.tractLength, pharynx: SIGNATURE.pharynx, throat: SIGNATURE.throat});
   assert.equal(bodyAt(-1).tractLength, VOICE_PRESETS.find(p => p.id === 'child')!.voice.tractLength);
   assert.equal(bodyAt(5).tractLength, bodyAt(1).tractLength);
+  for (const x of [-1, -0.4, 0, 0.3, 1]) assert.ok(Math.abs(bodyPosition({...SIGNATURE, ...bodyAt(x)}) - x) < 1e-9, `round trip ${x}`);
 });

@@ -4,7 +4,7 @@ import type {Note, Plan, SongPlan} from '../core/planner';
 import {simulateTracks} from '../core/planner';
 import {midiToHz, noteName, type ParamName, type Patch} from '../core/params';
 import {PHONEMES, isVowel} from '../core/phonemes';
-import {VOWEL_PRESETS} from '../core/presets';
+import {bodyAt, bodyPosition, VOWEL_PRESETS} from '../core/presets';
 import {morphVowel, VOWEL_ANCHORS} from '../performance/vowels';
 import {SILLY_SONG, type Project} from '../core/project';
 import {DUET_PARTS, type DuetPart} from '../core/duet';
@@ -99,6 +99,7 @@ export function PlayPanel({project, live, agentKeys, onVoice, onShape, onTouch, 
               onHold={(source, on) => onArticulation(`${id}:${source}`, on ? patch : null)} />)}
           </div>
           <span className="hvl-note">Hold a key, then hold an articulation.</span>
+          <BodyMorph value={bodyPosition(project.voice)} onChange={x => onVoice(bodyAt(x))} />
         </div>
       </div>
       <details className="hvl-disclosure">
@@ -130,6 +131,22 @@ export function PlayPanel({project, live, agentKeys, onVoice, onShape, onTouch, 
         </div>
       </div>
       </details>
+    </div>
+  );
+}
+
+/** One slider through the calibrated bodies (child, hers, adult male); the pitch stays put. */
+function BodyMorph({value, onChange}: {value: number; onChange: (x: number) => void}) {
+  const fraction = (value + 1) / 2;
+  return (
+    <div className="hvl-slider" title="Morph the body: tract length, pharynx and throat. The note stays at its pitch.">
+      <div className="hvl-slider-head">
+        <label htmlFor="hvl-body-morph">Body</label>
+        <output htmlFor="hvl-body-morph">{value < -0.05 ? 'child' : value > 0.05 ? 'adult male' : 'hers'} · {bodyAt(value).tractLength!.toFixed(1)} cm</output>
+      </div>
+      <input id="hvl-body-morph" className="hvl-range" type="range" min={-1000} max={1000} step={1} value={Math.round(value * 1000)}
+        style={{'--p': `${fraction * 100}%`} as React.CSSProperties}
+        onChange={e => onChange(Math.abs(e.currentTarget.valueAsNumber) < 30 ? 0 : e.currentTarget.valueAsNumber / 1000)} />
     </div>
   );
 }
