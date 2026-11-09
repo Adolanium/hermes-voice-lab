@@ -105,6 +105,18 @@ def tool_set_voice(args: dict, **_):
         return _error(e)
 
 
+def _beat_steps(pattern: str) -> tuple[list[str], str | None]:
+    """Steps of a beat pattern, fitted to 16 or 32: a short bar is filled out with rests and a
+    long one is cut at 32, so an agent's near-miss still plays. Returns (steps, note or None)."""
+    steps = pattern.split()
+    if len(steps) in (16, 32) or not steps:
+        return steps, None
+    if len(steps) < 32:
+        size = 16 if len(steps) < 16 else 32
+        return steps + ["."] * (size - len(steps)), f"The pattern had {len(steps)} steps; rests fill it out to {size}."
+    return steps[:32], f"The pattern had {len(steps)} steps; it was cut to 32."
+
+
 def tool_perform(args: dict, **_):
     try:
         session = _session(args)
@@ -123,8 +135,9 @@ def tool_perform(args: dict, **_):
                 project["speech"]["expression"] = vb._number(args["expression"], 0, 1, "expression")
         elif mode == "beat":
             beat = dict(project.get("beat") or {})
+            fitted = None
             if args.get("pattern"):
-                beat["steps"] = str(args["pattern"]).split()
+                beat["steps"], fitted = _beat_steps(str(args["pattern"]))
             if "bpm" in args:
                 beat["bpm"] = args["bpm"]
             if "loop" in args:
@@ -162,6 +175,8 @@ def tool_perform(args: dict, **_):
         saved = vb.save_project(session, PROJECT_ID, project, origin="agent")
         result = {"session_id": session, "project": _summary(saved),
                   "message": f"Loaded the {dict(speak='phrase', sing='song', beat='beat')[mode]} into Voice Lab. The user can press {dict(speak='Speak', sing='Sing', beat='Play')[mode]} to hear it live."}
+        if mode == "beat" and fitted:
+            result["note"] = fitted
         if args.get("render", True):
             rendered = vb.render_project(session, saved, mode=mode, label="take")
             return _ok(**result, render=rendered) + "\n" + _media(rendered)
