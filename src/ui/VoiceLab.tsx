@@ -491,6 +491,7 @@ export default function VoiceLab({bridge}: Props) {
             agentKeys={agentKeys}
             onVoice={onVoice}
             onShape={onShape}
+            onTouch={(source, on) => performanceController.touch(source, on)}
             holding={holding}
             onHold={onHold}
             latch={latch}

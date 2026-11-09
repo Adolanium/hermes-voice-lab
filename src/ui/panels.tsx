@@ -1,10 +1,11 @@
 /** Mode panels: Play (hold a shape), Speak (phrase), Sing (piano roll). */
-import React, {useMemo, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import type {Note, Plan, SongPlan} from '../core/planner';
 import {simulateTracks} from '../core/planner';
 import {midiToHz, noteName, type ParamName, type Patch} from '../core/params';
 import {PHONEMES, isVowel} from '../core/phonemes';
 import {VOWEL_PRESETS} from '../core/presets';
+import {morphVowel, VOWEL_ANCHORS} from '../performance/vowels';
 import {SILLY_SONG, type Project} from '../core/project';
 import {DUET_PARTS, type DuetPart} from '../core/duet';
 import {VOICE_PRESETS as ALL_VOICES} from '../core/presets';
@@ -28,6 +29,7 @@ interface PlayProps {
   agentKeys: Set<string>;
   onVoice: (p: Patch) => void;
   onShape: (p: Patch) => void;
+  onTouch: (source: string, on: boolean) => void;
   holding: boolean;
   onHold: (on: boolean) => void;
   latch: boolean;
@@ -35,7 +37,7 @@ interface PlayProps {
   running: boolean;
 }
 
-export function PlayPanel({project, live, agentKeys, onVoice, onShape, holding, onHold, latch, onLatch, running}: PlayProps) {
+export function PlayPanel({project, live, agentKeys, onVoice, onShape, onTouch, holding, onHold, latch, onLatch, running}: PlayProps) {
   const value = (n: ParamName) => (VOICE_KEYS.has(n) ? project.voice[n] : project.shape[n]) ?? 0;
   const set = (n: ParamName) => (v: number) => (VOICE_KEYS.has(n) ? onVoice({[n]: v}) : onShape({[n]: v}));
   const active = VOWEL_PRESETS.find(v => Object.entries(v.shape).every(([k, x]) => Math.abs((project.shape[k as ParamName] ?? -1) - (x as number)) < 0.02));
@@ -56,7 +58,7 @@ export function PlayPanel({project, live, agentKeys, onVoice, onShape, holding, 
       </div>
       <div className="hvl-play-grid">
         <VowelPad x={project.shape.tongueX ?? 0.5} y={project.shape.tongueY ?? 0.5} liveX={live?.tongueX} liveY={live?.tongueY} running={running}
-          onChange={(x, y) => onShape({tongueX: x, tongueY: y})} />
+          onChange={onShape} onTouch={onTouch} />
         <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
           <div className="hvl-row">
             <button className={`hvl-btn is-primary`} style={{flex: 1, height: 38}}
@@ -104,35 +106,78 @@ export function PlayPanel({project, live, agentKeys, onVoice, onShape, holding, 
   );
 }
 
-function VowelPad({x, y, liveX, liveY, running, onChange}: {x: number; y: number; liveX?: number; liveY?: number; running: boolean; onChange: (x: number, y: number) => void}) {
+function VowelPad({x, y, liveX, liveY, running, onChange, onTouch}: {
+  x: number; y: number; liveX?: number; liveY?: number; running: boolean;
+  onChange: (p: Patch) => void; onTouch: (source: string, on: boolean) => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
+  const pointer = useRef<number | null>(null);
+  const [raw, setRaw] = useState(false);
+  const [point, setPoint] = useState({x, y});
+  const sent = useRef({x, y});
+  const callbacks = useRef(onTouch);
+  callbacks.current = onTouch;
+  useEffect(() => () => callbacks.current('vowel-pad', false), []);
+  useEffect(() => {
+    if (x !== sent.current.x || y !== sent.current.y) setPoint({x, y});
+  }, [x, y]);
+  const apply = (nx: number, ny: number) => {
+    const shape = raw ? {tongueX: nx, tongueY: ny} : morphVowel(nx, ny);
+    sent.current = {x: shape.tongueX!, y: shape.tongueY!};
+    setPoint({x: nx, y: ny});
+    onChange(shape);
+  };
   const update = (e: React.PointerEvent) => {
     const r = ref.current!.getBoundingClientRect();
-    const nx = Math.min(1, Math.max(0, ((e.clientX - r.left) / r.width - 0.08) / 0.84));
-    const ny = Math.min(1, Math.max(0, 1 - ((e.clientY - r.top) / r.height - 0.08) / 0.84));
-    onChange(Number(nx.toFixed(3)), Number(ny.toFixed(3)));
+    let nx = Math.min(1, Math.max(0, ((e.clientX - r.left) / r.width - 0.08) / 0.84));
+    let ny = Math.min(1, Math.max(0, 1 - ((e.clientY - r.top) / r.height - 0.08) / 0.84));
+    if (!raw) {
+      const nearest = VOWEL_ANCHORS.reduce((a, b) => Math.hypot(nx - a.x, ny - a.y) < Math.hypot(nx - b.x, ny - b.y) ? a : b);
+      if (Math.hypot(nx - nearest.x, ny - nearest.y) < 0.025) { nx = nearest.x; ny = nearest.y; }
+    }
+    apply(nx, ny);
+  };
+  const release = (e: React.PointerEvent) => {
+    if (pointer.current !== e.pointerId) return;
+    pointer.current = null;
+    onTouch('vowel-pad', false);
   };
   return (
-    <div ref={ref} className="hvl-pad" role="slider" aria-label="Tongue body position: back to front, low to high" aria-valuetext={`front ${Math.round(x * 100)}%, height ${Math.round(y * 100)}%`} tabIndex={0}
-      onPointerDown={e => { (e.currentTarget as Element).setPointerCapture(e.pointerId); update(e); }}
-      onPointerMove={e => e.buttons && update(e)}
-      onKeyDown={e => {
-        const d = e.shiftKey ? 0.1 : 0.02;
-        if (e.key === 'ArrowLeft') onChange(Math.max(0, x - d), y);
-        else if (e.key === 'ArrowRight') onChange(Math.min(1, x + d), y);
-        else if (e.key === 'ArrowUp') onChange(x, Math.min(1, y + d));
-        else if (e.key === 'ArrowDown') onChange(x, Math.max(0, y - d));
-        else return;
-        e.preventDefault();
-      }}>
-      {VOWEL_PRESETS.filter(v => v.shape.tongueX !== undefined && !['hum'].includes(v.id)).map(v => (
-        <span key={v.id} className="mark" style={{left: `${8 + v.shape.tongueX! * 84}%`, top: `${8 + (1 - v.shape.tongueY!) * 84}%`}}>{v.ipa}</span>
-      ))}
-      <span className="axis" style={{left: 6, bottom: 4}}>back</span>
-      <span className="axis" style={{right: 6, bottom: 4}}>front</span>
-      <span className="axis" style={{left: 6, top: 4}}>high</span>
-      <div className="puck" style={{left: `${8 + x * 84}%`, top: `${8 + (1 - y) * 84}%`}} />
-      {running && liveX !== undefined && liveY !== undefined && <div className="live" style={{left: `${8 + liveX * 84}%`, top: `${8 + (1 - liveY) * 84}%`}} />}
+    <div className="hvl-vowel-control">
+      <div ref={ref} className="hvl-pad" role="group" aria-label={raw ? 'Raw tongue position' : 'Vowel morph pad'} tabIndex={0}
+        onPointerDown={e => {
+          if (pointer.current !== null) return;
+          e.preventDefault();
+          e.currentTarget.focus();
+          pointer.current = e.pointerId;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          update(e);
+          onTouch('vowel-pad', true);
+        }}
+        onPointerMove={e => { if (pointer.current === e.pointerId) update(e); }}
+        onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release}
+        onBlur={() => onTouch('vowel-pad', false)}
+        onKeyDown={e => {
+          if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) onTouch('vowel-pad', true); return; }
+          const d = e.shiftKey ? 0.1 : 0.02;
+          if (e.key === 'ArrowLeft') apply(Math.max(0, point.x - d), point.y);
+          else if (e.key === 'ArrowRight') apply(Math.min(1, point.x + d), point.y);
+          else if (e.key === 'ArrowUp') apply(point.x, Math.min(1, point.y + d));
+          else if (e.key === 'ArrowDown') apply(point.x, Math.max(0, point.y - d));
+          else return;
+          e.preventDefault();
+        }}
+        onKeyUp={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onTouch('vowel-pad', false); } }}>
+        {!raw && VOWEL_ANCHORS.map(v => (
+          <span key={v.id} className="mark" style={{left: `${8 + v.x * 84}%`, top: `${8 + (1 - v.y) * 84}%`}}>{v.ipa}</span>
+        ))}
+        <span className="axis" style={{left: 6, bottom: 4}}>back</span>
+        <span className="axis" style={{right: 6, bottom: 4}}>front</span>
+        <span className="axis" style={{left: 6, top: 4}}>high</span>
+        <div className="puck" style={{left: `${8 + point.x * 84}%`, top: `${8 + (1 - point.y) * 84}%`}} />
+        {running && liveX !== undefined && liveY !== undefined && <div className="live" style={{left: `${8 + liveX * 84}%`, top: `${8 + (1 - liveY) * 84}%`}} />}
+      </div>
+      <label className="hvl-check" style={{marginTop: 6}}><input type="checkbox" checked={raw} onChange={e => { setRaw(e.target.checked); setPoint({x, y}); }} /> Raw tongue only</label>
     </div>
   );
 }
