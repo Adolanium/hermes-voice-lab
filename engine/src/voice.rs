@@ -195,6 +195,7 @@ pub struct Voice {
     closed: bool,
     /// A parameter jumped: install the next shape at once (no air pumping).
     snap: bool,
+    room_send: f32,
     sum_sq: f32,
     sum_n: u32,
     peak: f32,
@@ -285,6 +286,7 @@ impl Voice {
             oral_pressure: 0.0,
             closed: false,
             snap: true,
+            room_send: 1.0,
             sum_sq: 0.0,
             sum_n: 0,
             peak: 0.0,
@@ -620,12 +622,17 @@ impl Voice {
     /// Render `count` output frames into out_l/out_r.
     pub fn render(&mut self, count: usize) -> usize {
         let count = count.min(MAX_BLOCK);
-        let p = &self.p;
-        self.strip.update([p[MIC], p[EQ_LOW], p[EQ_MID], p[EQ_HIGH], p[COMP], p[DRIVE]]);
-        // A distant microphone hears more of the room.
-        let room_send = 1.0 + 1.5 * ((p[MIC] - MIC_NEUTRAL) / (1.0 - MIC_NEUTRAL)).max(0.0);
         for n in 0..count {
             self.advance_score();
+            // The recording chain follows its controls on a fixed grid of output frames,
+            // not once per call: the host's block size must not change the sound.
+            if self.frame % 64 == 0 {
+                let p = &self.p;
+                self.strip.update([p[MIC], p[EQ_LOW], p[EQ_MID], p[EQ_HIGH], p[COMP], p[DRIVE]]);
+                // A distant microphone hears more of the room.
+                self.room_send = 1.0 + 1.5 * ((p[MIC] - MIC_NEUTRAL) / (1.0 - MIC_NEUTRAL)).max(0.0);
+            }
+            let room_send = self.room_send;
             let kind = (self.p[CREATURE].round() as u32).min(2);
             let raw = if kind == HUMAN {
                 let step = self.int_rate / self.out_rate;
