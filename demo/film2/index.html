@@ -1,0 +1,44 @@
+<!doctype html>
+<html
+  lang="en"
+  data-composition-variables='[
+    {"id":"color-ground","type":"color","label":"Background","default":"#ffffff"},
+    {"id":"color-ink","type":"color","label":"Text","default":"#16151a"},
+    {"id":"color-accent","type":"color","label":"Hermes blue","default":"#2152f4"},
+    {"id":"font-display","type":"string","label":"Display font","default":"Collapse"}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <style>
+      :root { --color-ground: #ffffff; --color-ink: #16151a; --color-accent: #2152f4; --font-display: Collapse; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--color-ground); }
+      #root { position: relative; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="93.05" data-width="1920" data-height="1080">
+      <!-- Cold open on the act, the title, the whole Hermes window (agent, instrument, pads), a dive into the act, the end card. -->
+      <div id="cold" data-composition-id="cold" data-composition-src="compositions/cold.html" data-start="0.0" data-duration="2.60"
+        data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 2"></div>
+      <div id="title" data-composition-id="title" data-composition-src="compositions/title.html" data-start="2.6" data-duration="3.0"
+        data-track-index="2" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 4"></div>
+      <div id="app" data-composition-id="app" data-composition-src="compositions/app.html" data-start="4.75" data-duration="61.65"
+        data-track-index="3" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 3"></div>
+      <div id="act" data-composition-id="act" data-composition-src="compositions/act.html" data-start="66.2" data-duration="20.85"
+        data-track-index="4" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1"></div>
+      <div id="end" data-composition-id="end" data-composition-src="compositions/end.html" data-start="87.05" data-duration="6.00"
+        data-track-index="5" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 5"></div>
+      <!-- One mixed soundtrack: the app takes' own audio, the act, and the band (demo/build_audio2.py). -->
+      <audio id="soundtrack" class="clip" src="assets/soundtrack.wav" data-start="0" data-duration="93.05" data-track-index="9" data-volume="1"></audio>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

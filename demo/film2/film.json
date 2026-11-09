@@ -1,0 +1,122 @@
+{
+ "_note": "Film timeline in seconds. media = time inside the source clip; film = time in the demo; app-local times (a) start at app.film. Read by demo/build_audio2.py and mirrored in index.html / compositions/app.html.",
+ "fps": 30,
+ "act": {
+  "src": "assets/act.mp4",
+  "preroll": 0.5
+ },
+ "cold": {
+  "film": [
+   0.0,
+   2.6
+  ],
+  "media": 13.85
+ },
+ "title": {
+  "film": [
+   2.6,
+   5.6
+  ]
+ },
+ "app": {
+  "film": 4.75,
+  "end": 61.65,
+  "window": {
+   "scale": 0.86,
+   "x": 140,
+   "y": 34
+  },
+  "mouth": [
+   908,
+   415
+  ]
+ },
+ "segments": [
+  {
+   "id": "ask1",
+   "take": "agent",
+   "a": 0.0,
+   "media": 1.45,
+   "dur": 9.0
+  },
+  {
+   "id": "sing",
+   "take": "agent",
+   "a": 9.0,
+   "media": 15.62,
+   "dur": 8.3,
+   "song_onset_media": 16.052
+  },
+  {
+   "id": "ask2",
+   "take": "agent2",
+   "a": 17.3,
+   "media": 1.0,
+   "dur": 6.9
+  },
+  {
+   "id": "beat",
+   "take": "agent2",
+   "a": 24.2,
+   "media": 14.15,
+   "dur": 6.4
+  },
+  {
+   "id": "grab",
+   "take": "play",
+   "a": 30.6,
+   "media": 5.6,
+   "dur": 5.4
+  },
+  {
+   "id": "pad",
+   "take": "play",
+   "a": 36.0,
+   "media": 11.2,
+   "dur": 4.95
+  },
+  {
+   "id": "keys",
+   "take": "play",
+   "a": 40.95,
+   "media": 16.2,
+   "dur": 3.4
+  },
+  {
+   "id": "hum",
+   "take": "play",
+   "a": 44.35,
+   "media": 19.6,
+   "dur": 5.9
+  },
+  {
+   "id": "body",
+   "take": "play",
+   "a": 50.25,
+   "media": 25.5,
+   "dur": 5.6
+  },
+  {
+   "id": "pads",
+   "take": "beat",
+   "a": 55.85,
+   "media": 4.7,
+   "dur": 5.8
+  }
+ ],
+ "dive": {
+  "a": [
+   60.85,
+   61.65
+  ]
+ },
+ "show": {
+  "film": 66.2,
+  "media": 8.75,
+  "dur": 20.85
+ },
+ "end": {
+  "film": 87.05,
+  "seconds": 6.0
+ }
+}

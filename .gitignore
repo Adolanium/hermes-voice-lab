@@ -19,3 +19,11 @@ demo/film/assets/fonts/
 docs/media/.*.hf-transaction-*/
 demo/film/.thumbnails/
 demo/film/.waveform-cache/
+demo/film2/.hyperframes/
+demo/film2/renders/
+demo/film2/assets/*.mp4
+demo/film2/assets/*.webm
+demo/film2/assets/*.wav
+demo/film2/assets/fonts/
+demo/film2/.thumbnails/
+demo/film2/.waveform-cache/
