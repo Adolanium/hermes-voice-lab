@@ -131,6 +131,8 @@ function View() {
   const airway = {
     running: true, areas: fr.areas, energy: fr.energy, airflow: st[STATE.airflow], nasalShare: st[STATE.nasalShare],
     closed: st[STATE.closed] > 0.5, minIndex: st[STATE.minIndex], minArea: st[STATE.minArea], gate: p.gate, clock: fr.time,
+    oralPressure: st[STATE.oralPressure], frication: st[STATE.frication], noiseIndex: st[STATE.noiseIndex], voicing: st[STATE.voicing],
+    level: st[STATE.rms], f0: st[STATE.f0],
   };
   const section = plan.sections.find(s => fr.time >= s.start && fr.time < s.end);
   const singing = section?.kind === 'sing';

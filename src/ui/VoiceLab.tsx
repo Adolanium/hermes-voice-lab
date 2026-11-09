@@ -251,6 +251,8 @@ export default function VoiceLab({bridge}: Props) {
     frication: running && telemetry ? telemetry.state[STATE.frication] : 0,
     noiseIndex: running && telemetry ? telemetry.state[STATE.noiseIndex] : 0,
     voicing: running && telemetry ? telemetry.state[STATE.voicing] : 0,
+    level: running && telemetry ? telemetry.state[STATE.rms] : 0,
+    f0: running && telemetry ? telemetry.state[STATE.f0] : 0,
   };
   const minIndex = useMemo(() => {
     let k = 7;

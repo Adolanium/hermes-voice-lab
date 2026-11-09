@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {Engine} from '../src/core/engine';
 import {VOWEL_PRESETS} from '../src/core/presets';
-import {airwayActivity} from '../src/ui/AirwayLife';
+import {airwayActivity, soundLevel} from '../src/ui/AirwayLife';
 import {ANALYSIS_WORKER_SOURCE} from '../src/ui/modelAnalysis';
 
 test('airway activity uses model telemetry and clears all indicators when stopped', () => {
@@ -78,4 +78,14 @@ test('model analysis coalesces geometry and discards results after disposal', as
   } finally {
     globalThis.Worker = previous;
   }
+});
+
+test('sound level is silent when stopped or gated and grows with output level', () => {
+  assert.equal(soundLevel({running: false, gate: 1, level: 0.1}), 0);
+  assert.equal(soundLevel({running: true, gate: 0, level: 0.1}), 0);
+  const levels = [0.01, 0.05, 0.1, 0.12, 0.5].map(level => soundLevel({running: true, gate: 1, level}));
+  for (let i = 1; i < 4; i++) assert.ok(levels[i] > levels[i - 1]);
+  assert.equal(levels[3], 1);
+  assert.equal(levels[4], 1);
+  assert.equal(soundLevel({running: true, gate: 1, level: NaN}), 0);
 });

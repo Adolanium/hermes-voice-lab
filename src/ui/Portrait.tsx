@@ -10,7 +10,7 @@
  */
 import React, {useCallback, useEffect, useMemo, useRef} from 'react';
 import type {ParamName} from '../core/params';
-import {AirwayLife, type AirwayState} from './AirwayLife';
+import {AirwayLife, Emission, type AirwayState} from './AirwayLife';
 import {FloatingWords, headMotion, type StageState} from './stage';
 import {ART_FIGURE, ART_INK, ART_TONE} from './art/nousGirlArt';
 import {lineY, mouthShapes, prepare, warpPath, warpPoint, type FacePose} from './faceRig';
@@ -280,6 +280,7 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   const chin = artToRig(warpPoint(1046, 808, face));
   const lipsAt = artToRig(warpPoint(1086, 700, face));
   const m = warped.mouth;
+  const airGeometry = {pivot: PIVOT, tongueDeg: g.tongueDeg, exit: [ul[0] - 2, ul[1] + g.lipGap / 2 + 2] as [number, number]};
 
   return (
     <svg ref={svg} viewBox={viewBox ?? DEFAULT_VIEWBOX} className={`hvl-portrait ${stage ? 'is-stage' : ''}`} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
@@ -338,7 +339,7 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
             <path d="M 284 440 L 312 440 L 311 482 L 287 482 Z" fill={S.cavity} opacity="0.55" />
             <path d={`M 285 452 L ${298 - g.fold} 456 L 285 460 Z`} fill={S.flesh} stroke={S.ink} strokeWidth="0.9" />
             <path d={`M 311 452 L ${298 + g.fold} 456 L 311 460 Z`} fill={S.flesh} stroke={S.ink} strokeWidth="0.9" />
-            <AirwayLife state={airway} geometry={{pivot: PIVOT, tongueDeg: g.tongueDeg, exit: [ul[0] - 2, ul[1] + g.lipGap / 2 + 2]}} />
+            <AirwayLife state={airway} geometry={airGeometry} />
           </g>
           {/* Her outline stays visible through the lens */}
           <g mask="url(#hvl-window)" className="hvl-xray">
@@ -348,6 +349,8 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
             </g>
           </g>
         </g>
+        {/* What leaves her mouth and nose, in the air in front of the face */}
+        <Emission state={airway} geometry={airGeometry} />
 
         {onDrag && (
           <g className="hvl-handles">

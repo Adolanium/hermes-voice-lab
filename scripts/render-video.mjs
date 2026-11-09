@@ -3,13 +3,17 @@
  * Render a performance video of the portrait singing (development tool).
  *
  *   node scripts/render-video.mjs [--out docs/media/boop-bop-song.mp4] [--fps 30] [--url http://127.0.0.1:5199]
+ *     [--show items.json] [--reveal 0,2] [--title "Title"]
+ *
+ * --show replaces the lounge set with a JSON list of show items (see src/core/show.ts);
+ * --reveal opens the cutaway from that section index to that one.
  *
  * Audio and pictures come from one offline engine run (see src/dev/video.tsx),
  * so lip-sync is exact. Needs ffmpeg on PATH and a Playwright Chromium
  * (or --chrome /path/to/chrome).
  */
 import {spawn} from 'node:child_process';
-import {existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
 import {homedir, tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {chromium} from 'playwright-core';
@@ -47,7 +51,11 @@ await page.goto(`${url}/video.html`);
 await page.waitForFunction(() => !!window.__video);
 await page.evaluate(() => document.fonts.ready);
 const t0 = Date.now();
-const info = await page.evaluate(fps => window.__video.prepare({fps}), fps);
+const options = {fps};
+if (args.show) options.show = JSON.parse(readFileSync(resolve(args.show), 'utf8'));
+if (args.reveal) options.reveal = args.reveal.split(',').map(Number);
+if (args.title) options.title = args.title;
+const info = await page.evaluate(options => window.__video.prepare(options), options);
 console.log(`engine: ${info.frames} frames, ${info.seconds.toFixed(2)} s, ${info.cues} sung syllables (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 
 const dir = mkdtempSync(join(tmpdir(), 'hvl-video-'));
