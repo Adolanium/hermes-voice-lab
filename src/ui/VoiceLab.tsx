@@ -10,7 +10,8 @@ import {duetScore, newProject, projectScore, validateProject, type Mode, type Pr
 import {planHit} from '../core/hits';
 import type {Lexicon} from '../core/text';
 import type {VoiceLabBridge} from '../bridge';
-import {loadLexicon} from './assets';
+import {engineModule, loadLexicon} from './assets';
+import {ModelAnalysis} from './modelAnalysis';
 import {analysis, renderWav, VoiceAudio} from './audio';
 import {Icon, Mark, useAudioStatus, useOpaqueInk, useTelemetry} from './controls';
 import {Keyboard} from './Keyboard';
@@ -222,16 +223,18 @@ export default function VoiceLab({bridge}: Props) {
   const length = running && telemetry ? telemetry.state[STATE.length] : preview.length;
   const nasal = running && telemetry ? telemetry.state[STATE.nasalArea] : preview.nasal;
   const [model, setModel] = useState<TractResponse | null>(null);
+  const modelWorker = useRef<ModelAnalysis | null>(null);
+  useEffect(() => {
+    const worker = new ModelAnalysis(engineModule(), setModel);
+    modelWorker.current = worker;
+    return () => { modelWorker.current = null; worker.dispose(); };
+  }, []);
   const lastAnalysis = useRef(0);
   useEffect(() => {
     const now = performance.now();
     if (now - lastAnalysis.current < 90 && running) return;
     lastAnalysis.current = now;
-    try {
-      setModel(analysis().analyze(areas, nasal, length));
-    } catch {
-      setModel(null);
-    }
+    modelWorker.current?.request(areas, nasal, length);
   }, [areas, nasal, length, running]);
   const airway = {
     running,
@@ -243,6 +246,10 @@ export default function VoiceLab({bridge}: Props) {
     minIndex: running && telemetry ? telemetry.state[STATE.minIndex] : 0,
     minArea: running && telemetry ? telemetry.state[STATE.minArea] : 1,
     gate: params?.gate ?? 0,
+    oralPressure: running && telemetry ? telemetry.state[STATE.oralPressure] : 0,
+    frication: running && telemetry ? telemetry.state[STATE.frication] : 0,
+    noiseIndex: running && telemetry ? telemetry.state[STATE.noiseIndex] : 0,
+    voicing: running && telemetry ? telemetry.state[STATE.voicing] : 0,
   };
   const minIndex = useMemo(() => {
     let k = 7;
@@ -476,7 +483,7 @@ export default function VoiceLab({bridge}: Props) {
               </div>
             )}
             <div className="hvl-stage-foot">
-              <span>Drag the handles: lips, jaw, tongue, tip, velum.</span>
+              <span>Drag the mouth to sound. Amber: pressure / hiss. Green: voicing.</span>
               <span style={{marginLeft: 'auto'}}>Stylised view of the modeled articulators — not medical anatomy.</span>
             </div>
           </section>
@@ -524,10 +531,10 @@ export default function VoiceLab({bridge}: Props) {
         <details className="hvl-disclosure hvl-analysis">
           <summary>Analysis scopes</summary>
         <section className="hvl-scopes" aria-label="Analysis">
-          <Airway areas={areas} length={length} nasal={nasal} minIndex={minIndex} />
+          <Airway areas={areas} length={length} nasal={nasal} minIndex={minIndex} activity={airway} />
           <Spectrum audio={audio} running={running} model={model} f0={running ? f0 : 0} />
           <Waveform audio={audio} running={running} />
-          <Glottal shape={audio.glottal ?? null} rd={rd} f0={running ? f0 : 0} voicing={params?.voicing ?? 1} sounding={running && airway.gate > 0.05 && !airway.closed} />
+          <Glottal shape={audio.glottal ?? null} rd={rd} f0={running ? f0 : 0} voicing={airway.voicing} sounding={running && airway.gate > 0.05} />
         </section>
 
         </details>

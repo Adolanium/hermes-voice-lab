@@ -25,6 +25,10 @@ export interface AirwayState {
   minIndex: number;
   minArea: number;
   gate: number;
+  oralPressure?: number;
+  frication?: number;
+  noiseIndex?: number;
+  voicing?: number;
   /** Fixed clock in seconds (frame rendering): particles step on it instead of real time. */
   clock?: number;
 }
@@ -78,6 +82,17 @@ export function airwayPoints(g: Geometry): {oral: Pt[]; nasal: Pt[]} {
   return {oral, nasal};
 }
 
+/** Display intensities are normalized model quantities, not measured audio levels. */
+export function airwayActivity(state: Pick<AirwayState, 'running' | 'oralPressure' | 'frication' | 'noiseIndex' | 'voicing'>) {
+  const unit = (v = 0) => Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
+  return {
+    pressure: state.running ? unit(state.oralPressure) : 0,
+    friction: state.running ? Math.sqrt(unit((state.frication ?? 0) * 4)) : 0,
+    voicing: state.running ? unit(state.voicing) : 0,
+    noiseIndex: Math.round(unit((state.noiseIndex ?? 0) / (N - 1)) * (N - 1)),
+  };
+}
+
 export function AirwayLife({state, geometry}: {state: AirwayState; geometry: Geometry}) {
   const {oral, nasal} = useMemo(() => airwayPoints(geometry), [geometry.exit[0], geometry.exit[1], geometry.tongueDeg]);
   const ref = useRef(0.02);
@@ -88,6 +103,8 @@ export function AirwayLife({state, geometry}: {state: AirwayState; geometry: Geo
   ref.current = Math.max(0.004, ref.current * 0.9 + peak * 0.1, peak * 0.6);
   const lit = (e: number) => (state.running && energy ? Math.min(1, Math.pow(e / ref.current, 0.7)) : 0);
   const radius = (a: number) => 1.1 + 2.3 * Math.min(1.8, Math.sqrt(Math.max(0, a) / Math.PI));
+  const activity = airwayActivity(state);
+  const noiseAt = oral[activity.noiseIndex];
   const sealed = state.running && state.closed;
   const sealAt = oral[Math.min(N - 1, Math.max(0, state.minIndex))];
 
@@ -97,11 +114,21 @@ export function AirwayLife({state, geometry}: {state: AirwayState; geometry: Geo
         <circle key={`n${i}`} cx={p[0]} cy={p[1]} r={1.6} className="hvl-bead"
           style={{opacity: 0.12 + 0.88 * lit(energy ? energy[N + i] : 0)}} />
       ))}
+      {activity.pressure > 0.01 && oral.slice(0, Math.max(1, state.minIndex)).map((p, i) => (
+        <circle key={`pressure${i}`} cx={p[0]} cy={p[1]} r={4 + activity.pressure * 5}
+          fill="var(--hvl-warm)" opacity={activity.pressure * 0.3} />
+      ))}
+      {activity.voicing > 0.01 && <circle cx={oral[0][0]} cy={oral[0][1]} r={4 + activity.voicing * 6}
+        fill="none" stroke="var(--hvl-good)" strokeWidth={1 + activity.voicing * 2} opacity={activity.voicing} />}
       {oral.map((p, i) => {
         const a = state.areas[i] ?? 1;
         return <circle key={i} cx={p[0]} cy={p[1]} r={radius(a)} className={`hvl-bead ${a < 0.004 ? 'is-shut' : ''}`}
           style={{opacity: 0.14 + 0.86 * lit(energy ? energy[i] : 0)}} />;
       })}
+      {activity.friction > 0.01 && <g transform={`translate(${noiseAt[0]} ${noiseAt[1]})`} opacity={activity.friction}>
+        <circle r={4 + 9 * activity.friction} fill="var(--hvl-warm)" fillOpacity={0.25} stroke="var(--hvl-warm)" strokeWidth={1.5} />
+        <path d="M -9 -3 L -4 1 L 0 -4 L 4 2 L 9 -2" fill="none" stroke="var(--hvl-warm)" strokeWidth={1.5} />
+      </g>}
       <Particles oral={oral} nasal={nasal} state={state} />
       {sealed && (
         <g className="hvl-seal" transform={`translate(${sealAt[0]} ${sealAt[1]})`}>
@@ -136,8 +163,8 @@ function Particles({oral, nasal, state}: {oral: Pt[]; nasal: Pt[]; state: Airway
     const step = (dt: number) => {
       const {oral, nasal, state} = live.current;
       const flowing = state.running && state.gate > 0.05;
-      // Mean airflow sets the drift speed (sections per second), with a floor so voicing reads.
-      const speed = flowing ? 10 + 70 * Math.min(1.2, state.airflow) : 0;
+      // Drift follows mean airflow; vocal-fold activity has its own marker.
+      const speed = flowing ? 70 * Math.max(0, Math.min(1.2, state.airflow)) : 0;
       // A seal stops oral flow at the constriction; with the velum open, air goes up into the nose.
       const block = state.closed ? Math.max(1, state.minIndex - 1) : Infinity;
       for (let k = 0; k < ps.length; k++) {

@@ -8,6 +8,7 @@ import type {TractResponse} from '../core/engine';
 import {noteName, hzToMidi} from '../core/params';
 import {cssVar, useCanvas} from './controls';
 import type {VoiceAudio} from './audio';
+import {airwayActivity, type AirwayState} from './AirwayLife';
 
 const N = 44;
 const PORT = 24;
@@ -38,7 +39,8 @@ function Scope({title, badge, note, children}: {title: string; badge: 'measured'
   );
 }
 
-export function Airway({areas, length, nasal, minIndex}: {areas: Float32Array | number[]; length: number; nasal: number; minIndex: number}) {
+export function Airway({areas, length, nasal, minIndex, activity}: {areas: Float32Array | number[]; length: number; nasal: number; minIndex: number; activity?: AirwayState}) {
+  const energy = airwayActivity(activity ?? {running: false});
   const ref = useCanvas((ctx, w, h) => {
     const c = colors(ref.current);
     const padL = 12, padR = 12, padT = 18, padB = 18;
@@ -75,6 +77,24 @@ export function Airway({areas, length, nasal, minIndex}: {areas: Float32Array | 
     ctx.strokeStyle = c.accent;
     ctx.lineWidth = 1.6;
     ctx.stroke();
+    // Pressure behind the constriction and the actual turbulent source location.
+    if (energy.pressure > 0) {
+      ctx.fillStyle = c.warm;
+      ctx.globalAlpha = 0.35 * energy.pressure;
+      for (let i = 0; i < minIndex; i++) ctx.fillRect(x(i), mid - r[i], Math.max(1, x(1) - x(0)), r[i] * 2);
+      ctx.globalAlpha = 1;
+    }
+    if (energy.friction > 0.01) {
+      ctx.strokeStyle = c.warm;
+      ctx.lineWidth = 1 + energy.friction * 2;
+      ctx.beginPath();
+      ctx.arc(x(energy.noiseIndex), mid, 4 + 9 * energy.friction, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = c.good;
+    ctx.globalAlpha = energy.voicing;
+    ctx.fillRect(padL, mid - 8, 3, 16);
+    ctx.globalAlpha = 1;
     // Nasal branch above the port.
     if (nasal > 0.01) {
       const px = x(PORT);
@@ -111,9 +131,9 @@ export function Airway({areas, length, nasal, minIndex}: {areas: Float32Array | 
     ctx.textAlign = 'right';
     ctx.fillText(`LIPS · ${length.toFixed(1)} CM`, w - padR, padT - 6);
     ctx.textAlign = 'left';
-  }, [areas, length, nasal, minIndex]);
+  }, [areas, length, nasal, minIndex, activity]);
   return (
-    <Scope title="Airway" badge="model" note="Cross-section along the tract (area function).">
+    <Scope title="Airway" badge="model" note={`Pressure ${Math.round(energy.pressure * 100)}% · hiss ${Math.round(energy.friction * 100)}% · voicing ${Math.round(energy.voicing * 100)}%`}>
       <canvas ref={ref} aria-label="Modeled vocal tract area function" />
     </Scope>
   );
