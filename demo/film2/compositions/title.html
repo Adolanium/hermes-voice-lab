@@ -4,9 +4,10 @@
     #root { position: absolute; inset: 0; overflow: hidden; }
     #title-ground { position: absolute; inset: 0; background: var(--color-accent, #2152f4); }
     .title-line { position: absolute; left: 0; width: 1920px; font-family: "Collapse", serif; font-weight: 700; color: #ffffff; white-space: nowrap; line-height: 1; }
-    /* Centred over the wordmark, which sits right of centre like the app's own start screen. */
-    #title-setup { left: 570px; width: 1065px; top: 236px; text-align: center; font-size: 94px; letter-spacing: 0.01em; }
-    /* Sized and placed to sit exactly on the app's own wordmark inside the window card (x 571–1635, y 405–535). */
+    /* The two lines sit centred on the frame. */
+    #title-setup { left: 427.5px; width: 1065px; top: 383px; text-align: center; font-size: 94px; letter-spacing: 0.01em; }
+    /* Laid out at the app's own wordmark inside the window card (x 571–1635, y 405–535) and shown centred
+       (offset -142, +144) until it glides onto it as the window fades in. */
     #title-brand { left: 569.5px; top: 403.8px; width: auto; font-size: 153.3px; letter-spacing: 2.34px; }
     .title-word { display: inline-block; }
   </style>
@@ -25,9 +26,11 @@
     words.forEach((w, i) => {
       tl.fromTo(w, { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.13, ease: "power4.out" }, 0.25 + i * 0.16);
     });
-    // The setup line leaves; the app scene's identical blue takes over underneath and its window fades in
-    // behind the wordmark, which turns Hermes blue on the window's white.
-    tl.to("#title-setup .title-word", { opacity: 0, filter: "blur(8px)", duration: 0.2, stagger: 0.04, ease: "power2.in" }, 2.1);
+    // Centred until the glide: the wordmark moves onto the app's own wordmark while the setup line leaves;
+    // the app scene's identical blue takes over underneath and its window fades in behind the wordmark,
+    // which turns Hermes blue on the window's white.
+    tl.fromTo("#title-brand", { x: -142, y: 144 }, { x: 0, y: 0, duration: 0.6, ease: "power3.inOut" }, 1.6);
+    tl.to("#title-setup .title-word", { opacity: 0, filter: "blur(8px)", duration: 0.2, stagger: 0.04, ease: "power2.in" }, 1.55);
     tl.set("#title-ground", { opacity: 0 }, 2.2);
     tl.to("#title-brand", { color: "#2152f4", duration: 0.4, ease: "power2.inOut" }, 2.25);
     tl.to("#root", { opacity: 0, duration: 0.2, ease: "none" }, 2.8);

@@ -27,3 +27,4 @@ demo/film2/assets/*.wav
 demo/film2/assets/fonts/
 demo/film2/.thumbnails/
 demo/film2/.waveform-cache/
+demo/film2/film.resolved.json
