@@ -416,7 +416,7 @@ impl Voice {
         // dominates sibilants. Weighted by how narrow the channel is.
         // The shorter jet of an alveolar groove strikes the incisors harder
         // than the wider postalveolar one, so /s/ is about as loud as /ʃ/.
-        let place = 5.0 - 5.6 * p[TIP_PLACE];
+        let place = 5.0 - 5.2 * p[TIP_PLACE];
         // Air escaping around the sides of the tongue (/l/) does not strike the incisors.
         self.teeth_weight = if self.shape.coronal { (smooth(0.6, 0.12, self.shape.min_area) * place * (1.0 - p[LATERAL])) as f64 } else { 0.0 };
         // A jet with no obstacle in front of it (dental /θ ð/) is a weak
@@ -424,7 +424,7 @@ impl Voice {
         let dental = p[TIP_CLOSE] > 0.5 && p[TIP_PLACE] < 0.1 && !self.shape.coronal;
         let labial = self.shape.min_index >= N - 3;
         self.jet_weight = if dental { 0.22 } else if labial { 4.0 } else { 1.0 };
-        let center = 7200.0 - 3900.0 * p[TIP_PLACE];
+        let center = 8100.0 - 4200.0 * p[TIP_PLACE];
         // Obstacle source: a broad hump around the place's characteristic
         // frequency (higher for a short front cavity); the cavity in front
         // sets the actual peak.

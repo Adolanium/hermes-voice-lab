@@ -71,9 +71,14 @@ pub const DISPLACED_SHARE: f64 = 0.25;
 /// Opening speed limit of articulators: cm²/s, plus a rate proportional to area (1/s).
 const OPEN_SLEW: f64 = 40.0;
 const OPEN_GROWTH: f64 = 40.0;
-/// The nasal passages are narrow, folded slits lined with mucosa: their
-/// resonances are a few hundred Hz wide. Their loss is set as that bandwidth.
-const NASAL_BANDWIDTH: f64 = 450.0;
+/// The nasal passages are narrow, folded slits lined with mucosa. Their loss grows with
+/// frequency (the boundary layer on all that surface): the low murmur near 250 Hz rings with
+/// about NASAL_LOW Hz of bandwidth and carries a nasal's loudness, while everything above
+/// NASAL_CORNER is damped NASAL_HIGH Hz wide. One flat 450 Hz had the murmur 6 dB too quiet
+/// against real speakers; a flat 250 Hz let the upper resonances through, and /n/ became /l/.
+const NASAL_LOW: f64 = 130.0;
+const NASAL_HIGH: f64 = 700.0;
+const NASAL_CORNER: f64 = 600.0;
 
 /// Internal sample rate for a tract `length_cm` long (N sections).
 pub fn internal_rate(length_cm: f32) -> f32 {
@@ -128,6 +133,8 @@ pub struct Airway {
     nasal: [f64; NASAL_N],
     pub pn: [f64; NASAL_N],
     pub un: [f64; NASAL_N + 1],
+    /// Slow part of each nasal flow (below NASAL_CORNER), which escapes the extra loss.
+    un_slow: [f64; NASAL_N + 1],
     nose_l: f64,
     /// Volume velocity of the soft walls (radiated in part through the skin).
     pub wall_flow: f64,
@@ -164,6 +171,7 @@ impl Airway {
             nasal,
             pn: [0.0; NASAL_N],
             un: [0.0; NASAL_N + 1],
+            un_slow: [0.0; NASAL_N + 1],
             nose_l: 0.0,
             wall_flow: 0.0,
             inject: [(usize::MAX, 0.0); 3],
@@ -182,6 +190,7 @@ impl Airway {
         self.dvdt = [0.0; N];
         self.pn = [0.0; NASAL_N];
         self.un = [0.0; NASAL_N + 1];
+        self.un_slow = [0.0; NASAL_N + 1];
         self.lip_l = 0.0;
         self.nose_l = 0.0;
         self.vol_prev = self.volumes();
@@ -364,11 +373,19 @@ impl Airway {
             let k = if to > from { 0.5 * RHO * (1.0 / from - 1.0 / to).powi(2) } else { 0.0 };
             self.un[0] = branch_flow(k, l / dt + r, c);
         }
+        let two_pi = 2.0 * std::f64::consts::PI;
+        let follow = 1.0 - (-two_pi * NASAL_CORNER * dt).exp();
         for j in 1..NASAL_N {
             let (al, ar) = (self.nasal[j - 1], self.nasal[j]);
             let l = RHO * 0.5 * dx * (1.0 / al + 1.0 / ar);
-            let r = 2.0 * std::f64::consts::PI * NASAL_BANDWIDTH * l;
-            self.un[j] = (l / dt * self.un[j] + self.pn[j - 1] - self.pn[j]) / (l / dt + r);
+            // Loss r_low on all of the flow plus r_fast on its fast part (flow minus its
+            // low-passed self): passive, and solved implicitly with the flow.
+            let r_low = two_pi * NASAL_LOW * l;
+            let r_fast = two_pi * (NASAL_HIGH - NASAL_LOW) * l;
+            let slow = self.un_slow[j];
+            let u = (l / dt * self.un[j] + self.pn[j - 1] - self.pn[j] + r_fast * slow) / (l / dt + r_low + r_fast);
+            self.un_slow[j] = slow + follow * (u - slow);
+            self.un[j] = u;
         }
         let an = self.nasal[NASAL_N - 1];
         let (rr, lr) = radiation(an);
