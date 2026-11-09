@@ -58,9 +58,7 @@ export class PerformanceController {
       if (this.livePhones) {
         const vowel = this.livePhones.find(p => isVowel(p.symbol));
         this.underlying = {...this.options.patch(), ...PHONEMES[vowel?.symbol ?? 'AH'].target};
-        this.audio.stopScore();
-        this.livePhones = null;
-        this.cues = [];
+        this.dropLiveScore();
         this.audio.patch(this.underlying, 25);
         this.audio.set('gate', this.sounding ? 1 : 0, 12);
       }
@@ -130,9 +128,7 @@ export class PerformanceController {
     if (this.underlying) this.underlying = {...this.underlying, ...patch};
     if (!this.audio.running || this.playback) return;
     if (this.livePhones) {
-      this.audio.stopScore();
-      this.livePhones = null;
-      this.cues = [];
+      this.dropLiveScore();
       this.audio.patch({...this.options.patch(), ...(this.applied ? {pitch: midiToHz(this.applied.midi)} : {})}, tau);
       this.audio.set('gate', this.sounding ? 1 : 0, 12);
       this.emit();
@@ -166,58 +162,18 @@ export class PerformanceController {
     this.audio.silence();
     this.emit();
   };
+  /** Bring the audio in line with the sources: playback, silence, or the latest live input. */
   private reconcile() {
     const revision = ++this.revision;
     const apply = () => {
       if (revision !== this.revision) return;
-      if (this.playback) {
-        if (this.playback === this.appliedPlayback) return;
-        this.appliedPlayback = this.playback;
-        const {score, loop, second, cues = []} = this.playback;
-        this.livePhones = null;
-        this.applied = null;
-        this.sounding = false;
-        this.cues = cues;
-        if (second) this.audio.playDuet(score, second, loop);
-        else this.audio.play(score, loop);
-      } else {
+      if (this.playback) this.startPlayback(this.playback);
+      else {
         this.appliedPlayback = null;
         const note = [...this.notes.values()].at(-1) ?? null;
         const on = !!note || this.touches.size > 0 || this.holding;
-        if (!on) {
-          if (this.sounding && this.livePhones) this.audio.play(planLiveOff(this.livePhones, this.options.patch()));
-          else if (this.sounding) this.audio.set('gate', 0, 40);
-          this.livePhones = null;
-          this.cues = [];
-        } else if (!this.sounding || note !== this.applied) {
-          this.audio.claim();
-          if (note?.syllable?.phones.length && this.overrides.size) {
-            const vowel = note.syllable.phones.find(p => isVowel(p.symbol));
-            this.underlying = {...this.options.patch(), ...PHONEMES[vowel?.symbol ?? 'AH'].target, pitch: midiToHz(note.midi)};
-            this.audio.stopScore();
-            this.audio.patch(this.effective(this.underlying), 20);
-            this.audio.set('gate', 1, 12);
-            this.livePhones = null;
-            this.cues = [];
-          } else if (note?.syllable?.phones.length) {
-            const v = this.livePhones?.findIndex(p => isVowel(p.symbol)) ?? -1;
-            const fromCoda = v >= 0 ? this.livePhones!.slice(v + 1) : [];
-            const score = planLiveOn(note.syllable.phones, note.midi, this.options.patch(), {fromCoda, legato: this.sounding});
-            this.audio.play(score);
-            this.livePhones = note.syllable.phones;
-            this.cues = [{text: note.syllable.text, midi: note.midi, start: 0, vowel: 0, end: score.length}];
-          } else if (this.sounding && (note?.syllable || !note)) {
-            if (note) this.audio.set('pitch', midiToHz(note.midi), 35);
-          } else if (this.sounding && note && !this.livePhones) {
-            this.audio.set('pitch', midiToHz(note.midi), 35);
-          } else {
-            this.audio.stopScore();
-            this.audio.patch(this.effective({...this.options.patch(), ...(note ? {pitch: midiToHz(note.midi)} : {})}), 20);
-            this.audio.set('gate', 1, 12);
-            this.livePhones = null;
-            this.cues = [];
-          }
-        }
+        if (!on) this.release();
+        else if (!this.sounding || note !== this.applied) this.perform(note);
         this.applied = note;
         this.sounding = on;
       }
@@ -228,5 +184,77 @@ export class PerformanceController {
     else if (this.playback || this.notes.size || this.touches.size || this.holding) {
       void this.options.ensureAudio().then(ok => { if (ok) apply(); });
     }
+  }
+
+  private startPlayback(playback: Playback) {
+    if (playback === this.appliedPlayback) return;
+    this.appliedPlayback = playback;
+    const {score, loop, second, cues = []} = playback;
+    this.livePhones = null;
+    this.applied = null;
+    this.sounding = false;
+    this.cues = cues;
+    if (second) this.audio.playDuet(score, second, loop);
+    else this.audio.play(score, loop);
+  }
+
+  /** Every source let go: sing the held syllable's ending, or close the gate. */
+  private release() {
+    if (this.sounding && this.livePhones) this.audio.play(planLiveOff(this.livePhones, this.options.patch()));
+    else if (this.sounding) this.audio.set('gate', 0, 40);
+    this.livePhones = null;
+    this.cues = [];
+  }
+
+  /**
+   * A source started, or the latest note changed. One of four things happens:
+   * - a note with a lyric syllable is sung (onset, then its vowel held), legato if already sounding;
+   * - while an articulation is held, the syllable's vowel is set as a shape instead
+   *   (the articulation owns the mouth, so there are no consonants to sing);
+   * - with nothing new to sing, whatever is sounding carries on and only the pitch moves
+   *   (a melisma, a key under a held portrait, or a note released back to an earlier one);
+   * - otherwise the saved shape starts at the note's pitch.
+   */
+  private perform(note: Note | null) {
+    this.audio.claim();
+    const phones = note?.syllable?.phones;
+    if (note && phones?.length) {
+      if (this.overrides.size) this.holdVowel(note, phones);
+      else this.sing(note, phones);
+      return;
+    }
+    // A sung syllable carries on only under a note that is itself part of the lyric (a melisma).
+    const carryOn = this.sounding && (!note || !!note.syllable || !this.livePhones);
+    if (carryOn) {
+      if (note) this.audio.set('pitch', midiToHz(note.midi), 35);
+      return;
+    }
+    this.dropLiveScore();
+    this.audio.patch(this.effective({...this.options.patch(), ...(note ? {pitch: midiToHz(note.midi)} : {})}), 20);
+    this.audio.set('gate', 1, 12);
+  }
+
+  private sing(note: Note, phones: Phone[]) {
+    const v = this.livePhones?.findIndex(p => isVowel(p.symbol)) ?? -1;
+    const fromCoda = v >= 0 ? this.livePhones!.slice(v + 1) : [];
+    const score = planLiveOn(phones, note.midi, this.options.patch(), {fromCoda, legato: this.sounding});
+    this.audio.play(score);
+    this.livePhones = phones;
+    this.cues = [{text: note.syllable!.text, midi: note.midi, start: 0, vowel: 0, end: score.length}];
+  }
+
+  private holdVowel(note: Note, phones: Phone[]) {
+    const vowel = phones.find(p => isVowel(p.symbol));
+    this.underlying = {...this.options.patch(), ...PHONEMES[vowel?.symbol ?? 'AH'].target, pitch: midiToHz(note.midi)};
+    this.dropLiveScore();
+    this.audio.patch(this.effective(this.underlying), 20);
+    this.audio.set('gate', 1, 12);
+  }
+
+  /** Stop a live syllable's score; the voice keeps its current shape. */
+  private dropLiveScore() {
+    this.audio.stopScore();
+    this.livePhones = null;
+    this.cues = [];
   }
 }

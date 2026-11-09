@@ -158,3 +158,44 @@ test('pad touch and keyboard activation release independently', () => {
   c.touch('vowel-pad:key:Space', false);
   assert.deepEqual(gates(calls), [1, 0]);
 });
+
+test('with an articulation held, a lyric note sets its vowel shape instead of singing consonants', () => {
+  const {controller: c, calls} = setup(false, () => ({text: 'sing', phones: [{symbol: 'S', stress: 0}, {symbol: 'IH', stress: 1}, {symbol: 'NG', stress: 0}]}));
+  c.articulation('hum', {lipOpen: 0, velum: 1});
+  c.noteOn('key', 60);
+  assert.equal(calls.some(v => v[0] === 'play'), false, 'no syllable score while humming');
+  const patch = calls.filter(v => v[0] === 'patch').at(-1)![1] as Record<string, number>;
+  assert.equal(patch.velum, 1, 'the articulation still owns the velum');
+  assert.equal(patch.pitch, midiToHz(60));
+  assert.deepEqual(gates(calls), [1]);
+});
+test('a melisma note (empty syllable) only moves the pitch of the sung vowel', () => {
+  const syllables: Syllable[] = [{text: 'ah', phones: [{symbol: 'AA', stress: 1}]}, {text: '', phones: []}];
+  let i = 0;
+  const {controller: c, calls} = setup(false, () => syllables[i++]);
+  c.noteOn('a', 60);
+  const plays = calls.filter(v => v[0] === 'play').length;
+  c.noteOn('b', 64);
+  assert.equal(calls.filter(v => v[0] === 'play').length, plays, 'the vowel is not re-sung');
+  assert.deepEqual(calls.at(-1), ['pitch', midiToHz(64)]);
+  assert.equal(c.getSnapshot().cues[0].text, 'ah', 'the sung syllable stays on screen');
+});
+test('a plain note after a sung syllable restarts the saved shape at its pitch', () => {
+  let i = 0;
+  const {controller: c, calls} = setup(false, () => (i++ === 0 ? {text: 'ah', phones: [{symbol: 'AA', stress: 1}]} : undefined as unknown as Syllable));
+  c.noteOn('a', 60);
+  c.noteOn('b', 67);
+  const tail = calls.slice(-3).map(v => v[0]);
+  assert.deepEqual(tail, ['stopScore', 'patch', 'gate']);
+  assert.equal((calls.at(-2)![1] as Record<string, number>).pitch, midiToHz(67));
+  assert.deepEqual(c.getSnapshot().cues, []);
+});
+test('releasing a key under a held portrait keeps the voice without re-sounding it', () => {
+  const {controller: c, calls} = setup();
+  c.touch('portrait', true);
+  c.noteOn('key', 62);
+  const count = calls.length;
+  c.noteOff('key');
+  assert.deepEqual(calls.slice(count).map(v => v[0]), ['claim'], 'nothing but the claim: the shape keeps sounding');
+  assert.equal(gates(calls).at(-1), 1);
+});
