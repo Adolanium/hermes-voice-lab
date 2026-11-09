@@ -56,15 +56,15 @@ The seal and the alligator use the human airway, which now reaches 32 cm, with t
 Every stage is bypassed at its neutral setting (the engine's defaults), so those renders are bit-identical to the plain voice. The default character voice uses a +3 dB peak at 1.6 kHz: the source and tract are 3–4 dB weak in the 1–4 kHz presence region against real speakers, and this lift brought it 0.53 dB (MCD) closer to them without costing intelligibility.
 
 **Voice qualities.** Four controls change the larynx, not a filter:
-- **Falsetto** (`register`): only the thin edges of the folds vibrate. The pulse becomes smooth and symmetric with a smaller swing, and a posterior gap stays open, which adds aspiration. Measured on a held /ɑ/ at 220 Hz, H1−H2 rises from 3 to 15 dB, and the level drops about 8 dB.
+- **Falsetto** (`register`): only the thin edges of the folds vibrate. The pulse becomes smooth and symmetric with a smaller swing, and a posterior gap stays open, which adds aspiration. Measured on a held /ɑ/ at 220 Hz, H1−H2 rises from 1 to 15 dB, and the level drops about 8 dB.
 - **Fry** pairs the pulses: a short cycle with a weak pulse, then a long one, with an irregular rhythm and a short open phase. The half-pitch component reaches −1 dB re H1.
-- **Growl** draws the ventricular folds (about 0.3–1 cm above the glottis) together, flapping at half the pitch. They never seal, so the airway itself doubles the period (−11 dB re H1).
+- **Growl** draws the ventricular folds (about 0.3–1 cm above the glottis) together, flapping at half the pitch. They never seal, and as they swing in they squeeze the air out of the ventricle beside them, so the airway itself doubles the period (−15 dB re H1).
 - **Twang** narrows the epilarynx tube (2.4 cm, toward 0.5 cm²), raises the larynx (1 cm shorter tract, wider pharynx) and firms the closure. The harmonics at 2.5–4 kHz rise 10 dB.
 
 **Other airstreams.** The airway already turns articulator motion into air movement (each node's volume change pumps air), so these need only the movements:
 - **Glottal stop:** `glottal` presses the folds shut, and they stop vibrating.
-- **Ejectives:** the folds stay shut while `larynx` rises through the oral closure and takes up to 40% of the pharynx's cross-section. The trapped air compresses, and the release pops. Measured release peaks are ×16 (t') and ×5 (k') those of the same gesture without the rise. The velar seal leaves less air behind it to compress.
-- **Clicks:** between two oral seals (the back of the tongue and the tip or the lips), `suction` widens the cavity by 60%. The air there rarefies, and the front seal pops open 30 ms before the back one (×4.5–7.5 without the suction).
+- **Ejectives:** the folds stay shut while `larynx` rises through the oral closure and takes up to 40% of the pharynx's cross-section. The trapped air compresses, and the release pops. Measured release peaks are ×30 (t') and ×5 (k') those of the same gesture without the rise. The velar seal leaves less air behind it to compress.
+- **Clicks:** between two oral seals (the back of the tongue and the tip or the lips), `suction` widens the cavity by 60%. The air there rarefies, and the front seal pops open 30 ms before the back one (×5–11 without the suction).
 
 The phonemes are Q (ʔ), PE, TE, KE (ejectives), and CB (ʘ), CD (ǀ) and CA (ǃ) (clicks). "tsk" in text is a dental click.
 
@@ -76,7 +76,7 @@ The `yodel` song style flips `register` across the middle of the song's range. T
 
 **Turbulence.** Each sample, the Reynolds number of the actual flow drives a dipole source ∝ Re² − Re_c² (critical ≈ 1800, saturating near 12 000), injected as a series pressure source. There are three sources:
 - the jet about 1 cm downstream of the narrowest constriction;
-- the incisors, when a coronal jet strikes them (sibilants), weighted by place so /s/ and /ʃ/ come out at similar levels;
+- the incisors, when a coronal jet strikes them (sibilants), weighted by place so /ʃ/ comes out a few dB louder than /s/, as it does in real speakers;
 - the glottis, where the slit's Reynolds number 2u/(ℓν) drives aspiration.
 
 The cavity in front of each source sets the spectrum's peaks. Bursts are not generated separately: air compresses behind a closure and leaves when it opens. Articulators open at a limited rate (about 40 cm²/s plus 40 /s × area), which shapes the transient. A parameter jump installs the new shape at once without pumping air.

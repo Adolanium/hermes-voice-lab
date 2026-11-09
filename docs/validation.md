@@ -8,8 +8,8 @@ Golden tests (`tests/golden.test.ts`) fingerprint fixed renders and plans with S
 
 | Suite | Command | Result |
 |---|---|---|
-| Rust engine (14 tests) | `npm run test:engine` | pass |
-| Node core (14 tests) | `npm test` | pass |
+| Rust engine (17 tests) | `npm run test:engine` | pass |
+| Node core (63 tests) | `npm test` | pass |
 | Types | `npm run typecheck` | pass |
 | Hermes manifest/security/desktop-surface lint | `hermes plugins validate <installed path>` | pass |
 
@@ -106,6 +106,35 @@ Kept changes:
 Two bugs were fixed along the way: the tract analysis now uses a 32,768-point FFT, because with lighter wall loss the tract rang past the old window and truncation ripple read as false formants; and the output limiter now holds its gain over the look-ahead, which stops peaks overshooting the 0.81 ceiling (a beatbox show had reached 0.845).
 
 Sung naturalness is about unchanged (UTMOS 1.67 → 1.69; reference 1.78, real singer 2.45). Whisper WER varies by about ±2 points run to run. Slower gestures everywhere scored up to the reference's naturalness but raised WER to 39–47%, so they were not kept.
+
+### Phone by phone (2026-11-09)
+
+A third judge (`research/tools/judge/phones.py`) carries our planner's phone boundaries onto each real recording along the DTW path and compares each phone: its length, its level, a stop's burst, a sibilant's centre frequency, and whether it starts with a hard edge. Each gap is counted in units of how much the 12 speakers differ from each other; the score is the mean excess over one such unit. It runs on 240 Harvard sentences (20 per speaker), and Whisper's word error rate is taken on the same 240 (1,928 words) with a paired error bar. The 30-sentence WER moves 2–6 points on a change that does nothing, so it no longer decides.
+
+What the judge found, and what was changed for it:
+- **Voiced stops were silent.** A /b/ closure sat 59 dB below the vowels (speakers: about 20–29 dB). The tract filled in 10 ms and the folds stalled. Deep tissue that yields, braced when the folds are apart, and full skin radiation of the walls' motion put it at −20 dB.
+- **Every closure thumped.** All of a gesture's volume change pumped air; now a quarter does, except for the true pistons. Hard broadband onsets fell from 7.0 to 5.6 a second (speakers: 5.9).
+- **Sibilants were low and /ʃ tʃ dʒ/ quiet.** The obstacle source moved up and the postalveolar one was strengthened; /tʃ dʒ/ release earlier in their length.
+- **Nasals were 8 dB quiet.** The nasal passages now lose energy by frequency: the low murmur rings, the upper resonances stay damped.
+- **Stops were long, some vowels short.** Inherent lengths moved about 70% of the way to the speakers'.
+
+| | Before | After | Real speakers |
+|---|---|---|---|
+| Whisper WER, 240 sentences | 33.2% | **29.3%** (−4.0 ± 1.1, paired) | not measured |
+| Phone score (0 = within the speakers' range) | 0.553 | **0.147** | — |
+| Predicted naturalness (UTMOS, 30 sentences) | 2.78 | **3.31** | 4.25 |
+| Hard broadband onsets per second | 7.03 | **5.60** | 5.92 |
+| Speech MCD | 34.17 dB | 33.93 dB | — |
+| /b/ closure level re vowels | −59 dB | −20 dB | −20 to −29 dB |
+| /n/ level re vowels | −10.4 dB | −6.1 dB | −2.6 dB |
+| /ʃ/ level re vowels | −7.3 dB | −2.7 dB | −3.6 to −4.0 dB |
+| /tʃ/ level re vowels | −21.0 dB | −8.4 dB | −8 to −11 dB |
+| /s/ centre frequency | 6.56 kHz | 6.88 kHz | 7.3 kHz |
+| Sung naturalness (UTMOS, 20 songs) | 1.76 | **1.98** | 2.45 |
+| Sung WER (30 sentences) | 57.2% | 57.4% | — |
+| Singing note MCD | 35.86 dB | 36.20 dB | — |
+
+What it cost: the voice is about 1 dB darker at 1–4 kHz against the speakers (−1.5 and −2.4 dB became −2.6 and −3.3 dB), the singing note MCD rose 0.34 dB, and the lip click is weaker (the tongue clicks and ejectives were retuned to their old strength). Tried and dropped: a slower breath attack (no judge moved), a faster tempo (length ×1.20 → ×1.09 but +2.6 ± 0.9 points of WER), a slower release of the back of the tongue, and a second step of nasal loudness (no change). Still open: nasals 3.5 dB quiet, /ɝ/ 3.6 dB quiet, speech 20% slower than real, and no listener has compared before and after yet.
 
 Rejected changes and their numbers are in `research/hill-climb/log.md`. The owner listened at four checkpoints and preferred the new version each time (the third only slightly). An earlier, deeper sung vibrato moved toward the real singer but was not audibly different, so it was not kept. Still open: about 0.2 naturalness behind the reference, speech slower than real (×1.23), and shallow sung vibrato.
 
