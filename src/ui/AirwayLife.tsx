@@ -82,12 +82,15 @@ export function airwayPoints(g: Geometry): {oral: Pt[]; nasal: Pt[]} {
   return {oral, nasal};
 }
 
+/** Frication the engine reports for a full /s/ (measured peaks reach about 2); the display saturates there. */
+const FRICATION_FULL = 2;
+
 /** Display intensities are normalized model quantities, not measured audio levels. */
 export function airwayActivity(state: Pick<AirwayState, 'running' | 'oralPressure' | 'frication' | 'noiseIndex' | 'voicing'>) {
   const unit = (v = 0) => Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
   return {
     pressure: state.running ? unit(state.oralPressure) : 0,
-    friction: state.running ? Math.sqrt(unit((state.frication ?? 0) * 4)) : 0,
+    friction: state.running ? Math.sqrt(unit((state.frication ?? 0) / FRICATION_FULL)) : 0,
     voicing: state.running ? unit(state.voicing) : 0,
     noiseIndex: Math.round(unit((state.noiseIndex ?? 0) / (N - 1)) * (N - 1)),
   };

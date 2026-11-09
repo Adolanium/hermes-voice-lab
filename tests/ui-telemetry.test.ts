@@ -8,8 +8,12 @@ import {airwayActivity} from '../src/ui/AirwayLife';
 import {ANALYSIS_WORKER_SOURCE} from '../src/ui/modelAnalysis';
 
 test('airway activity uses model telemetry and clears all indicators when stopped', () => {
-  const state = {running: true, oralPressure: 0.7, frication: 0.04, noiseIndex: 38, voicing: 0.5};
-  assert.deepEqual(airwayActivity(state), {pressure: 0.7, friction: 0.4, noiseIndex: 38, voicing: 0.5});
+  const state = {running: true, oralPressure: 0.7, frication: 0.5, noiseIndex: 38, voicing: 0.5};
+  assert.deepEqual(airwayActivity(state), {pressure: 0.7, friction: 0.5, noiseIndex: 38, voicing: 0.5});
+  // Hiss strength stays graded across what the engine produces (a weak fricative to a full /s/ near 2).
+  const hiss = [0.1, 0.5, 1, 1.6, 2].map(frication => airwayActivity({...state, frication}).friction);
+  for (let i = 1; i < hiss.length; i++) assert.ok(hiss[i] > hiss[i - 1], `graded: ${hiss.map(h => h.toFixed(2)).join(' ')}`);
+  assert.ok(hiss[3] < 0.95 && hiss[4] === 1);
   assert.deepEqual(airwayActivity({...state, running: false}), {pressure: 0, friction: 0, noiseIndex: 38, voicing: 0});
   assert.deepEqual(airwayActivity({running: true, oralPressure: NaN, frication: -1, noiseIndex: 100, voicing: 2}), {pressure: 0, friction: 0, noiseIndex: 43, voicing: 1});
 });
