@@ -8,7 +8,7 @@
  * optional cutaway is a stylised midsagittal view of the modelled
  * articulators, not medical anatomy.
  */
-import React, {useCallback, useMemo, useRef} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef} from 'react';
 import type {ParamName} from '../core/params';
 import {AirwayLife, type AirwayState} from './AirwayLife';
 import {FloatingWords, headMotion, type StageState} from './stage';
@@ -169,6 +169,24 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   const svg = useRef<SVGSVGElement>(null);
   const rigGroup = useRef<SVGGElement>(null);
   const drag = useRef<null | {kind: string; pointerId: number; start: Pt; startPose: Pose}>(null);
+
+  const onEnd = useRef(onDragEnd);
+  onEnd.current = onDragEnd;
+  useEffect(() => {
+    const cancel = () => {
+      if (!drag.current) return;
+      drag.current = null;
+      onEnd.current?.();
+    };
+    const visibility = () => { if (document.hidden) cancel(); };
+    window.addEventListener('blur', cancel);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      window.removeEventListener('blur', cancel);
+      document.removeEventListener('visibilitychange', visibility);
+      cancel();
+    };
+  }, []);
 
   /** Pointer position in rig coordinates. */
   const toLocal = useCallback((e: React.PointerEvent): Pt => {

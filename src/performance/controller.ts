@@ -117,10 +117,8 @@ export class PerformanceController {
     this.playback = null;
     const note = {midi};
     this.notes.set('preview', note);
-    this.reconcile(() => {
-      if (this.notes.get('preview') !== note) return;
-      this.previewTimer = setTimeout(() => { this.previewTimer = null; this.noteOff('preview'); }, duration);
-    });
+    this.previewTimer = setTimeout(() => { this.previewTimer = null; this.noteOff('preview'); }, duration);
+    this.reconcile();
   }
   play(playback: Playback) {
     this.clearInputs();
@@ -168,7 +166,7 @@ export class PerformanceController {
     this.audio.silence();
     this.emit();
   };
-  private reconcile(after?: () => void) {
+  private reconcile() {
     const revision = ++this.revision;
     const apply = () => {
       if (revision !== this.revision) return;
@@ -224,7 +222,6 @@ export class PerformanceController {
         this.sounding = on;
       }
       this.emit();
-      after?.();
     };
     this.emit();
     if (this.audio.running) apply();

@@ -49,6 +49,7 @@ export default function VoiceLab({bridge}: Props) {
   const [busy, setBusy] = useState('');
   const [userPresets, setUserPresets] = useState<Array<{name: string; voice: Patch}>>(() => bridge.storage.get(USER_PRESETS, []));
   const [typing, setTyping] = useState(false);
+  const [scopesOpen, setScopesOpen] = useState(false);
   // Live singing: each key press sings the next lyric syllable.
   const [liveSing, setLiveSing] = useState(false);
   const liveCursor = useRef(0);
@@ -528,15 +529,14 @@ export default function VoiceLab({bridge}: Props) {
 
         <Keyboard base={base} onBaseChange={b => { setBase(b); bridge.storage.set('keyboardBase', b); }} onNoteOn={onNoteOn} onNoteOff={onNoteOff} activeNotes={performanceState.notes} enabled={!typing}
           midi={midi} />
-        <details className="hvl-disclosure hvl-analysis">
+        <details className="hvl-disclosure hvl-analysis" onToggle={e => setScopesOpen(e.currentTarget.open)}>
           <summary>Analysis scopes</summary>
-        <section className="hvl-scopes" aria-label="Analysis">
+          {scopesOpen && <section className="hvl-scopes" aria-label="Analysis">
           <Airway areas={areas} length={length} nasal={nasal} minIndex={minIndex} activity={airway} />
           <Spectrum audio={audio} running={running} model={model} f0={running ? f0 : 0} />
           <Waveform audio={audio} running={running} />
-          <Glottal shape={audio.glottal ?? null} rd={rd} f0={running ? f0 : 0} voicing={airway.voicing} sounding={running && airway.gate > 0.05} />
-        </section>
-
+          <Glottal shape={audio.glottal ?? null} rd={rd} f0={running ? f0 : 0} voicing={params?.voicing ?? 1} activity={airway.voicing} sounding={running && airway.gate > 0.05} />
+          </section>}
         </details>
         <footer className="hvl-note" style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
           <span>Physical articulatory synthesis in WebAssembly — no samples, no network. {bridge.scopeLabel}</span>

@@ -260,10 +260,10 @@ export function Waveform({audio, running}: {audio: VoiceAudio; running: boolean}
   );
 }
 
-export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array | null; rd: number; f0: number; voicing: number; sounding: boolean}) {
+export function Glottal({shape, rd, f0, voicing, sounding, activity = voicing}: {shape: Float32Array | null; rd: number; f0: number; voicing: number; sounding: boolean; activity?: number}) {
   const pts = useMemo(() => (shape ? Array.from(shape) : null), [shape]);
-  const live = useRef({pts, f0, voicing, sounding});
-  live.current = {pts, f0, voicing, sounding};
+  const live = useRef({pts, f0, voicing, sounding, activity});
+  live.current = {pts, f0, voicing, sounding, activity};
   const phase = useRef(0);
   const ref = useCanvas((ctx, w, h) => {
     const c = colors(ref.current);
@@ -289,7 +289,7 @@ export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array
     ctx.fillStyle = c.accent;
     ctx.fill();
     ctx.globalAlpha = 1;
-    if (sounding && voicing > 0.4) {
+    if (sounding && voicing > 0.4 && activity > 0.01) {
       // Playhead, in step with the slowed fold view.
       const k = Math.floor(phase.current * pts.length) % pts.length;
       const px = (phase.current / periods) * w;
@@ -299,7 +299,7 @@ export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array
       ctx.arc(px, py, 3, 0, Math.PI * 2);
       ctx.fill();
     }
-  }, [pts, sounding, voicing], sounding);
+  }, [pts, sounding, voicing, activity], sounding);
   // Top-down fold view, slowed 100×, driven by the modeled pulse shape and F0.
   const folds = useRef<SVGSVGElement>(null);
   useEffect(() => {
@@ -308,11 +308,11 @@ export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array
     const frame = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const {pts, f0, voicing, sounding} = live.current;
+      const {pts, f0, voicing, sounding, activity} = live.current;
       phase.current = (phase.current + dt * Math.max(0, f0) / 100) % 1;
       let open = 0.02;
       if (sounding && voicing < 0.4) open = 0.9;
-      else if (sounding && pts) open = 0.04 + 0.6 * Math.max(0, pts[Math.floor(phase.current * pts.length) % pts.length]);
+      else if (sounding && pts) open = 0.04 + 0.6 * activity * Math.max(0, pts[Math.floor(phase.current * pts.length) % pts.length]);
       const el = folds.current;
       if (el) {
         // Seen from above: folds meet at the front (top) and part toward the
@@ -328,7 +328,7 @@ export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
   }, []);
-  const state = !sounding ? 'at rest' : voicing < 0.4 ? 'held open (voiceless)' : 'vibrating';
+  const state = !sounding ? 'at rest' : voicing < 0.4 ? 'held open (voiceless)' : activity < 0.01 ? 'not vibrating' : 'vibrating';
   const note = f0 > 0 && sounding ? `${Math.round(f0)} Hz · ${noteName(hzToMidi(f0))} · Rd ${rd.toFixed(2)}` : `Rd ${rd.toFixed(2)}`;
   return (
     <Scope title="Glottal flow" badge="model" note={note}>

@@ -18,9 +18,12 @@ export function HoldButton({label, onHold}: {label: string; onHold: (source: str
     setActive(false);
   };
   useEffect(() => {
+    const visibility = () => { if (document.hidden) releaseAll(); };
     window.addEventListener('blur', releaseAll);
+    document.addEventListener('visibilitychange', visibility);
     return () => {
       window.removeEventListener('blur', releaseAll);
+      document.removeEventListener('visibilitychange', visibility);
       held.current.forEach(source => callback.current(source, false));
       held.current.clear();
     };

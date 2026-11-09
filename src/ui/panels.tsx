@@ -40,6 +40,23 @@ interface PlayProps {
 }
 
 export function PlayPanel({project, live, agentKeys, onVoice, onShape, onTouch, onArticulation, holding, onHold, latch, onLatch, running}: PlayProps) {
+  const sustainPointer = useRef<number | null>(null);
+  const sustainControl = useRef({onHold, latch});
+  sustainControl.current = {onHold, latch};
+  useEffect(() => {
+    const cancel = () => {
+      if (sustainPointer.current === null) return;
+      sustainPointer.current = null;
+      if (!sustainControl.current.latch) sustainControl.current.onHold(false);
+    };
+    window.addEventListener('blur', cancel);
+    return () => { window.removeEventListener('blur', cancel); cancel(); };
+  }, []);
+  const releaseSustain = (e: React.PointerEvent) => {
+    if (sustainPointer.current !== e.pointerId) return;
+    sustainPointer.current = null;
+    if (!latch) onHold(false);
+  };
   const value = (n: ParamName) => (VOICE_KEYS.has(n) ? project.voice[n] : project.shape[n]) ?? 0;
   const set = (n: ParamName) => (v: number) => (VOICE_KEYS.has(n) ? onVoice({[n]: v}) : onShape({[n]: v}));
   const active = VOWEL_PRESETS.find(v => Object.entries(v.shape).every(([k, x]) => Math.abs((project.shape[k as ParamName] ?? -1) - (x as number)) < 0.02));
@@ -64,8 +81,8 @@ export function PlayPanel({project, live, agentKeys, onVoice, onShape, onTouch, 
         <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
           <div className="hvl-row">
             <button className={`hvl-btn is-primary`} style={{flex: 1, height: 38}}
-              onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); if (!latch) onHold(true); }}
-              onPointerUp={() => !latch && onHold(false)} onPointerCancel={() => !latch && onHold(false)} onLostPointerCapture={() => !latch && onHold(false)}
+              onPointerDown={e => { e.preventDefault(); if (sustainPointer.current !== null) return; sustainPointer.current = e.pointerId; e.currentTarget.setPointerCapture(e.pointerId); if (!latch) onHold(true); }}
+              onPointerUp={releaseSustain} onPointerCancel={releaseSustain} onLostPointerCapture={releaseSustain}
               onClick={() => latch && onHold(!holding)}
               aria-pressed={holding}>
               {Icon.play} {latch ? (holding ? 'Release' : 'Sustain') : holding ? 'Sounding…' : 'Hold to sound'}
@@ -123,12 +140,31 @@ function VowelPad({x, y, liveX, liveY, running, onChange, onTouch}: {
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const pointer = useRef<number | null>(null);
+  const heldKeys = useRef(new Set<string>());
   const [raw, setRaw] = useState(false);
   const [point, setPoint] = useState({x, y});
   const sent = useRef({x, y});
   const callbacks = useRef(onTouch);
   callbacks.current = onTouch;
-  useEffect(() => () => callbacks.current('vowel-pad', false), []);
+  const releaseKeys = () => {
+    heldKeys.current.forEach(key => callbacks.current(`vowel-pad:key:${key}`, false));
+    heldKeys.current.clear();
+  };
+  useEffect(() => {
+    const cancel = () => {
+      if (pointer.current !== null) callbacks.current(`vowel-pad:pointer:${pointer.current}`, false);
+      pointer.current = null;
+      releaseKeys();
+    };
+    const visibility = () => { if (document.hidden) cancel(); };
+    window.addEventListener('blur', cancel);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      window.removeEventListener('blur', cancel);
+      document.removeEventListener('visibilitychange', visibility);
+      cancel();
+    };
+  }, []);
   useEffect(() => {
     if (x !== sent.current.x || y !== sent.current.y) setPoint({x, y});
   }, [x, y]);
@@ -151,7 +187,7 @@ function VowelPad({x, y, liveX, liveY, running, onChange, onTouch}: {
   const release = (e: React.PointerEvent) => {
     if (pointer.current !== e.pointerId) return;
     pointer.current = null;
-    onTouch('vowel-pad', false);
+    onTouch(`vowel-pad:pointer:${e.pointerId}`, false);
   };
   return (
     <div className="hvl-vowel-control">
@@ -163,13 +199,13 @@ function VowelPad({x, y, liveX, liveY, running, onChange, onTouch}: {
           pointer.current = e.pointerId;
           e.currentTarget.setPointerCapture(e.pointerId);
           update(e);
-          onTouch('vowel-pad', true);
+          onTouch(`vowel-pad:pointer:${e.pointerId}`, true);
         }}
         onPointerMove={e => { if (pointer.current === e.pointerId) update(e); }}
         onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release}
-        onBlur={() => onTouch('vowel-pad', false)}
+        onBlur={releaseKeys}
         onKeyDown={e => {
-          if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) onTouch('vowel-pad', true); return; }
+          if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) { heldKeys.current.add(e.key); onTouch(`vowel-pad:key:${e.key}`, true); } return; }
           const d = e.shiftKey ? 0.1 : 0.02;
           if (e.key === 'ArrowLeft') apply(Math.max(0, point.x - d), point.y);
           else if (e.key === 'ArrowRight') apply(Math.min(1, point.x + d), point.y);
@@ -178,7 +214,7 @@ function VowelPad({x, y, liveX, liveY, running, onChange, onTouch}: {
           else return;
           e.preventDefault();
         }}
-        onKeyUp={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onTouch('vowel-pad', false); } }}>
+        onKeyUp={e => { if (heldKeys.current.delete(e.key)) { e.preventDefault(); onTouch(`vowel-pad:key:${e.key}`, false); } }}>
         {!raw && VOWEL_ANCHORS.map(v => (
           <span key={v.id} className="mark" style={{left: `${8 + v.x * 84}%`, top: `${8 + (1 - v.y) * 84}%`}}>{v.ipa}</span>
         ))}

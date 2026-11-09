@@ -184,7 +184,8 @@ export class VoiceAudio {
   }
   stopScore() {
     this.post({type: 'stop'});
-    this.partner?.port.postMessage({type: 'stop'});
+    // The duet partner has no live owner when the lead returns to manual playing.
+    this.partner?.port.postMessage({type: 'silence'});
   }
   /** Stop everything audible (score + held note). */
   silence() {

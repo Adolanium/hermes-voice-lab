@@ -141,3 +141,20 @@ test('articulation cold start, cancellation and Stop do not leave trill engaged'
   warm.controller.noteOn('key', 60); warm.controller.articulation('roll', {trill: 1}); warm.controller.stop();
   assert.ok(warm.calls.some(([kind, p]) => kind === 'patch' && (p as Record<string, number>).trill === 0));
 });
+
+test('a preview that expires during startup stays silent even if latch changes', async () => {
+  const {controller: c, calls, ready} = setup(true);
+  c.preview(60, 5); c.setLatch(true);
+  await new Promise(r => setTimeout(r, 15));
+  ready(true); await Promise.resolve();
+  assert.deepEqual(gates(calls), []);
+  assert.deepEqual(c.getSnapshot().notes, []);
+});
+test('pad touch and keyboard activation release independently', () => {
+  const {controller: c, calls} = setup();
+  c.touch('vowel-pad:key:Space', true); c.touch('vowel-pad:pointer:1', true);
+  c.touch('vowel-pad:pointer:1', false);
+  assert.deepEqual(gates(calls), [1]);
+  c.touch('vowel-pad:key:Space', false);
+  assert.deepEqual(gates(calls), [1, 0]);
+});
