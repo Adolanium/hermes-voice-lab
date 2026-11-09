@@ -77,7 +77,7 @@ The `yodel` song style flips `register` across the middle of the song's range. T
 
 The cavity in front of each source sets the spectrum's peaks. Bursts are not generated separately: air compresses behind a closure and leaves when it opens. Articulators open at a limited rate (about 40 cm²/s plus 40 /s × area), which shapes the transient. A parameter jump installs the new shape at once without pumping air.
 
-**Output stage.** Radiated sound is the rate of change of the air leaving the lips and nostrils, plus a little wall radiation. A slow leveler (−22 dBFS, 3:1) and a 2 ms look-ahead limiter (ceiling 0.8) follow, then the soft clipper.
+**Output stage.** Radiated sound is the rate of change of the air leaving the lips and nostrils, plus a little wall radiation. A leveler (−22 dBFS, 3:1; 50 ms window and 40 ms attack, so a held note settles within its onset; 0.8 s release) and a 2 ms look-ahead limiter (ceiling 0.8) follow, then the soft clipper.
 
 **Display telemetry.** At control rate the engine also keeps the smoothed sound-pressure amplitude in every oral and nasal section (`engine_energy`), the mean airflow, the share of air leaving through the nose, and whether the tract is sealed. The glottal panel draws the last cycle of computed glottal airflow. The cutaway's lit airway, flow particles, seal marker and sound readout use only these values and the area function; nothing there is a canned animation, except the fold view, which runs the modeled pulse slowed 100× and says so.
 
