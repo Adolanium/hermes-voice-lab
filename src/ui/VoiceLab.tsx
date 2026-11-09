@@ -518,6 +518,10 @@ export default function VoiceLab({bridge}: Props) {
           />
         </main>
 
+        <Keyboard base={base} onBaseChange={b => { setBase(b); bridge.storage.set('keyboardBase', b); }} onNoteOn={onNoteOn} onNoteOff={onNoteOff} activeNotes={performanceState.notes} enabled={!typing}
+          midi={midi} />
+        <details className="hvl-disclosure hvl-analysis">
+          <summary>Analysis scopes</summary>
         <section className="hvl-scopes" aria-label="Analysis">
           <Airway areas={areas} length={length} nasal={nasal} minIndex={minIndex} />
           <Spectrum audio={audio} running={running} model={model} f0={running ? f0 : 0} />
@@ -525,8 +529,7 @@ export default function VoiceLab({bridge}: Props) {
           <Glottal shape={audio.glottal ?? null} rd={rd} f0={running ? f0 : 0} voicing={params?.voicing ?? 1} sounding={running && airway.gate > 0.05 && !airway.closed} />
         </section>
 
-        <Keyboard base={base} onBaseChange={b => { setBase(b); bridge.storage.set('keyboardBase', b); }} onNoteOn={onNoteOn} onNoteOff={onNoteOff} activeNotes={performanceState.notes} enabled={!typing}
-          midi={midi} />
+        </details>
         <footer className="hvl-note" style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
           <span>Physical articulatory synthesis in WebAssembly — no samples, no network. {bridge.scopeLabel}</span>
           <span>Unofficial character voice inspired by Nous Girl.</span>

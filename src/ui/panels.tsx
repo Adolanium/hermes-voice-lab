@@ -68,35 +68,38 @@ export function PlayPanel({project, live, agentKeys, onVoice, onShape, holding, 
             </button>
             <label className="hvl-check"><input type="checkbox" checked={latch} onChange={e => onLatch(e.target.checked)} /> Latch</label>
           </div>
-          <div className="hvl-sliders" style={{gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))'}}>
-            {SHAPE.slice(0, 6).map(n => <Slider key={n} name={n} value={value(n)} live={liveOf(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
-          </div>
+          <p className="hvl-note" style={{margin: 0}}>Hold a key and move the mouth. Sustain keeps the voice sounding while you shape it.</p>
         </div>
       </div>
-      <div className="hvl-group">
-        <div className="hvl-section-title"><h3>Voice source</h3><span>Pitch and timbre are independent</span></div>
+      <details className="hvl-disclosure">
+        <summary>Voice source and quality</summary>
+        <div className="hvl-group">
         <div className="hvl-sliders">
           {SOURCE.map(n => <Slider key={n} name={n} value={value(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
         </div>
       </div>
       <div className="hvl-group">
-        <div className="hvl-section-title"><h3>Voice quality</h3><span>Registers and larynx above the folds</span></div>
         <div className="hvl-sliders">
           {QUALITY.map(n => <Slider key={n} name={n} value={value(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
         </div>
       </div>
-      <div className="hvl-group">
-        <div className="hvl-section-title"><h3>Recording</h3><span>Microphone, EQ, compressor and drive after the voice</span></div>
+      </details>
+      <details className="hvl-disclosure">
+        <summary>Recording and output</summary>
+        <div className="hvl-group">
         <div className="hvl-sliders">
-          {RECORDING.map(n => <Slider key={n} name={n} value={value(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
+          {[...RECORDING, ...OUTPUT].map(n => <Slider key={n} name={n} value={value(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
         </div>
       </div>
-      <div className="hvl-group">
-        <div className="hvl-section-title"><h3>Tract</h3><span>Size, throat and the remaining articulators</span></div>
+      </details>
+      <details className="hvl-disclosure">
+        <summary>Detailed mouth and body controls</summary>
+        <div className="hvl-group">
         <div className="hvl-sliders">
-          {[...SHAPE.slice(6), ...OUTPUT].map(n => <Slider key={n} name={n} value={value(n)} live={liveOf(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
+          {SHAPE.map(n => <Slider key={n} name={n} value={value(n)} live={liveOf(n)} onChange={set(n)} agent={agentKeys.has(n)} />)}
         </div>
       </div>
+      </details>
     </div>
   );
 }
