@@ -44,6 +44,8 @@ interface Props {
   speaking: boolean;
   onDrag?: (changes: Partial<Record<ParamName, number>>) => void;
   onDragEnd?: () => void;
+  /** A handle was grabbed (the instrument sounds while it is held). */
+  onDragStart?: () => void;
   /** Stage mode: floating sung words, head bob and a bigger mouth. */
   stage?: StageState;
   /** SVG viewBox override (e.g. a wider frame for video). */
@@ -162,7 +164,7 @@ const frameRight = (viewBox = DEFAULT_VIEWBOX) => {
 /** Neck pivot for head motion and the mouth exit for floating words (art space). */
 const NECK: Pt = [780, 1080];
 
-export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDragEnd, stage, viewBox, cutawayOpacity}: Props) {
+export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDragEnd, onDragStart, stage, viewBox, cutawayOpacity}: Props) {
   const g = rig(pose);
   const svg = useRef<SVGSVGElement>(null);
   const rigGroup = useRef<SVGGElement>(null);
@@ -186,6 +188,7 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
     e.stopPropagation();
     svg.current?.setPointerCapture?.(e.pointerId);
     drag.current = {kind, start: toLocal(e), startPose: pose};
+    onDragStart?.();
   };
   const move = (e: React.PointerEvent) => {
     const d = drag.current;

@@ -348,6 +348,18 @@ export default function VoiceLab({bridge}: Props) {
     update(prev => ({...prev, shape: {...prev.shape, ...c}, mode: 'play'}));
     if (running && !scorePlaying) audio.patch(c, 18);
   };
+  // Grabbing a handle plays the voice: it sounds while held, like a key (unless latched or held).
+  const portraitSounding = useRef(false);
+  const onPortraitGrab = () => {
+    if (holding || latch) return;
+    portraitSounding.current = true;
+    void sound(true);
+  };
+  const onPortraitRelease = () => {
+    if (!portraitSounding.current) return;
+    portraitSounding.current = false;
+    if (!holding && !latch) void sound(false);
+  };
 
   // ---- Presets and files -----------------------------------------------------
   const applyPreset = (id: string) => {
@@ -514,7 +526,7 @@ export default function VoiceLab({bridge}: Props) {
               </span>
             </div>
             <div className="hvl-portrait-wrap">
-              <Portrait pose={pose} airway={airway} cutaway={cutaway} labels={labels && !singing} speaking={scorePlaying} onDrag={onPortraitDrag} stage={stage} />
+              <Portrait pose={pose} airway={airway} cutaway={cutaway} labels={labels && !singing} speaking={scorePlaying} onDrag={onPortraitDrag} onDragStart={onPortraitGrab} onDragEnd={onPortraitRelease} stage={stage} />
               <div className={`hvl-now is-${nowSound.kind}`} aria-live="polite">
                 <div className="hvl-now-symbol" title="Sound the model is making now">{nowSound.symbol}</div>
                 <div className="hvl-now-label">{running ? nowSound.label : `shape · ${nowSound.label}`}</div>
