@@ -161,8 +161,9 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
       holds.push({seg: i, name: param, start: onset, end: s.end, tau: releaseTau, value: t[param]!});
       if (ph.manner === 'affricate' && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
-        at(s.start + 0.55 * dur, 'tipClose', r.tipClose!, 6, i);
-        at(s.start + 0.45 * dur, 'tipPlace', r.tipPlace!, 10, i);
+        // The closure is the shorter part: real /tʃ dʒ/ hiss for more than half their length.
+        at(s.start + 0.42 * dur, 'tipClose', r.tipClose!, 6, i);
+        at(s.start + 0.32 * dur, 'tipPlace', r.tipPlace!, 10, i);
       }
       if (!nextIsSame(param)) {
         const rest = param === 'lipOpen' ? vowelLips.lipOpen ?? 0.6 : 0;

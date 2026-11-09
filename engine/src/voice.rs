@@ -19,7 +19,7 @@ const RADIATE: f64 = 2.5e-8;
 /// Share of the walls' volume velocity that radiates through the skin of the cheeks and
 /// neck (the rest faces the spine and the skull). It carries the voice bar of a voiced
 /// stop: at 0.05 a /b/ closure was 25 dB quieter than real speakers' and read as silence.
-const WALL_RADIATION: f64 = 0.4;
+const WALL_RADIATION: f64 = 1.0;
 /// Lung pressure at full effort (dyn/cm²; ≈10 cmH₂O).
 const LUNG_FULL: f32 = 10_000.0;
 /// Transglottal pressure needed to set the folds vibrating (≈2.5 cmH₂O).
@@ -536,6 +536,11 @@ impl Voice {
             let (a, b) = (((0.3 / dx) as usize).max(1), ((1.0 / dx).ceil() as usize).max(2));
             for area in self.areas[a..b.min(N)].iter_mut() {
                 *area = (*area * (1.0 - 0.9 * growl * close)).max(0.06);
+            }
+            // As they swing in they squeeze the air out of the ventricle beside them,
+            // an air pocket and not flesh: this movement does pump.
+            for w in self.airway.pump[a..b.min(N)].iter_mut() {
+                *w = w.max(growl as f64);
             }
         }
     }

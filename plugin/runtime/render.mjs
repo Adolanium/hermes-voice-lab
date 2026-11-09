@@ -326,40 +326,40 @@ var SCHWA = { tongueX: 0.5, tongueY: 0.32, jaw: 0.5, lipOpen: 0.62, lipRound: 0.
 var P = (symbol, ipa, manner, voiced, duration, target, example, offglide) => ({ symbol, ipa, manner, voiced, duration, target, example, offglide });
 var PHONEMES = Object.fromEntries([
   P("AA", "\u0251", "vowel", true, 150, vowel("AA"), "father"),
-  P("AE", "\xE6", "vowel", true, 160, vowel("AE"), "cat"),
-  P("AH", "\u028C", "vowel", true, 100, vowel("AH"), "cup"),
+  P("AE", "\xE6", "vowel", true, 172, vowel("AE"), "cat"),
+  P("AH", "\u028C", "vowel", true, 106, vowel("AH"), "cup"),
   P("AO", "\u0254", "vowel", true, 150, vowel("AO"), "thought"),
-  P("EH", "\u025B", "vowel", true, 115, vowel("EH"), "bed"),
-  P("ER", "\u025D", "vowel", true, 140, vowel("ER"), "bird"),
+  P("EH", "\u025B", "vowel", true, 121, vowel("EH"), "bed"),
+  P("ER", "\u025D", "vowel", true, 158, vowel("ER"), "bird"),
   P("IH", "\u026A", "vowel", true, 90, vowel("IH"), "sit"),
   P("IY", "i", "vowel", true, 130, vowel("IY"), "see"),
   P("UH", "\u028A", "vowel", true, 95, vowel("UH"), "book"),
-  P("UW", "u", "vowel", true, 140, vowel("UW"), "blue"),
+  P("UW", "u", "vowel", true, 118, vowel("UW"), "blue"),
   P("EY", "e\u026A", "diphthong", true, 160, vowel("EY"), "day", vowel("IY")),
-  P("OW", "o\u028A", "diphthong", true, 165, vowel("OW"), "go", vowel("UH")),
+  P("OW", "o\u028A", "diphthong", true, 148, vowel("OW"), "go", vowel("UH")),
   P("AY", "a\u026A", "diphthong", true, 190, vowel("AA"), "my", vowel("IH")),
-  P("AW", "a\u028A", "diphthong", true, 195, vowel("AA"), "now", vowel("UH")),
+  P("AW", "a\u028A", "diphthong", true, 210, vowel("AA"), "now", vowel("UH")),
   P("OY", "\u0254\u026A", "diphthong", true, 200, vowel("AO"), "boy", vowel("IY")),
-  P("P", "p", "stop", false, 85, { lipOpen: 0 }, "pen"),
+  P("P", "p", "stop", false, 70, { lipOpen: 0 }, "pen"),
   P("B", "b", "stop", true, 70, { lipOpen: 0 }, "bed"),
-  P("T", "t", "stop", false, 75, { tipPlace: 0.38, tipClose: 1 }, "top"),
+  P("T", "t", "stop", false, 60, { tipPlace: 0.38, tipClose: 1 }, "top"),
   P("D", "d", "stop", true, 60, { tipPlace: 0.38, tipClose: 1 }, "day"),
-  P("DX", "\u027E", "stop", true, 28, { tipPlace: 0.38, tipClose: 1 }, "butter"),
-  P("K", "k", "stop", false, 80, { dorsumClose: 1 }, "cat"),
+  P("DX", "\u027E", "stop", true, 31, { tipPlace: 0.38, tipClose: 1 }, "butter"),
+  P("K", "k", "stop", false, 73, { dorsumClose: 1 }, "cat"),
   P("G", "g", "stop", true, 70, { dorsumClose: 1 }, "go"),
   P("M", "m", "nasal", true, 75, { lipOpen: 0, velum: 1 }, "me"),
   P("N", "n", "nasal", true, 65, { tipPlace: 0.38, tipClose: 1, velum: 1 }, "no"),
-  P("NG", "\u014B", "nasal", true, 80, { dorsumClose: 1, velum: 1 }, "sing"),
+  P("NG", "\u014B", "nasal", true, 62, { dorsumClose: 1, velum: 1 }, "sing"),
   P("F", "f", "fricative", false, 100, { lipOpen: 0.098, lipRound: 0 }, "fine"),
-  P("V", "v", "fricative", true, 65, { lipOpen: 0.107, lipRound: 0 }, "very"),
+  P("V", "v", "fricative", true, 58, { lipOpen: 0.107, lipRound: 0 }, "very"),
   P("TH", "\u03B8", "fricative", false, 100, { tipPlace: 0, tipClose: 0.8 }, "think"),
   P("DH", "\xF0", "fricative", true, 50, { tipPlace: 0, tipClose: 0.794 }, "this"),
   P("S", "s", "fricative", false, 110, { tipPlace: 0.18, tipClose: 0.834, jaw: 0.3 }, "see"),
-  P("Z", "z", "fricative", true, 85, { tipPlace: 0.18, tipClose: 0.828, jaw: 0.3 }, "zoo"),
+  P("Z", "z", "fricative", true, 92, { tipPlace: 0.18, tipClose: 0.828, jaw: 0.3 }, "zoo"),
   P("SH", "\u0283", "fricative", false, 115, { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55, jaw: 0.3 }, "she"),
   P("ZH", "\u0292", "fricative", true, 90, { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55, jaw: 0.3 }, "vision"),
   P("CH", "t\u0283", "affricate", false, 115, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "chair"),
-  P("JH", "d\u0292", "affricate", true, 95, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "joy"),
+  P("JH", "d\u0292", "affricate", true, 112, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "joy"),
   P("L", "l", "approximant", true, 70, { tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3, tongueY: 0.5 }, "love"),
   // Non-English sounds (not in ARPABET): a glottal stop, ejectives (the larynx is the
   // piston) and clicks (the tongue body pulls a vacuum between two seals).
@@ -968,8 +968,8 @@ function articulate(segments, voice, withPreamble = true) {
       holds.push({ seg: i, name: param, start: onset, end: s.end, tau: releaseTau, value: t[param] });
       if (ph.manner === "affricate" && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
-        at(s.start + 0.55 * dur, "tipClose", r.tipClose, 6, i);
-        at(s.start + 0.45 * dur, "tipPlace", r.tipPlace, 10, i);
+        at(s.start + 0.42 * dur, "tipClose", r.tipClose, 6, i);
+        at(s.start + 0.32 * dur, "tipPlace", r.tipPlace, 10, i);
       }
       if (!nextIsSame(param)) {
         const rest = param === "lipOpen" ? vowelLips.lipOpen ?? 0.6 : 0;
