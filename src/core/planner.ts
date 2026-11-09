@@ -82,8 +82,11 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
       if (s.held) {
         anchors.push({time: s.start + Math.min(0.06, 0.38 * dur), target, seg: i});
       } else if (ph.offglide) {
-        anchors.push({time: s.start + 0.22 * dur, target, seg: i});
-        anchors.push({time: s.start + 0.8 * dur, target: {...ph.offglide, rhotic: 0}, seg: i});
+        // A long (sung) diphthong holds its nucleus and glides only at the end,
+        // as singers do; short ones glide through most of the vowel.
+        const long = dur > 0.4;
+        anchors.push({time: s.start + (long ? Math.min(0.22 * dur, 0.1) : 0.22 * dur), target, seg: i});
+        anchors.push({time: long ? s.end - 0.1 : s.start + 0.8 * dur, target: {...ph.offglide, rhotic: 0}, seg: i});
       } else {
         anchors.push({time: s.start + 0.38 * dur, target, seg: i});
       }

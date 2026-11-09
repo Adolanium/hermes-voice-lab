@@ -607,3 +607,24 @@ test('beat pads sound at once and keep their character', () => {
   }
   assert.throws(() => planHit('nope', SIGNATURE, lexicon));
 });
+
+test('a long sung diphthong holds its nucleus and glides at the end', () => {
+  const plan = planSong([{start: 0, length: 2, midi: 60}], 'my', lexicon, {bpm: 60, voice: SIGNATURE});
+  const my = lyricSyllables('my', lexicon)[0].phones;
+  const nucleus = my.find(ph => isVowelSymbol(ph.symbol))!;
+  const sr = 48000;
+  const e = engine(sr, 3);
+  e.loadScore(plan.score);
+  e.play(false);
+  const tx = PARAM_NAMES.indexOf('tongueX');
+  const samples: number[] = [];
+  // The note runs 0.25-2.25 s; the old timing glided from about 1.75 s.
+  const marks = [0.75, 1.95];
+  let t = 0;
+  for (const m of marks) {
+    while (t < m) { e.render(128); t += 128 / sr; }
+    samples.push(e.params()[tx]);
+  }
+  const n = PHONEMES_TARGET(nucleus.symbol).tongueX!;
+  for (const v of samples) assert.ok(Math.abs(v - n) < 0.08, `nucleus held (${v.toFixed(3)} vs ${n})`);
+});
