@@ -1,6 +1,6 @@
 import type {Score} from '../core/engine';
-import {midiToHz, type Patch} from '../core/params';
-import {isVowel, type Phone} from '../core/phonemes';
+import {defaultPatch, midiToHz, type ParamName, type Patch} from '../core/params';
+import {isVowel, PHONEMES, type Phone} from '../core/phonemes';
 import {planLiveOff, planLiveOn, type LyricCue} from '../core/planner';
 
 export interface PerformanceAudio {
@@ -21,6 +21,8 @@ export interface PerformanceState {holding: boolean; latch: boolean; notes: numb
 /** One monophonic instrument. Sources release only what they own. Explicit playback
  * replaces live input; the next live input interrupts playback. Startup is cancellable. */
 export class PerformanceController {
+  private overrides = new Map<string, Patch>();
+  private underlying: Patch | null = null;
   private notes = new Map<string, Note>();
   private touches = new Set<string>();
   private holding = false;
@@ -46,6 +48,35 @@ export class PerformanceController {
     this.state = {holding: this.holding, latch: this.latch, notes: [...this.notes.values()].map(n => n.midi), cues: this.cues, playback: !!this.playback};
     this.listeners.forEach(fn => fn());
   }
+  private effective(patch: Patch): Patch {
+    return Object.assign({...patch}, ...this.overrides.values());
+  }
+  articulation(source: string, patch: Patch | null) {
+    if (this.playback) return;
+    if (patch) {
+      if (this.overrides.has(source)) return;
+      if (this.livePhones) {
+        const vowel = this.livePhones.find(p => isVowel(p.symbol));
+        this.underlying = {...this.options.patch(), ...PHONEMES[vowel?.symbol ?? 'AH'].target};
+        this.audio.stopScore();
+        this.livePhones = null;
+        this.cues = [];
+        this.audio.patch(this.underlying, 25);
+        this.audio.set('gate', this.sounding ? 1 : 0, 12);
+      }
+      this.overrides.set(source, patch);
+      if (this.audio.running) this.audio.patch(this.effective(patch), 20);
+    } else {
+      const previous = this.overrides.get(source);
+      if (!previous) return;
+      this.overrides.delete(source);
+      const base = {...defaultPatch(), ...this.options.patch(), ...this.underlying};
+      const restore = Object.fromEntries(Object.keys(previous).map(k => [k, base[k as ParamName]]));
+      if (this.audio.running) this.audio.patch(this.effective(restore), 25);
+      if (!this.overrides.size) this.underlying = null;
+    }
+    this.emit();
+  }
   private cancelPreview() {
     if (this.previewTimer) clearTimeout(this.previewTimer);
     this.previewTimer = null;
@@ -54,6 +85,7 @@ export class PerformanceController {
   noteOn(source: string, midi: number) {
     this.cancelPreview();
     this.playback = null;
+    this.underlying = null;
     this.notes.delete(source);
     this.notes.set(source, {midi, syllable: this.options.nextSyllable?.()});
     this.reconcile();
@@ -97,6 +129,7 @@ export class PerformanceController {
   }
   /** Saved shape/voice changes are read again on release, never restored from a stale snapshot. */
   patch(patch: Patch, tau = 25) {
+    if (this.underlying) this.underlying = {...this.underlying, ...patch};
     if (!this.audio.running || this.playback) return;
     if (this.livePhones) {
       this.audio.stopScore();
@@ -106,7 +139,7 @@ export class PerformanceController {
       this.audio.set('gate', this.sounding ? 1 : 0, 12);
       this.emit();
     }
-    this.audio.patch(patch, tau);
+    this.audio.patch(this.effective(patch), tau);
   }
   completePlayback() {
     if (!this.playback || this.playback !== this.appliedPlayback) return;
@@ -116,6 +149,8 @@ export class PerformanceController {
     this.emit();
   }
   private clearInputs() {
+    for (const source of this.overrides.keys()) this.articulation(source, null);
+    this.underlying = null;
     this.cancelPreview();
     this.notes.clear();
     this.touches.clear();
@@ -158,7 +193,15 @@ export class PerformanceController {
           this.cues = [];
         } else if (!this.sounding || note !== this.applied) {
           this.audio.claim();
-          if (note?.syllable?.phones.length) {
+          if (note?.syllable?.phones.length && this.overrides.size) {
+            const vowel = note.syllable.phones.find(p => isVowel(p.symbol));
+            this.underlying = {...this.options.patch(), ...PHONEMES[vowel?.symbol ?? 'AH'].target, pitch: midiToHz(note.midi)};
+            this.audio.stopScore();
+            this.audio.patch(this.effective(this.underlying), 20);
+            this.audio.set('gate', 1, 12);
+            this.livePhones = null;
+            this.cues = [];
+          } else if (note?.syllable?.phones.length) {
             const v = this.livePhones?.findIndex(p => isVowel(p.symbol)) ?? -1;
             const fromCoda = v >= 0 ? this.livePhones!.slice(v + 1) : [];
             const score = planLiveOn(note.syllable.phones, note.midi, this.options.patch(), {fromCoda, legato: this.sounding});
@@ -171,7 +214,7 @@ export class PerformanceController {
             this.audio.set('pitch', midiToHz(note.midi), 35);
           } else {
             this.audio.stopScore();
-            this.audio.patch({...this.options.patch(), ...(note ? {pitch: midiToHz(note.midi)} : {})}, 20);
+            this.audio.patch(this.effective({...this.options.patch(), ...(note ? {pitch: midiToHz(note.midi)} : {})}), 20);
             this.audio.set('gate', 1, 12);
             this.livePhones = null;
             this.cues = [];

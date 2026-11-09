@@ -21,6 +21,7 @@ interface Props {
   onVoice: (p: Patch) => void;
   onShape: (p: Patch) => void;
   onTouch: (source: string, on: boolean) => void;
+  onArticulation: (source: string, patch: Patch | null) => void;
   holding: boolean;
   onHold: (on: boolean) => void;
   latch: boolean;
@@ -60,7 +61,7 @@ export function PlaySpeakSingTabs(p: Props) {
         ))}
       </div>
       {p.mode === 'play' && (
-        <PlayPanel project={p.project} live={p.live} agentKeys={p.agentKeys} onVoice={p.onVoice} onShape={p.onShape} onTouch={p.onTouch} holding={p.holding} onHold={p.onHold}
+        <PlayPanel project={p.project} live={p.live} agentKeys={p.agentKeys} onVoice={p.onVoice} onShape={p.onShape} onTouch={p.onTouch} onArticulation={p.onArticulation} holding={p.holding} onHold={p.onHold}
           latch={p.latch} onLatch={p.onLatch} running={p.running} />
       )}
       {p.mode === 'speak' && (

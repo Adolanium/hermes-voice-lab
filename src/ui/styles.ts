@@ -162,6 +162,8 @@ export const CSS = `
 .hvl-disclosure summary:focus-visible { outline: 2px solid var(--hvl-accent); outline-offset: 2px; }
 .hvl-disclosure[open] > .hvl-group { margin-bottom: 12px; }
 .hvl-analysis .hvl-scopes { margin-top: 8px; }
+.hvl-articulations { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.hvl-articulations .hvl-btn { touch-action: none; padding: 0 6px; }
 .hvl-play-grid { display: grid; grid-template-columns: minmax(170px, 1.1fr) minmax(145px, 1fr); gap: 14px; }
 .hvl-pad { position: relative; aspect-ratio: 1.1; border-radius: 8px; border: 1px solid var(--hvl-line); touch-action: none; cursor: crosshair;
   background: linear-gradient(color-mix(in oklab, var(--hvl-fg) 4%, transparent) 1px, transparent 1px) 0 0 / 25% 25%,

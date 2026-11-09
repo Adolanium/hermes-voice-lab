@@ -9,6 +9,7 @@ import {morphVowel, VOWEL_ANCHORS} from '../performance/vowels';
 import {SILLY_SONG, type Project} from '../core/project';
 import {DUET_PARTS, type DuetPart} from '../core/duet';
 import {VOICE_PRESETS as ALL_VOICES} from '../core/presets';
+import {HoldButton} from './HoldButton';
 import {cssVar, Icon, Range, Seg, Slider, useCanvas} from './controls';
 
 const SOURCE: ParamName[] = ['pitch', 'loudness', 'tenseness', 'breath', 'vibratoDepth', 'vibratoRate', 'humanize'];
@@ -30,6 +31,7 @@ interface PlayProps {
   onVoice: (p: Patch) => void;
   onShape: (p: Patch) => void;
   onTouch: (source: string, on: boolean) => void;
+  onArticulation: (source: string, patch: Patch | null) => void;
   holding: boolean;
   onHold: (on: boolean) => void;
   latch: boolean;
@@ -37,7 +39,7 @@ interface PlayProps {
   running: boolean;
 }
 
-export function PlayPanel({project, live, agentKeys, onVoice, onShape, onTouch, holding, onHold, latch, onLatch, running}: PlayProps) {
+export function PlayPanel({project, live, agentKeys, onVoice, onShape, onTouch, onArticulation, holding, onHold, latch, onLatch, running}: PlayProps) {
   const value = (n: ParamName) => (VOICE_KEYS.has(n) ? project.voice[n] : project.shape[n]) ?? 0;
   const set = (n: ParamName) => (v: number) => (VOICE_KEYS.has(n) ? onVoice({[n]: v}) : onShape({[n]: v}));
   const active = VOWEL_PRESETS.find(v => Object.entries(v.shape).every(([k, x]) => Math.abs((project.shape[k as ParamName] ?? -1) - (x as number)) < 0.02));
@@ -70,7 +72,16 @@ export function PlayPanel({project, live, agentKeys, onVoice, onShape, onTouch, 
             </button>
             <label className="hvl-check"><input type="checkbox" checked={latch} onChange={e => onLatch(e.target.checked)} /> Latch</label>
           </div>
-          <p className="hvl-note" style={{margin: 0}}>Hold a key and move the mouth. Sustain keeps the voice sounding while you shape it.</p>
+          <div className="hvl-articulations" aria-label="Hold to articulate">
+            {([
+              ['hum', 'Hum', {lipOpen: 0, velum: 1, voicing: 1}],
+              ['seal', 'Seal lips', {lipOpen: 0, velum: 0}],
+              ['roll', 'Roll', PHONEMES.RR.target],
+              ['growl', 'Growl', {growl: 0.8}],
+            ] as Array<[string, string, Patch]>).map(([id, label, patch]) => <HoldButton key={id} label={label}
+              onHold={(source, on) => onArticulation(`${id}:${source}`, on ? patch : null)} />)}
+          </div>
+          <span className="hvl-note">Hold a key, then hold an articulation.</span>
         </div>
       </div>
       <details className="hvl-disclosure">

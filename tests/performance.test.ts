@@ -104,3 +104,40 @@ test('live lyrics belong to the actual live performance and restore held syllabl
   c.play({score});
   assert.deepEqual(c.getSnapshot().cues, []);
 });
+
+test('articulation release restores the latest shape and overlapping overrides', () => {
+  const {controller: c, calls} = setup();
+  c.noteOn('key', 60);
+  c.articulation('hum', {lipOpen: 0, velum: 1});
+  c.articulation('seal', {lipOpen: 0, velum: 0});
+  c.patch({tongueX: 0.8});
+  c.articulation('seal', null);
+  assert.deepEqual(calls.at(-1), ['patch', {lipOpen: 0, velum: 1}]);
+  c.articulation('hum', null);
+  const patch = calls.at(-1)![1] as Record<string, number>;
+  assert.ok(patch.lipOpen > 0);
+  assert.equal(patch.velum, 0);
+  assert.equal(patch.tongueX, undefined, 'release leaves unrelated edits alone');
+  assert.deepEqual(gates(calls), [1]);
+});
+test('new vowel targets survive a held articulation and release', () => {
+  const calls: unknown[] = [];
+  let base = {lipOpen: 0.6, velum: 0};
+  const {audio} = setup();
+  audio.patch = p => { calls.push(p); };
+  const c = new PerformanceController(audio, {ensureAudio: async () => true, patch: () => base});
+  c.noteOn('key', 60); c.articulation('hum', {lipOpen: 0, velum: 1});
+  base = {lipOpen: 0.9, velum: 0}; c.patch(base);
+  assert.deepEqual(calls.at(-1), {lipOpen: 0, velum: 1});
+  c.articulation('hum', null);
+  assert.deepEqual(calls.at(-1), base);
+});
+test('articulation cold start, cancellation and Stop do not leave trill engaged', async () => {
+  const {controller: c, calls, ready} = setup(true);
+  c.noteOn('key', 60); c.articulation('roll', {trill: 1}); c.articulation('roll', null);
+  ready(true); await Promise.resolve();
+  assert.ok(!calls.some(([kind, p]) => kind === 'patch' && (p as Record<string, number>).trill === 1));
+  const warm = setup();
+  warm.controller.noteOn('key', 60); warm.controller.articulation('roll', {trill: 1}); warm.controller.stop();
+  assert.ok(warm.calls.some(([kind, p]) => kind === 'patch' && (p as Record<string, number>).trill === 0));
+});

@@ -39,7 +39,7 @@ export function BeatPanel({beat, onChange, onPlay, onStop, onPad, playing, step,
         <div className="hvl-section-title"><h3>Pads</h3><span>Every drum is a mouth gesture; one mouth plays one sound at a time</span></div>
         <div className="hvl-pads">
           {BEAT_SOUNDS.map(s => (
-            <button key={s.id} className="hvl-pad-btn" onClick={() => onPad(s.id)} title={s.help} disabled={!ready}>
+            <button key={s.id} className="hvl-pad-btn" onPointerDown={e => { e.preventDefault(); onPad(s.id); }} onClick={e => { if (e.detail === 0) onPad(s.id); }} title={s.help} disabled={!ready}>
               <b>{s.label}</b><span>{s.help}</span>
             </button>
           ))}

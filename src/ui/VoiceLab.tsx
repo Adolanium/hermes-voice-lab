@@ -7,7 +7,7 @@ import {lyricSyllables, planSong, planSpeech, type Plan, type SongPlan} from '..
 import {PerformanceController} from '../performance/controller';
 import {VOICE_PRESETS} from '../core/presets';
 import {duetScore, newProject, projectScore, validateProject, type Mode, type Project} from '../core/project';
-import {beatSong} from '../core/beat';
+import {planHit} from '../core/hits';
 import type {Lexicon} from '../core/text';
 import type {VoiceLabBridge} from '../bridge';
 import {loadLexicon} from './assets';
@@ -195,8 +195,7 @@ export default function VoiceLab({bridge}: Props) {
   };
   const playPad = (id: string) => {
     if (!lexicon) return;
-    const {notes, lyrics} = beatSong({bpm: projectRef.current.beat.bpm, steps: [id], loop: false});
-    performanceController.play({score: planSong(notes, lyrics, lexicon, {bpm: projectRef.current.beat.bpm, voice: projectRef.current.voice}).score});
+    performanceController.play({score: planHit(id, projectRef.current.voice, lexicon, projectRef.current.beat.bpm)});
   };
   const [trying, setTrying] = useState<string | null>(null);
   const [bestiary, setBestiary] = useState(false);
@@ -492,6 +491,7 @@ export default function VoiceLab({bridge}: Props) {
             onVoice={onVoice}
             onShape={onShape}
             onTouch={(source, on) => performanceController.touch(source, on)}
+            onArticulation={(source, patch) => performanceController.articulation(source, patch)}
             holding={holding}
             onHold={onHold}
             latch={latch}
