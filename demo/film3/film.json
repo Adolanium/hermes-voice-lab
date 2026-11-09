@@ -1,0 +1,261 @@
+{
+ "_note": "Film timeline in seconds. media = time inside the source clip; film = time in the demo; a = app-local time (film - app.film). rate > 1 plays a wait fast-forwarded (the caption says so). audio_until extends a segment's sound past its picture (a J-cut). Read by build_film.py (index.html, compositions/app.html) and ../build_audio2.py.",
+ "fps": 30,
+ "act": {
+  "src": "assets/act.mp4",
+  "preroll": 0.5
+ },
+ "cold": {
+  "film": [
+   0.0,
+   2.6
+  ],
+  "media": 13.85
+ },
+ "title": {
+  "film": [
+   2.6,
+   5.6
+  ]
+ },
+ "app": {
+  "film": 4.75,
+  "window": {
+   "scale": 0.86,
+   "x": 140,
+   "y": 34
+  },
+  "mouth": [
+   908,
+   415
+  ]
+ },
+ "segments": [
+  {
+   "id": "ask1",
+   "take": "agent",
+   "media": 2.0,
+   "end": 6.15
+  },
+  {
+   "id": "think1",
+   "take": "agent",
+   "media": 6.15,
+   "end": 28.6,
+   "rate": 16
+  },
+  {
+   "id": "reply1",
+   "take": "agent",
+   "media": 28.9,
+   "end": 31.6
+  },
+  {
+   "id": "sing",
+   "take": "agent",
+   "media": 39.7,
+   "end": 46.6,
+   "audio_until": 49.0,
+   "song": "assets/agent-song.json",
+   "song_onset_media": 40.159
+  },
+  {
+   "id": "ask2",
+   "take": "agent2",
+   "media": 1.9,
+   "end": 5.4
+  },
+  {
+   "id": "think2",
+   "take": "agent2",
+   "media": 5.4,
+   "end": 16.3,
+   "rate": 10
+  },
+  {
+   "id": "reply2",
+   "take": "agent2",
+   "media": 16.6,
+   "end": 19.2
+  },
+  {
+   "id": "beat",
+   "take": "agent2",
+   "media": 26.8,
+   "end": 31.8
+  },
+  {
+   "id": "grab",
+   "take": "play",
+   "media": 6.55,
+   "end": 10.45
+  },
+  {
+   "id": "pad",
+   "take": "play",
+   "media": 11.75,
+   "end": 15.6
+  },
+  {
+   "id": "body",
+   "take": "play",
+   "media": 26.0,
+   "end": 29.3
+  },
+  {
+   "id": "pads",
+   "take": "beat",
+   "media": 4.75,
+   "end": 7.95
+  },
+  {
+   "id": "jamon",
+   "take": "jam",
+   "media": 5.2,
+   "end": 7.4
+  },
+  {
+   "id": "play1",
+   "take": "jam",
+   "media": 7.4,
+   "end": 11.5
+  },
+  {
+   "id": "thinkj1",
+   "take": "jam",
+   "media": 11.5,
+   "end": 18.4,
+   "rate": 5
+  },
+  {
+   "id": "answer1",
+   "take": "jam",
+   "media": 18.4,
+   "end": 21.94
+  },
+  {
+   "id": "play2",
+   "take": "jam",
+   "media": 21.94,
+   "end": 25.3
+  },
+  {
+   "id": "thinkj2",
+   "take": "jam",
+   "media": 25.3,
+   "end": 28.78,
+   "rate": 3
+  },
+  {
+   "id": "answer2",
+   "take": "jam",
+   "media": 28.78,
+   "end": 32.6
+  }
+ ],
+ "captions": [
+  [
+   "ask1",
+   "ask1",
+   "Ask Hermes: *“Sing *me *something *silly *about *your *mouth!”"
+  ],
+  [
+   "think1",
+   "think1",
+   "*Fast-forward *16×: it writes the song."
+  ],
+  [
+   "reply1",
+   "reply1",
+   "Lyrics, melody, tempo: loaded into *Voice *Lab."
+  ],
+  [
+   "sing",
+   "sing",
+   "She sings it *live: a simulated *throat, *tongue and *lips."
+  ],
+  [
+   "ask2",
+   "ask2",
+   "Then: *“Now *drop *a *beatbox *groove!”"
+  ],
+  [
+   "think2",
+   "think2",
+   "*Fast-forward *10×."
+  ],
+  [
+   "reply2",
+   "reply2",
+   "It writes a *32-step *pattern."
+  ],
+  [
+   "beat",
+   "beat",
+   "Every *drum is a *mouth *gesture."
+  ],
+  [
+   "grab",
+   "grab",
+   "Grab her *tongue: she sings while you *hold *it."
+  ],
+  [
+   "pad",
+   "pad",
+   "Slide one finger through *every *vowel."
+  ],
+  [
+   "body",
+   "body",
+   "One slider: a *child, *her, a *grown *man."
+  ],
+  [
+   "pads",
+   "pads",
+   "Pads fire the *instant you *touch *them."
+  ],
+  [
+   "jamon",
+   "jamon",
+   "New: *Jam *with *Hermes *Agent."
+  ],
+  [
+   "play1",
+   "play1",
+   "You play a *phrase on the *keys…"
+  ],
+  [
+   "thinkj1",
+   "thinkj1",
+   "*Fast-forward *5×: it *writes *an *answer."
+  ],
+  [
+   "answer1",
+   "answer1",
+   "…and she *sings *its *answer."
+  ],
+  [
+   "play2",
+   "play2",
+   "You play *again…"
+  ],
+  [
+   "thinkj2",
+   "thinkj2",
+   "*Fast-forward *3×."
+  ],
+  [
+   "answer2",
+   "answer2",
+   "Hermes Agent *answers *back."
+  ]
+ ],
+ "dive": 0.8,
+ "show": {
+  "media": 12.35,
+  "end": 29.6
+ },
+ "end": {
+  "seconds": 5.0
+ }
+}

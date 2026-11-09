@@ -10,7 +10,7 @@ Everything is synthesized locally by a Rust engine compiled to WebAssembly: a gl
 
 ![Jam with Hermes: she sings the agent's answer](docs/media/voice-lab-jam.png)
 
-**Film:** [Voice Lab, the instrument](docs/media/voice-lab-instrument.mp4) (85 s, 1080p). The Desktop features with a real model, then the lounge act.
+**Film:** [Voice Lab in Hermes Agent](docs/media/voice-lab-film.mp4) (88 s, 1080p). A real model (DeepSeek V4.1 Flash) writes a song and a beat for her, then the instrument, a jam with the agent, and the lounge act. Waits for the model are fast-forwarded, and the captions say by how much.
 
 **Demo:** [Voice Lab in Hermes Agent Desktop](docs/media/hermes-demo.mp4) (86 s, 1080p). It shows the whole Hermes window. You ask the agent for a silly song. The agent writes one and hands it to Voice Lab. She sings it live, with a band that plays her melody. Then the physics: seal the tongue and the sound stops; open the nose and she hums. Last, a dive through her mouth into the full act. The agent turn was recorded with a scripted stand-in model, so the reply text is fixed. The tool calls, the plugin and the engine are real. Sources and rebuild steps are in [`demo/`](demo/README.md).
 

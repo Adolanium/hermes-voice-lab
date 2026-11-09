@@ -1,0 +1,10 @@
+# Bulky or generated media (see ../README.md to rebuild)
+.hyperframes/
+renders/
+assets/*.mp4
+assets/*.webm
+assets/*.wav
+assets/fonts/
+.thumbnails/
+.waveform-cache/
+film.resolved.json
