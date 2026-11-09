@@ -103,7 +103,10 @@ export function useAudioStatus(audio: VoiceAudio) {
 export function useCanvas(draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void, deps: unknown[], animate = false) {
   const ref = useRef<HTMLCanvasElement>(null);
   const drawRef = useRef(draw);
+  const animated = useRef(animate);
+  const invalidate = useRef<() => void>(() => {});
   drawRef.current = draw;
+  animated.current = animate;
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -116,26 +119,31 @@ export function useCanvas(draw: (ctx: CanvasRenderingContext2D, w: number, h: nu
         canvas.width = Math.round(w * dpr);
         canvas.height = Math.round(h * dpr);
       }
+      if (!w || !h) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
       drawRef.current(ctx, w, h);
     };
-    const loop = () => {
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(frame); };
+    const frame = () => {
+      raf = 0;
       paint();
-      raf = requestAnimationFrame(loop);
+      if (animated.current) schedule();
     };
-    const ro = new ResizeObserver(() => paint());
+    invalidate.current = schedule;
+    const ro = new ResizeObserver(schedule);
     ro.observe(canvas);
-    if (animate) raf = requestAnimationFrame(loop);
-    else paint();
+    schedule();
     return () => {
+      invalidate.current = () => {};
       ro.disconnect();
       cancelAnimationFrame(raf);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animate, ...deps]);
+  }, []);
+  // Changes request a frame; the observer and animation loop keep their lifetime.
+  useEffect(() => invalidate.current(), [animate, ...deps]);
   return ref;
 }
 

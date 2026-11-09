@@ -8,7 +8,7 @@
  * optional cutaway is a stylised midsagittal view of the modelled
  * articulators, not medical anatomy.
  */
-import React, {useCallback, useMemo, useRef} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef} from 'react';
 import type {ParamName} from '../core/params';
 import {AirwayLife, type AirwayState} from './AirwayLife';
 import {FloatingWords, headMotion, type StageState} from './stage';
@@ -168,7 +168,25 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   const g = rig(pose);
   const svg = useRef<SVGSVGElement>(null);
   const rigGroup = useRef<SVGGElement>(null);
-  const drag = useRef<null | {kind: string; start: Pt; startPose: Pose}>(null);
+  const drag = useRef<null | {kind: string; pointerId: number; start: Pt; startPose: Pose}>(null);
+
+  const onEnd = useRef(onDragEnd);
+  onEnd.current = onDragEnd;
+  useEffect(() => {
+    const cancel = () => {
+      if (!drag.current) return;
+      drag.current = null;
+      onEnd.current?.();
+    };
+    const visibility = () => { if (document.hidden) cancel(); };
+    window.addEventListener('blur', cancel);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      window.removeEventListener('blur', cancel);
+      document.removeEventListener('visibilitychange', visibility);
+      cancel();
+    };
+  }, []);
 
   /** Pointer position in rig coordinates. */
   const toLocal = useCallback((e: React.PointerEvent): Pt => {
@@ -183,16 +201,16 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   }, []);
 
   const begin = (kind: string) => (e: React.PointerEvent) => {
-    if (!onDrag) return;
+    if (!onDrag || drag.current) return;
     e.preventDefault();
     e.stopPropagation();
     svg.current?.setPointerCapture?.(e.pointerId);
-    drag.current = {kind, start: toLocal(e), startPose: pose};
+    drag.current = {kind, pointerId: e.pointerId, start: toLocal(e), startPose: pose};
     onDragStart?.();
   };
   const move = (e: React.PointerEvent) => {
     const d = drag.current;
-    if (!d || !onDrag) return;
+    if (!d || d.pointerId !== e.pointerId || !onDrag) return;
     const [x, y] = toLocal(e);
     const dx = x - d.start[0];
     const dy = y - d.start[1];
@@ -215,7 +233,8 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
         break;
     }
   };
-  const end = () => {
+  const end = (e: React.PointerEvent) => {
+    if (drag.current?.pointerId !== e.pointerId) return;
     if (drag.current) onDragEnd?.();
     drag.current = null;
   };
@@ -263,7 +282,7 @@ export function Portrait({pose, airway, cutaway, labels, speaking, onDrag, onDra
   const m = warped.mouth;
 
   return (
-    <svg ref={svg} viewBox={viewBox ?? DEFAULT_VIEWBOX} className={`hvl-portrait ${stage ? 'is-stage' : ''}`} onPointerMove={move} onPointerUp={end} onPointerCancel={end}
+    <svg ref={svg} viewBox={viewBox ?? DEFAULT_VIEWBOX} className={`hvl-portrait ${stage ? 'is-stage' : ''}`} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
       role="img" aria-label="Side-profile portrait whose mouth, jaw, tongue and throat follow the synthesizer">
       <defs>
         <radialGradient id="hvl-glow" cx="0.5" cy="0.5" r="0.5">

@@ -8,6 +8,7 @@ import type {TractResponse} from '../core/engine';
 import {noteName, hzToMidi} from '../core/params';
 import {cssVar, useCanvas} from './controls';
 import type {VoiceAudio} from './audio';
+import {airwayActivity, type AirwayState} from './AirwayLife';
 
 const N = 44;
 const PORT = 24;
@@ -38,7 +39,8 @@ function Scope({title, badge, note, children}: {title: string; badge: 'measured'
   );
 }
 
-export function Airway({areas, length, nasal, minIndex}: {areas: Float32Array | number[]; length: number; nasal: number; minIndex: number}) {
+export function Airway({areas, length, nasal, minIndex, activity}: {areas: Float32Array | number[]; length: number; nasal: number; minIndex: number; activity?: AirwayState}) {
+  const energy = airwayActivity(activity ?? {running: false});
   const ref = useCanvas((ctx, w, h) => {
     const c = colors(ref.current);
     const padL = 12, padR = 12, padT = 18, padB = 18;
@@ -75,6 +77,24 @@ export function Airway({areas, length, nasal, minIndex}: {areas: Float32Array | 
     ctx.strokeStyle = c.accent;
     ctx.lineWidth = 1.6;
     ctx.stroke();
+    // Pressure behind the constriction and the actual turbulent source location.
+    if (energy.pressure > 0) {
+      ctx.fillStyle = c.warm;
+      ctx.globalAlpha = 0.35 * energy.pressure;
+      for (let i = 0; i < minIndex; i++) ctx.fillRect(x(i), mid - r[i], Math.max(1, x(1) - x(0)), r[i] * 2);
+      ctx.globalAlpha = 1;
+    }
+    if (energy.friction > 0.01) {
+      ctx.strokeStyle = c.warm;
+      ctx.lineWidth = 1 + energy.friction * 2;
+      ctx.beginPath();
+      ctx.arc(x(energy.noiseIndex), mid, 4 + 9 * energy.friction, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = c.good;
+    ctx.globalAlpha = energy.voicing;
+    ctx.fillRect(padL, mid - 8, 3, 16);
+    ctx.globalAlpha = 1;
     // Nasal branch above the port.
     if (nasal > 0.01) {
       const px = x(PORT);
@@ -111,9 +131,9 @@ export function Airway({areas, length, nasal, minIndex}: {areas: Float32Array | 
     ctx.textAlign = 'right';
     ctx.fillText(`LIPS · ${length.toFixed(1)} CM`, w - padR, padT - 6);
     ctx.textAlign = 'left';
-  }, [areas, length, nasal, minIndex]);
+  }, [areas, length, nasal, minIndex, activity]);
   return (
-    <Scope title="Airway" badge="model" note="Cross-section along the tract (area function).">
+    <Scope title="Airway" badge="model" note={`Pressure ${Math.round(energy.pressure * 100)}% · hiss ${Math.round(energy.friction * 100)}% · voicing ${Math.round(energy.voicing * 100)}%`}>
       <canvas ref={ref} aria-label="Modeled vocal tract area function" />
     </Scope>
   );
@@ -240,10 +260,10 @@ export function Waveform({audio, running}: {audio: VoiceAudio; running: boolean}
   );
 }
 
-export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array | null; rd: number; f0: number; voicing: number; sounding: boolean}) {
+export function Glottal({shape, rd, f0, voicing, sounding, activity = voicing}: {shape: Float32Array | null; rd: number; f0: number; voicing: number; sounding: boolean; activity?: number}) {
   const pts = useMemo(() => (shape ? Array.from(shape) : null), [shape]);
-  const live = useRef({pts, f0, voicing, sounding});
-  live.current = {pts, f0, voicing, sounding};
+  const live = useRef({pts, f0, voicing, sounding, activity});
+  live.current = {pts, f0, voicing, sounding, activity};
   const phase = useRef(0);
   const ref = useCanvas((ctx, w, h) => {
     const c = colors(ref.current);
@@ -269,7 +289,7 @@ export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array
     ctx.fillStyle = c.accent;
     ctx.fill();
     ctx.globalAlpha = 1;
-    if (sounding && voicing > 0.4) {
+    if (sounding && voicing > 0.4 && activity > 0.01) {
       // Playhead, in step with the slowed fold view.
       const k = Math.floor(phase.current * pts.length) % pts.length;
       const px = (phase.current / periods) * w;
@@ -279,7 +299,7 @@ export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array
       ctx.arc(px, py, 3, 0, Math.PI * 2);
       ctx.fill();
     }
-  }, [pts, sounding, voicing], sounding);
+  }, [pts, sounding, voicing, activity], sounding);
   // Top-down fold view, slowed 100×, driven by the modeled pulse shape and F0.
   const folds = useRef<SVGSVGElement>(null);
   useEffect(() => {
@@ -288,11 +308,11 @@ export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array
     const frame = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const {pts, f0, voicing, sounding} = live.current;
+      const {pts, f0, voicing, sounding, activity} = live.current;
       phase.current = (phase.current + dt * Math.max(0, f0) / 100) % 1;
       let open = 0.02;
       if (sounding && voicing < 0.4) open = 0.9;
-      else if (sounding && pts) open = 0.04 + 0.6 * Math.max(0, pts[Math.floor(phase.current * pts.length) % pts.length]);
+      else if (sounding && pts) open = 0.04 + 0.6 * activity * Math.max(0, pts[Math.floor(phase.current * pts.length) % pts.length]);
       const el = folds.current;
       if (el) {
         // Seen from above: folds meet at the front (top) and part toward the
@@ -308,7 +328,7 @@ export function Glottal({shape, rd, f0, voicing, sounding}: {shape: Float32Array
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
   }, []);
-  const state = !sounding ? 'at rest' : voicing < 0.4 ? 'held open (voiceless)' : 'vibrating';
+  const state = !sounding ? 'at rest' : voicing < 0.4 ? 'held open (voiceless)' : activity < 0.01 ? 'not vibrating' : 'vibrating';
   const note = f0 > 0 && sounding ? `${Math.round(f0)} Hz · ${noteName(hzToMidi(f0))} · Rd ${rd.toFixed(2)}` : `Rd ${rd.toFixed(2)}`;
   return (
     <Scope title="Glottal flow" badge="model" note={note}>
