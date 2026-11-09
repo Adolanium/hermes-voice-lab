@@ -6,6 +6,12 @@ A vocal synthesizer for Hermes Desktop built on a physical model of the voice. A
 
 Everything is synthesized locally by a Rust engine compiled to WebAssembly: a glottal source drives a simulated vocal tract. There are no recordings, no neural or cloud TTS and no network calls. The default voice is an original adult feminine character voice, clear, warm and slightly breathy. It is a fictional voice for the character and not an official Nous voice.
 
+**Jam with Hermes:** [20 s clip](docs/media/voice-lab-jam.mp4). You play a phrase on the keys and pause. Hermes Agent (here DeepSeek V4.1 Flash) writes a sung answer, and she sings it. The agent's thinking time is sped up 6× and 4×, and the clip says so.
+
+![Jam with Hermes: she sings the agent's answer](docs/media/voice-lab-jam.png)
+
+**Film:** [Voice Lab, the instrument](docs/media/voice-lab-instrument.mp4) (85 s, 1080p). The Desktop features with a real model, then the lounge act.
+
 **Demo:** [Voice Lab in Hermes Agent Desktop](docs/media/hermes-demo.mp4) (86 s, 1080p). It shows the whole Hermes window. You ask the agent for a silly song. The agent writes one and hands it to Voice Lab. She sings it live, with a band that plays her melody. Then the physics: seal the tongue and the sound stops; open the nose and she hums. Last, a dive through her mouth into the full act. The agent turn was recorded with a scripted stand-in model, so the reply text is fixed. The tool calls, the plugin and the engine are real. Sources and rebuild steps are in [`demo/`](demo/README.md).
 
 **Watch:** [Boop Bop, Live!](docs/media/boop-bop-song.mp4) (41 s, 1080p). She does a short lounge set: patter ("Hello, hello! Is this thing on?"), scat, a verse about her own tongue, lips, nose and jaw with the inside view open, a brag ("No samples. No auto tune. Just physics!"), a beatbox break and a bow. Sound and picture come from one offline engine run, frame by frame, so the mouth, the inside view and the floating words are in exact sync with the audio.

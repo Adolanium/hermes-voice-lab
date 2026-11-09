@@ -1,0 +1,43 @@
+# Rebuild the shipped plugin outputs from source, check they match the committed
+# files, and attest them (Hermes plugin catalog rule 17).
+name: Build and attest
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/build-engine.mjs
+      - run: npm run build
+      - run: npm test
+      - name: Upload the CI build (for comparison)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-build
+          path: |
+            plugin/runtime/voice_lab_engine.wasm
+            plugin/desktop/plugin.js
+            plugin/runtime/render.mjs
+            plugin/runtime/catalog.json
+      - name: Committed outputs match a fresh build
+        run: git diff --stat --exit-code -- plugin/
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            plugin/runtime/voice_lab_engine.wasm
+            plugin/desktop/plugin.js
