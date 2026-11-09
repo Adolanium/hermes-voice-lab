@@ -7,7 +7,7 @@ import {execFileSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {compileScore, Engine, renderScore} from '../src/core/engine';
-import {PARAMS, PARAM_NAMES, validatePatch, parseNoteName, midiToHz} from '../src/core/params';
+import {PARAMS, PARAM_NAMES, defaultPatch, validatePatch, parseNoteName, midiToHz} from '../src/core/params';
 import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, planSustain} from '../src/core/planner';
 import {decodeLexicon, letterToSound, parsePhonemeInput, syllabify, tokenize} from '../src/core/text';
 import {duetScore, newProject, projectScore, SILLY_SONG, validateProject} from '../src/core/project';
@@ -15,7 +15,7 @@ import {duetNotes} from '../src/core/duet';
 import {beatSong, BEAT_SOUNDS} from '../src/core/beat';
 import {planHit} from '../src/core/hits';
 import {CREATURES} from '../src/core/bestiary';
-import {SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
+import {bodyAt, SIGNATURE, VOWEL_PRESETS, VOICE_PRESETS} from '../src/core/presets';
 import {PHONEMES, VOWEL_CALIBRATION, isVowel as isVowelSymbol} from '../src/core/phonemes';
 const PHONEMES_TARGET = (symbol: string) => PHONEMES[symbol].target;
 import {encodeWav, measure} from '../src/core/wav';
@@ -627,4 +627,21 @@ test('a long sung diphthong holds its nucleus and glides at the end', () => {
   }
   const n = PHONEMES_TARGET(nucleus.symbol).tongueX!;
   for (const v of samples) assert.ok(Math.abs(v - n) < 0.08, `nucleus held (${v.toFixed(3)} vs ${n})`);
+});
+
+test('a body morph moves the resonances smoothly from child to adult male', () => {
+  const e = engine();
+  const shape = VOWEL_PRESETS.find(v => v.id === 'aa')!.shape;
+  const f2 = (x: number) => {
+    const patch: Record<string, number> = {...defaultPatch(), ...SIGNATURE, ...shape, ...bodyAt(x)};
+    const values = PARAM_NAMES.map(n => patch[n]);
+    const s = e.shapeFor(values);
+    return e.analyze(s.areas, s.nasal, s.length).formants.map(f => f.frequency);
+  };
+  const xs = [-1, -0.5, 0, 0.5, 1];
+  const fs = xs.map(f2);
+  for (let i = 1; i < xs.length; i++) assert.ok(fs[i][1] < fs[i - 1][1], `F2 falls as the body grows (${fs.map(f => f[1].toFixed(0)).join(' → ')})`);
+  assert.deepEqual(bodyAt(0), {tractLength: SIGNATURE.tractLength, pharynx: SIGNATURE.pharynx, throat: SIGNATURE.throat});
+  assert.equal(bodyAt(-1).tractLength, VOICE_PRESETS.find(p => p.id === 'child')!.voice.tractLength);
+  assert.equal(bodyAt(5).tractLength, bodyAt(1).tractLength);
 });

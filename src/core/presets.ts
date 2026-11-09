@@ -51,3 +51,20 @@ export const VOWEL_PRESETS: ShapePreset[] = [
   {id: 'schwa', label: 'AX', ipa: 'ə', example: 'about', shape: {...closed, ...SCHWA}},
   {id: 'hum', label: 'M', ipa: 'm', example: 'hum', shape: {...closed, ...SCHWA, lipOpen: 0, velum: 1}},
 ];
+
+/** The body fields a body morph changes; the voice source (pitch, quality) is left alone. */
+export const BODY_FIELDS = ['tractLength', 'pharynx', 'throat'] as const;
+
+/**
+ * A body between the calibrated ones, for a continuous morph with the pitch held:
+ * -1 is the child body, 0 the Signature (adult feminine) body, 1 the adult male
+ * body. Only BODY_FIELDS are returned; apply them over the current voice.
+ */
+export function bodyAt(x: number): Patch {
+  const t = Math.max(-1, Math.min(1, x));
+  const voice = (id: string) => VOICE_PRESETS.find(p => p.id === id)!.voice;
+  const [a, b, w] = t < 0 ? [SIGNATURE, voice('child'), -t] : [SIGNATURE, voice('baritone'), t];
+  const out: Patch = {};
+  for (const k of BODY_FIELDS) out[k] = a[k]! + (b[k]! - a[k]!) * w;
+  return out;
+}
