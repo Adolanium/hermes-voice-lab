@@ -262,6 +262,9 @@ pub struct Dynamics {
 /// Leveler threshold (dBFS, short-term RMS) and ratio above it.
 const LEVEL_THRESHOLD_DB: f32 = -22.0;
 const LEVEL_RATIO: f32 = 3.0;
+/// Leveler RMS window and attack (seconds).
+const LEVEL_WINDOW: f32 = 0.05;
+const LEVEL_ATTACK: f32 = 0.04;
 /// Limiter ceiling (linear), ahead of the soft clipper.
 const LIMIT: f32 = 0.8;
 
@@ -271,11 +274,12 @@ impl Dynamics {
         let look = ((0.002 * rate) as usize).clamp(1, LOOKAHEAD_MAX);
         Self {
             ms: 0.0,
-            // Phrase-scale time constants: held notes and loud passages are
-            // evened out, but a consonant after a loud vowel is not ducked.
-            ms_coeff: c(0.3),
+            // The leveler settles within a note's onset (a slow attack made held
+            // notes fade by up to 8 dB over their first second); the slow
+            // release keeps a consonant after a loud vowel from being ducked.
+            ms_coeff: c(LEVEL_WINDOW),
             gr_db: 0.0,
-            lev_attack: c(0.3),
+            lev_attack: c(LEVEL_ATTACK),
             lev_release: c(0.8),
             lim_gain: 1.0,
             lim_hold: 1.0,

@@ -898,7 +898,7 @@ function articulate(segments, voice, withPreamble = true) {
       at(s.start - 0.03, "gate", 1, 10);
       inPhrase = true;
     }
-    if (i === segments.length - 1 && inPhrase) at(s.end, "gate", 0, 40);
+    if (i === segments.length - 1 && inPhrase && !s.held) at(s.end, "gate", 0, 40);
   });
   const anchors = [];
   segments.forEach((s, i) => {
@@ -907,7 +907,9 @@ function articulate(segments, voice, withPreamble = true) {
     const dur = s.end - s.start;
     if (isVowel(s.symbol)) {
       const target = vowelTarget({ symbol: s.symbol, stress: s.stress });
-      if (ph.offglide) {
+      if (s.held) {
+        anchors.push({ time: s.start + Math.min(0.06, 0.38 * dur), target, seg: i });
+      } else if (ph.offglide) {
         anchors.push({ time: s.start + 0.22 * dur, target, seg: i });
         anchors.push({ time: s.start + 0.8 * dur, target: { ...ph.offglide, rhotic: 0 }, seg: i });
       } else {
