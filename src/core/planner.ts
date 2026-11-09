@@ -21,6 +21,8 @@ export interface Segment {
   /** Strong prosodic boundary after this segment. */
   boundary?: Boundary;
   label?: string;
+  /** A live, open-ended vowel: reach the nucleus promptly and hold it (the glide comes on release). */
+  held?: boolean;
 }
 
 const LEAD_SCALE = 2.4; // start a movement ~2.4 time constants before its target time
@@ -65,7 +67,7 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
       at(s.start - 0.03, 'gate', 1, 10);
       inPhrase = true;
     }
-    if (i === segments.length - 1 && inPhrase) at(s.end, 'gate', 0, 40);
+    if (i === segments.length - 1 && inPhrase && !s.held) at(s.end, 'gate', 0, 40);
   });
 
   // Tongue-body anchors: vowels plus consonants that need the dorsum.
@@ -77,7 +79,9 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
     const dur = s.end - s.start;
     if (isVowel(s.symbol)) {
       const target = vowelTarget({symbol: s.symbol, stress: s.stress});
-      if (ph.offglide) {
+      if (s.held) {
+        anchors.push({time: s.start + Math.min(0.06, 0.38 * dur), target, seg: i});
+      } else if (ph.offglide) {
         anchors.push({time: s.start + 0.22 * dur, target, seg: i});
         anchors.push({time: s.start + 0.8 * dur, target: {...ph.offglide, rhotic: 0}, seg: i});
       } else {
@@ -755,7 +759,7 @@ export function planLiveOn(phones: Phone[], midi: number, voicePatch: Patch, opt
     t += d;
   }
   const vowelAt = t;
-  if (v >= 0) segments.push({symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: t + HOLD, word: 0});
+  if (v >= 0) segments.push({symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: t + HOLD, word: 0, held: true});
   else segments.push({symbol: 'SIL', stress: 0, start: t, end: t + 0.3, word: -1});
   const events = articulate(segments, voice, false);
   for (const name of ['tenseness', 'breath', 'loudness'] as ParamName[]) events.push([0, name, voice[name], 30]);

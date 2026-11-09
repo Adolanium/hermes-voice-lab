@@ -556,3 +556,31 @@ test('duet: a second singer with their own voice on a derived or written part, m
     rmSync(dir, {recursive: true, force: true});
   }
 });
+
+test('live keys reach their vowel at once and hold the nucleus of a diphthong', () => {
+  const sr = 48000;
+  const e = engine(sr, 5);
+  const run = (score: ReturnType<typeof planLiveOn>, seconds: number) => {
+    e.loadScore(score);
+    e.play(false);
+    for (let at = 0; at < seconds * sr; at += 128) e.render(128);
+    return e.params();
+  };
+  const id = (n: string) => PARAM_NAMES.indexOf(n as (typeof PARAM_NAMES)[number]);
+  // Alternate vowels by key: each must be in place within a quarter second.
+  for (const symbol of ['IY', 'AA', 'UW', 'IY']) {
+    const p = run(planLiveOn([{symbol, stress: 1}], 60, SIGNATURE), 0.25);
+    const target = PHONEMES_TARGET(symbol);
+    for (const name of ['tongueX', 'tongueY', 'lipRound'] as const) {
+      if (target[name] === undefined) continue;
+      assert.ok(Math.abs(p[id(name)] - target[name]!) < 0.06, `${symbol} ${name} ${p[id(name)].toFixed(3)} vs ${target[name]}`);
+    }
+    assert.ok(p[id('gate')] > 0.9, `${symbol} sounding`);
+  }
+  // A held "my": the nucleus (AA-like) stays until release, no early glide to IY.
+  const my = lyricSyllables('my', lexicon)[0].phones;
+  const nucleus = my.find(ph => isVowelSymbol(ph.symbol))!;
+  const p = run(planLiveOn(my, 60, SIGNATURE), 1.5);
+  assert.ok(Math.abs(p[id('tongueX')] - PHONEMES_TARGET(nucleus.symbol).tongueX!) < 0.06, `held ${nucleus.symbol} nucleus ${p[id('tongueX')].toFixed(3)}`);
+  assert.ok(p[id('gate')] > 0.9, 'still sounding after 1.5 s');
+});
