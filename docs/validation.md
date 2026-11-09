@@ -81,26 +81,33 @@ Engine test `closure_stops_airflow_and_sound_in_front_and_nose_takes_over` pins 
 
 ## Real voices
 
-Since 2026-11-08 the voice has been tuned toward real voices, one measured change at a time. Both judges are our own code, after the reference project's method. The datasets are used for research only and nothing derived from them ships.
-- **Speech** (`research/tools/judge/speech.py`): 48 Harvard sentences, 4 from each of the 12 adult female speakers in the TSP speech database (Kabal 2018). The judge measures mel-cepstral distance (MCD) along a DTW path, counting each real frame once, plus length, spectral balance, H1−H2, pitch range and consonant levels.
+Since 2026-11-08 the voice has been tuned toward real voices, one measured change at a time. The two distance judges are our own code, after the reference project's method. The datasets are used for research only and nothing derived from them ships.
+- **Speech** (`research/tools/judge/speech.py`): 48 Harvard sentences, 4 from each of the 12 adult female speakers in the TSP speech database (Kabal 2018). The judge measures mel-cepstral distance (MCD) along a DTW path, counting each real frame once, plus length, spectral balance, H1−H2, pitch range, formant bandwidth and consonant levels.
 - **Singing** (`research/tools/judge/singer.py`): 20 English songs (2,469 notes) of the Children's Song Dataset (Choi et al. 2020), sung with the singer's own phonemes, times and pitches. Each note's steady part is compared with her recording.
+- **Naturalness** (`research/tools/mos/`): UTMOS22 (Saeki et al. 2022, via SpeechMOS), a neural predictor of listeners' mean opinion score (1–5), on the same 48 sentences. It ranks real speakers, the reference synthesizer and ours the way the owner hears them; MCD did not, so since round 4 naturalness leads and MCD is a secondary measure.
 
-| | Speech MCD (lower is better) | Length vs real | Pitch range vs real | Singing note MCD | Whisper WER |
-|---|---|---|---|---|---|
-| Before | 32.90 dB | ×1.23 | −5.1 st | 36.62 dB | 38.9% |
-| Now | **32.12 dB** | **×1.04** | **+0.5 st** | **35.07 dB** | **33.2%** |
-| Reference synthesizer | 32.46 dB | ×1.02 | −3.3 st | 38.87 dB | 43.4% (earlier run) |
+| | Naturalness (UTMOS, higher is better) | Speech MCD (lower is better) | Length vs real | Pitch range vs real | Formant bandwidth (real 158 Hz) | Singing note MCD | Whisper WER |
+|---|---|---|---|---|---|---|---|
+| Before | 2.38 | 32.90 dB | ×1.23 | −5.1 st | 200 Hz | 36.62 dB | 38.9% |
+| Checkpoint 3 | 2.18 | 32.12 dB | ×1.04 | +0.5 st | 189 Hz | 35.07 dB | 33.2% |
+| Now | **2.68** | 33.50 dB | ×1.23 | **+0.6 st** | **162 Hz** | 35.70 dB | 34.1% |
+| Reference synthesizer | 2.89 | 32.46 dB | ×1.02 | −3.3 st | 118 Hz | 38.87 dB | 43.4% (earlier run) |
+| Real speakers | 4.25 | — | — | — | — | — | — |
 
 Kept changes:
 - intonation scaled to real speakers' pitch range;
 - a firmer, less breathy default voice;
-- a natural speaking rate with faster speech gestures;
 - no extra firmness for singing;
-- a +3 dB presence lift at 1.6 kHz in the default voice's recording chain.
+- a +3 dB presence lift at 1.6 kHz in the default voice's recording chain;
+- no extra high-frequency wall loss in the airway, so formants are as sharp as real ones (it had made the voice muffled);
+- a careful reading pace with normal-speed gestures (the faster rate and gestures kept at checkpoint 2 matched real spectra better but sounded choppy);
+- female vowels recalibrated against Hillenbrand et al. (1995): mean F1–F3 error 3.45% (was 4.29%).
 
-Whisper WER varies by about ±2 points run to run; 31.4% before the presence lift, 33.2% after, both within that noise.
+Two bugs were fixed along the way: the tract analysis now uses a 32,768-point FFT, because with lighter wall loss the tract rang past the old window and truncation ripple read as false formants; and the output limiter now holds its gain over the look-ahead, which stops peaks overshooting the 0.81 ceiling (a beatbox show had reached 0.845).
 
-Rejected changes and their numbers are in `research/hill-climb/log.md`. The owner listened at three checkpoints and preferred the new version each time (the third only slightly). An earlier, deeper sung vibrato moved toward the real singer but was not audibly different, so it was not kept. Still open: formants wider than real, and shallow sung vibrato.
+Sung naturalness is about unchanged (UTMOS 1.67 → 1.69; reference 1.78, real singer 2.45). Whisper WER varies by about ±2 points run to run. Slower gestures everywhere scored up to the reference's naturalness but raised WER to 39–47%, so they were not kept.
+
+Rejected changes and their numbers are in `research/hill-climb/log.md`. The owner listened at four checkpoints and preferred the new version each time (the third only slightly). An earlier, deeper sung vibrato moved toward the real singer but was not audibly different, so it was not kept. Still open: about 0.2 naturalness behind the reference, speech slower than real (×1.23), and shallow sung vibrato.
 
 ## Listening and intelligibility
 
