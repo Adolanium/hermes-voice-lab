@@ -60,8 +60,8 @@ export function PlayPanel({project, live, agentKeys, onVoice, onShape, holding, 
         <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
           <div className="hvl-row">
             <button className={`hvl-btn is-primary`} style={{flex: 1, height: 38}}
-              onPointerDown={e => { e.preventDefault(); if (!latch) onHold(true); }}
-              onPointerUp={() => !latch && onHold(false)} onPointerLeave={() => !latch && holding && onHold(false)}
+              onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); if (!latch) onHold(true); }}
+              onPointerUp={() => !latch && onHold(false)} onPointerCancel={() => !latch && onHold(false)} onLostPointerCapture={() => !latch && onHold(false)}
               onClick={() => latch && onHold(!holding)}
               aria-pressed={holding}>
               {Icon.play} {latch ? (holding ? 'Release' : 'Sustain') : holding ? 'Sounding…' : 'Hold to sound'}

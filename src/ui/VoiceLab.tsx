@@ -1,10 +1,10 @@
 /** Voice Lab instrument: portrait, mode console, analysis and keyboard. */
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import type {Score, TractResponse} from '../core/engine';
 import {STATE} from '../core/engine';
 import {midiToHz, noteName, hzToMidi, PARAM_NAMES, type ParamName, type Patch, VOICE_PARAMS} from '../core/params';
-import {lyricSyllables, planLiveOff, planLiveOn, planSong, planSpeech, type Plan, type SongPlan} from '../core/planner';
-import {isVowel, type Phone} from '../core/phonemes';
+import {lyricSyllables, planSong, planSpeech, type Plan, type SongPlan} from '../core/planner';
+import {PerformanceController} from '../performance/controller';
 import {VOICE_PRESETS} from '../core/presets';
 import {duetScore, newProject, projectScore, validateProject, type Mode, type Project} from '../core/project';
 import {beatSong} from '../core/beat';
@@ -41,8 +41,6 @@ export default function VoiceLab({bridge}: Props) {
   const [cutaway, setCutaway] = useState(() => bridge.storage.get('cutaway', true));
   const [labels, setLabels] = useState(() => bridge.storage.get('labels', true));
   const [stageOn, setStageOn] = useState(() => bridge.storage.get('stage', true));
-  const [holding, setHolding] = useState(false);
-  const [latch, setLatch] = useState(false);
   const [base, setBase] = useState(() => bridge.storage.get('keyboardBase', 60));
   const [volume, setVolume] = useState(() => bridge.storage.get('volume', 0.9));
   const [agentKeys, setAgentKeys] = useState<Set<string>>(new Set());
@@ -50,12 +48,10 @@ export default function VoiceLab({bridge}: Props) {
   const [busy, setBusy] = useState('');
   const [userPresets, setUserPresets] = useState<Array<{name: string; voice: Patch}>>(() => bridge.storage.get(USER_PRESETS, []));
   const [typing, setTyping] = useState(false);
-  const notesDown = useRef<number[]>([]);
   // Live singing: each key press sings the next lyric syllable.
   const [liveSing, setLiveSing] = useState(false);
   const liveCursor = useRef(0);
   const [liveIndex, setLiveIndex] = useState(0);
-  const liveHeld = useRef<{midi: number; phones: Phone[]} | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectRef = useRef(project);
   projectRef.current = project;
@@ -124,88 +120,49 @@ export default function VoiceLab({bridge}: Props) {
     bridge.storage.set('volume', volume);
   }, [volume, running, audio, bridge]);
 
+  const syllables = useMemo(() => (lexicon ? lyricSyllables(project.song.lyrics, lexicon) : []), [lexicon, project.song.lyrics]);
+  const performanceOptions = useRef({ensureAudio, syllables, liveActive: false});
+  performanceOptions.current = {ensureAudio, syllables, liveActive: liveSing && project.mode === 'sing' && syllables.length > 0};
+  const performanceController = useMemo(() => new PerformanceController(audio, {
+    ensureAudio: () => performanceOptions.current.ensureAudio(),
+    patch: () => ({...projectRef.current.voice, ...projectRef.current.shape}),
+    nextSyllable: () => {
+      const {liveActive, syllables} = performanceOptions.current;
+      if (!liveActive) return;
+      const syllable = syllables[liveCursor.current++ % syllables.length];
+      setLiveIndex(liveCursor.current);
+      return syllable;
+    },
+  }), [audio]);
+  const performanceState = useSyncExternalStore(performanceController.subscribe, performanceController.getSnapshot);
+  const {holding, latch} = performanceState;
+  useEffect(() => {
+    const cancel = () => performanceController.stop();
+    const visibility = () => { if (document.hidden) cancel(); };
+    window.addEventListener('blur', cancel);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      window.removeEventListener('blur', cancel);
+      document.removeEventListener('visibilitychange', visibility);
+      cancel();
+    };
+  }, [performanceController]);
   const onVoice = (p: Patch) => {
+    projectRef.current = {...projectRef.current, voice: {...projectRef.current.voice, ...p}};
     update(prev => ({...prev, voice: {...prev.voice, ...p}}));
-    if (running) audio.patch(p, 30);
+    performanceController.patch(p, 30);
   };
   const onShape = (p: Patch) => {
+    projectRef.current = {...projectRef.current, shape: {...projectRef.current.shape, ...p}};
     update(prev => ({...prev, shape: {...prev.shape, ...p}, mode: 'play'}));
-    if (running && !isScorePlaying()) audio.patch(p, 35);
+    performanceController.patch(p, 25);
   };
-  const isScorePlaying = () => !!audio.telemetry && audio.telemetry.state[STATE.playing] > 0.5;
-
-  const sound = useCallback(async (on: boolean, pitch?: number) => {
-    if (on) {
-      if (!(await ensureAudio())) return;
-      audio.claim();
-      audio.stopScore();
-      const p = projectRef.current;
-      audio.patch({...p.voice, ...p.shape, ...(pitch ? {pitch} : {})}, 20);
-      audio.set('gate', 1, 12);
-    } else {
-      audio.set('gate', 0, 40);
-    }
-  }, [audio, ensureAudio]);
-
-  const onHold = (on: boolean) => {
-    setHolding(on);
-    void sound(on);
-  };
-
-  const syllables = useMemo(() => (lexicon ? lyricSyllables(project.song.lyrics, lexicon) : []), [lexicon, project.song.lyrics]);
-  const liveActive = liveSing && project.mode === 'sing' && syllables.length > 0;
-  const liveOn = async (midi: number) => {
-    if (!(await ensureAudio())) return;
-    audio.claim();
-    const syl = syllables[liveCursor.current % syllables.length];
-    liveCursor.current += 1;
-    setLiveIndex(liveCursor.current);
-    const held = liveHeld.current;
-    if (!syl.phones.length) {
-      // A "-" in the lyrics carries the held vowel to the new pitch.
-      audio.set('pitch', midiToHz(midi), 40);
-      if (held) held.midi = midi;
-      return;
-    }
-    const v = held ? held.phones.findIndex(p => isVowel(p.symbol)) : -1;
-    const fromCoda = held && v >= 0 ? held.phones.slice(v + 1) : [];
-    audio.play(planLiveOn(syl.phones, midi, projectRef.current.voice, {fromCoda, legato: !!held}));
-    liveHeld.current = {midi, phones: syl.phones};
-  };
-  const liveOff = (midi: number) => {
-    const held = liveHeld.current;
-    if (!held || held.midi !== midi) return;
-    audio.play(planLiveOff(held.phones, projectRef.current.voice));
-    liveHeld.current = null;
-  };
-  const restartLive = () => {
-    liveCursor.current = 0;
-    setLiveIndex(0);
-  };
-
-  const onNoteOn = async (midi: number) => {
-    notesDown.current = [...notesDown.current.filter(m => m !== midi), midi];
-    if (liveActive) return liveOn(midi);
-    if (!(await ensureAudio())) return;
-    const legato = notesDown.current.length > 1;
-    if (!legato) await sound(true, midiToHz(midi));
-    else audio.set('pitch', midiToHz(midi), 35);
-  };
-  const onNoteOff = (midi: number) => {
-    notesDown.current = notesDown.current.filter(m => m !== midi);
-    if (liveActive) return liveOff(midi);
-    const last = notesDown.current[notesDown.current.length - 1];
-    if (last !== undefined) audio.set('pitch', midiToHz(last), 35);
-    else if (!holding) audio.set('gate', 0, 45);
-  };
-  const midi = useMidi(m => void onNoteOn(m), m => onNoteOff(m));
-  const previewNote = async (midi: number) => {
-    if (!(await ensureAudio())) return;
-    audio.stopScore();
-    audio.patch({...projectRef.current.voice, ...projectRef.current.shape, pitch: midiToHz(midi)}, 15);
-    audio.set('gate', 1, 10);
-    setTimeout(() => audio.set('gate', 0, 50), 220);
-  };
+  const onHold = (on: boolean) => performanceController.sustain(on);
+  const restartLive = () => { liveCursor.current = 0; setLiveIndex(0); };
+  const onNoteOn = (midi: number, source = `key:${midi}`) => performanceController.noteOn(source, midi);
+  const onNoteOff = (midi: number, source = `key:${midi}`) => performanceController.noteOff(source);
+  const midi = useMidi((m, _v, source) => onNoteOn(m, source), (m, source) => onNoteOff(m, source));
+  const previewNote = (midi: number) => performanceController.preview(midi);
 
   // ---- Plans ---------------------------------------------------------------
   const speechPlan: Plan | null = useMemo(() => {
@@ -225,49 +182,31 @@ export default function VoiceLab({bridge}: Props) {
     }
   }, [lexicon, project.song, project.voice]);
 
-  const playMode = async (mode: Mode, source = projectRef.current) => {
+  const playMode = (mode: Mode, source = projectRef.current) => {
     if (!lexicon) return;
-    if (!(await ensureAudio())) return;
-    setHolding(false);
     setTrying(null);
     const {score} = projectScore(source, lexicon, mode);
-    if (mode === 'beat' && source.beat.loop) {
-      // A looping beat repeats exactly one bar, so it never drifts off the grid.
-      audio.play({...score, length: (source.beat.steps.length * 15) / source.beat.bpm}, true);
-      return;
-    }
-    const second = mode === 'sing' ? duetScore(source, lexicon) : null;
-    if (second) {
-      audio.playDuet(score, second, source.song.loop);
-      return;
-    }
-    audio.play(score, mode === 'sing' && source.song.loop);
+    const cues = mode === 'sing' ? planSong(source.song.notes, source.song.lyrics, lexicon, {bpm: source.song.bpm, voice: source.voice, style: source.song.style}).cues : [];
+    performanceController.play({
+      score: mode === 'beat' && source.beat.loop ? {...score, length: source.beat.steps.length * 15 / source.beat.bpm} : score,
+      cues, loop: mode === 'beat' ? source.beat.loop : mode === 'sing' && source.song.loop,
+      second: mode === 'sing' ? duetScore(source, lexicon) ?? undefined : undefined,
+    });
   };
-  // Hear one consonant between two vowels ("ah-X-ah").
-  const playPad = async (id: string) => {
-    if (!lexicon || !(await ensureAudio())) return;
-    setHolding(false);
+  const playPad = (id: string) => {
+    if (!lexicon) return;
     const {notes, lyrics} = beatSong({bpm: projectRef.current.beat.bpm, steps: [id], loop: false});
-    audio.play(planSong(notes, lyrics, lexicon, {bpm: projectRef.current.beat.bpm, voice: projectRef.current.voice}).score);
+    performanceController.play({score: planSong(notes, lyrics, lexicon, {bpm: projectRef.current.beat.bpm, voice: projectRef.current.voice}).score});
   };
   const [trying, setTrying] = useState<string | null>(null);
-  // The bestiary is a play area: its tab does not change the saved project's mode.
   const [bestiary, setBestiary] = useState(false);
-  const callCreature = async (score: Score) => {
-    if (!(await ensureAudio())) return;
-    setHolding(false);
-    audio.play(score);
-  };
-  const trySound = async (symbol: string) => {
-    if (!lexicon || !(await ensureAudio())) return;
-    setHolding(false);
+  const callCreature = (score: Score) => performanceController.play({score});
+  const trySound = (symbol: string) => {
+    if (!lexicon) return;
     setTrying(symbol);
-    audio.play(planSpeech(`AA1 ${symbol} AA1`, lexicon, {voice: projectRef.current.voice, phonemes: true}).score);
+    performanceController.play({score: planSpeech(`AA1 ${symbol} AA1`, lexicon, {voice: projectRef.current.voice, phonemes: true}).score});
   };
-  const stop = () => {
-    audio.silence();
-    setHolding(false);
-  };
+  const stop = performanceController.stop;
 
   // ---- Model analysis --------------------------------------------------------
   const params = useMemo(() => {
@@ -313,6 +252,11 @@ export default function VoiceLab({bridge}: Props) {
   }, [areas]);
 
   const scorePlaying = running && !!telemetry && telemetry.state[STATE.playing] > 0.5;
+  const wasPlaying = useRef(false);
+  useEffect(() => {
+    if (wasPlaying.current && !scorePlaying) performanceController.completePlayback();
+    wasPlaying.current = scorePlaying;
+  }, [scorePlaying, performanceController]);
   const position = telemetry?.state[STATE.position] ?? 0;
   const level = running && telemetry ? Math.min(1, telemetry.state[STATE.rms] * 8) : 0;
   const pose: Pose = {
@@ -333,10 +277,10 @@ export default function VoiceLab({bridge}: Props) {
   const f0 = running && telemetry ? telemetry.state[STATE.f0] : (project.voice.pitch ?? 210);
   const rd = telemetry?.state[STATE.rd] ?? 1.1;
   // Stage dressing follows the song clock while a song plays.
-  const singing = scorePlaying && project.mode === 'sing' && !!songPlan;
+  const singing = scorePlaying && performanceState.cues.length > 0;
   const stage: StageState | undefined = stageOn ? {
     time: singing ? position : performance.now() / 1000,
-    cues: singing ? songPlan!.cues : [],
+    cues: singing ? performanceState.cues : [],
     beat: 60 / project.song.bpm,
     level,
     f0: singing && (params?.gate ?? 0) > 0.05 ? f0 : 0,
@@ -344,22 +288,9 @@ export default function VoiceLab({bridge}: Props) {
   } : undefined;
   const karaoke = stage && singing ? lyricLine(stage) : null;
 
-  const onPortraitDrag = (c: Patch) => {
-    update(prev => ({...prev, shape: {...prev.shape, ...c}, mode: 'play'}));
-    if (running && !scorePlaying) audio.patch(c, 18);
-  };
-  // Grabbing a handle plays the voice: it sounds while held, like a key (unless latched or held).
-  const portraitSounding = useRef(false);
-  const onPortraitGrab = () => {
-    if (holding || latch) return;
-    portraitSounding.current = true;
-    void sound(true);
-  };
-  const onPortraitRelease = () => {
-    if (!portraitSounding.current) return;
-    portraitSounding.current = false;
-    if (!holding && !latch) void sound(false);
-  };
+  const onPortraitDrag = onShape;
+  const onPortraitGrab = () => performanceController.touch('portrait', true);
+  const onPortraitRelease = () => performanceController.touch('portrait', false);
 
   // ---- Presets and files -----------------------------------------------------
   const applyPreset = (id: string) => {
@@ -456,8 +387,8 @@ export default function VoiceLab({bridge}: Props) {
 
   const toggleAudio = async () => {
     if (running || status === 'starting') {
+      stop();
       await audio.stop();
-      setHolding(false);
     } else {
       await ensureAudio();
     }
@@ -563,7 +494,7 @@ export default function VoiceLab({bridge}: Props) {
             holding={holding}
             onHold={onHold}
             latch={latch}
-            onLatch={setLatch}
+            onLatch={on => performanceController.setLatch(on)}
             running={running}
             speechPlan={speechPlan}
             songPlan={songPlan}
@@ -594,7 +525,7 @@ export default function VoiceLab({bridge}: Props) {
           <Glottal shape={audio.glottal ?? null} rd={rd} f0={running ? f0 : 0} voicing={params?.voicing ?? 1} sounding={running && airway.gate > 0.05 && !airway.closed} />
         </section>
 
-        <Keyboard base={base} onBaseChange={b => { setBase(b); bridge.storage.set('keyboardBase', b); }} onNoteOn={m => void onNoteOn(m)} onNoteOff={onNoteOff} enabled={!typing}
+        <Keyboard base={base} onBaseChange={b => { setBase(b); bridge.storage.set('keyboardBase', b); }} onNoteOn={onNoteOn} onNoteOff={onNoteOff} activeNotes={performanceState.notes} enabled={!typing}
           midi={midi} />
         <footer className="hvl-note" style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
           <span>Physical articulatory synthesis in WebAssembly — no samples, no network. {bridge.scopeLabel}</span>

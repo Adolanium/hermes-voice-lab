@@ -9,32 +9,33 @@ const BLACK = new Set([1, 3, 6, 8, 10]);
 interface Props {
   base: number;
   octaves?: number;
-  onNoteOn: (midi: number) => void;
-  onNoteOff: (midi: number) => void;
+  onNoteOn: (midi: number, source: string) => void;
+  onNoteOff: (midi: number, source: string) => void;
+  activeNotes?: number[];
   /** Disable the computer keyboard (e.g. while typing in a text field). */
   enabled: boolean;
   onBaseChange: (base: number) => void;
   midi?: {status: MidiStatus; inputs: string[]; enable: () => void};
 }
 
-export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBaseChange, midi}: Props) {
+export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBaseChange, midi, activeNotes}: Props) {
   const [down, setDown] = useState<Set<number>>(new Set());
   const held = useRef(new Map<string, number>());
-  const pointer = useRef<number | null>(null);
+  const pointers = useRef(new Map<number, number>());
   const cb = useRef({onNoteOn, onNoteOff});
   cb.current = {onNoteOn, onNoteOff};
 
-  const press = (m: number) => {
+  const press = (m: number, source: string) => {
     setDown(s => new Set(s).add(m));
-    cb.current.onNoteOn(m);
+    cb.current.onNoteOn(m, source);
   };
-  const release = (m: number) => {
+  const release = (m: number, source: string) => {
     setDown(s => {
       const n = new Set(s);
       n.delete(m);
       return n;
     });
-    cb.current.onNoteOff(m);
+    cb.current.onNoteOff(m, source);
   };
 
   useEffect(() => {
@@ -52,20 +53,20 @@ export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBas
       if (i < 0 || held.current.has(k)) return;
       e.preventDefault();
       held.current.set(k, base + i);
-      press(base + i);
+      press(base + i, `computer:${k}`);
     };
     const ku = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       const m = held.current.get(k);
       if (m === undefined) return;
       held.current.delete(k);
-      release(m);
+      release(m, `computer:${k}`);
     };
     const all = () => {
-      held.current.forEach(m => release(m));
+      held.current.forEach((m, k) => release(m, `computer:${k}`));
       held.current.clear();
-      if (pointer.current !== null) release(pointer.current);
-      pointer.current = null;
+      pointers.current.forEach((m, id) => release(m, `pointer:${id}`));
+      pointers.current.clear();
     };
     const vis = () => document.hidden && all();
     window.addEventListener('keydown', kd);
@@ -87,20 +88,30 @@ export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBas
   const whiteIndex = (m: number) => whites.filter(w => w < m).length;
   const pd = (m: number) => (e: React.PointerEvent) => {
     e.preventDefault();
-    (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
-    pointer.current = m;
-    press(m);
+    const keys = e.currentTarget.parentElement!;
+    keys.setPointerCapture(e.pointerId);
+    pointers.current.set(e.pointerId, m);
+    press(m, `pointer:${e.pointerId}`);
   };
-  const enter = (m: number) => (e: React.PointerEvent) => {
-    if (pointer.current === null || e.buttons === 0 || pointer.current === m) return;
-    release(pointer.current);
-    pointer.current = m;
-    press(m);
+  const move = (e: React.PointerEvent) => {
+    const previous = pointers.current.get(e.pointerId);
+    if (previous === undefined) return;
+    const key = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-midi]');
+    if (!key || !e.currentTarget.contains(key)) return;
+    const m = Number(key.dataset.midi);
+    if (previous === m) return;
+    pointers.current.set(e.pointerId, m);
+    // Replacing this source's note is atomic: the gate stays open during a slide.
+    setDown(s => { const next = new Set(s); next.delete(previous); next.add(m); return next; });
+    cb.current.onNoteOn(m, `pointer:${e.pointerId}`);
   };
-  const up = () => {
-    if (pointer.current !== null) release(pointer.current);
-    pointer.current = null;
+  const up = (e: React.PointerEvent) => {
+    const m = pointers.current.get(e.pointerId);
+    if (m === undefined) return;
+    pointers.current.delete(e.pointerId);
+    release(m, `pointer:${e.pointerId}`);
   };
+  const active = activeNotes ? new Set(activeNotes) : down;
   const hint = (m: number) => KEYMAP[m - base] ?? '';
 
   return (
@@ -120,15 +131,15 @@ export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBas
           <button className="hvl-btn is-ghost" onClick={() => onBaseChange(Math.min(84, base + 12))} aria-label="Octave up">+</button>
         </span>
       </div>
-      <div className="hvl-keys" style={{'--whites': whites.length} as React.CSSProperties} onPointerUp={up} onPointerLeave={up} onPointerCancel={up}>
+      <div className="hvl-keys" style={{'--whites': whites.length} as React.CSSProperties} onPointerUp={up} onPointerMove={move} onLostPointerCapture={up} onPointerCancel={up}>
         {whites.map(m => (
-          <div key={m} className={`hvl-key ${down.has(m) ? 'is-down' : ''}`} onPointerDown={pd(m)} onPointerEnter={enter(m)} role="button" aria-label={noteName(m)}>
+          <div key={m} className={`hvl-key ${active.has(m) ? 'is-down' : ''}`} onPointerDown={pd(m)} data-midi={m} role="button" aria-label={noteName(m)}>
             <span className="hint">{hint(m).toUpperCase()}</span>
             {m % 12 === 0 ? noteName(m) : ''}
           </div>
         ))}
         {notes.filter(m => BLACK.has(m % 12)).map(m => (
-          <div key={m} className={`hvl-key is-black ${down.has(m) ? 'is-down' : ''}`} onPointerDown={pd(m)} onPointerEnter={enter(m)} role="button" aria-label={noteName(m)}
+          <div key={m} className={`hvl-key is-black ${active.has(m) ? 'is-down' : ''}`} onPointerDown={pd(m)} data-midi={m} role="button" aria-label={noteName(m)}
             style={{left: `calc(${(whiteIndex(m) / whites.length) * 100}% - (100% / ${whites.length} * .31))`}}>
             <span className="hint">{hint(m).toUpperCase()}</span>
           </div>
