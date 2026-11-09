@@ -111,4 +111,5 @@ The cavity in front of each source sets the spectrum's peaks. Bursts are not gen
 
 - Tools default to the active conversation (`HERMES_SESSION_ID`) and refuse other conversations. IDs are validated against path traversal. Projects are written atomically under `plugin-data/hermes-voice-lab/sessions/<id>/`.
 - Rendering runs `node runtime/render.mjs` with a fixed argument list and a timeout, writes 48 kHz stereo WAVs under the conversation's `renders/` folder, and returns a standalone `MEDIA:` line.
+- `voice_lab_jam` checks the answer (at most 32 notes and 32 beats) and broadcasts it as the `plugin.hermes-voice-lab.jam` event instead of saving it. The open view sings it. The phrase going the other way is recorded by `src/performance/jam.ts` (the line the monophonic voice actually sang, newest held key first), written on a sixteenth grid, and sent with the gateway's `prompt.submit` to the focused live session after 1.4 s of silence.
 - `tts.py` registers the opt-in `voice-lab` provider (`synthesize` → WAV; `stream` → 24 kHz PCM).

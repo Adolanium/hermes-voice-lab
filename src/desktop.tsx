@@ -9,11 +9,13 @@ import {host, useValue, captureGatewayFileDownload, ROUTES_AREA, SIDEBAR_NAV_ARE
 import VoiceLab from './ui/VoiceLab';
 import type {UpdateOrigin, VoiceLabBridge} from './bridge';
 import {validateProject, type Project} from './core/project';
+import {readAnswer} from './performance/jam';
 import {Mark} from './ui/controls';
 
 const PLUGIN = 'hermes-voice-lab';
 const PROJECT = 'main';
 const EVENT = `plugin.${PLUGIN}.project.updated`;
+const JAM_EVENT = `plugin.${PLUGIN}.jam`;
 const CLIENT = Math.random().toString(36).slice(2);
 
 function SessionLab({ctx}: {ctx: any}) {
@@ -103,6 +105,23 @@ function makeBridge(ctx: any, sessionId: string, profile: string): VoiceLabBridg
     notify(message, kind = 'info') {
       host.notify?.({kind: kind === 'error' ? 'error' : 'info', message});
     },
+    jam: typeof host.request === 'function' ? {
+      async send(text) {
+        assertScope();
+        // The live session the user is looking at; the phrase arrives as their own chat turn.
+        const live = host.state.focusedSessionId.get();
+        if (!live) throw new Error('Open a conversation to jam with Hermes.');
+        await host.request!('prompt.submit', {session_id: live, text});
+      },
+      subscribe(listener) {
+        return ctx.onEvent(JAM_EVENT, (event: any) => {
+          const p = event?.payload;
+          if (!p || p.session_id !== sessionId || host.state.focusedSessionProfile.get() !== profile) return;
+          const answer = readAnswer(p);
+          if (answer) listener(answer);
+        });
+      },
+    } : undefined,
   };
 }
 

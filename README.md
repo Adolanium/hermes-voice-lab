@@ -41,10 +41,13 @@ The agent tools take structured instructions. The engine does all timing and syn
 | `voice_lab_set_voice` | Change the voice (e.g. `{"breath": 0.6, "tenseness": 0.3}`), apply a preset, hold a vowel (`"vowel": "UW"`), optionally render a preview |
 | `voice_lab_perform` | Speak a phrase, or sing a melody (`"melody": "E4:0.5 G4:0.5 A4:1 r:0.5 C5:2"`, `"lyrics": "o-pen the light"`) and return a WAV |
 | `voice_lab_render` | Render the project, or a variation with temporary overrides, to WAV |
+| `voice_lab_jam` | Sing an answer to the phrase the user just played (`"melody"`, optional `"lyrics"`); she sings it at once and nothing is saved |
 
 Calls are scoped to the active conversation, so edits appear in that conversation's Voice Lab, where a toast offers to play them. Renders come back as normal Hermes media. Desktop shows them in a Voice Lab audio card with the rendered waveform:
 
 ![Voice Lab audio card in a chat](docs/media/voice-lab-chat-card.png)
+
+**Jam with Hermes.** Press **Jam with Hermes** above the keyboard, play a short phrase (on the keys, computer keys or MIDI, singing lyrics with **Live** or not) and pause. Voice Lab writes the phrase down on a sixteenth-note grid at the song's tempo and sends it to the conversation as your turn (`🎹 Jam · I played C4:0.5 E4:1 r:0.5 G4:2 at 96 bpm. Your turn.`). The agent answers with `voice_lab_jam`, and she sings its answer straight away, with the words on the karaoke line. You trade phrases back and forth, and you can type to the agent in between ("bluesier", "answer in a minor key"). With a fast model the answer starts about 4–8 s after you stop playing. **Again** replays the last answer.
 
 In Hermes builds with Tool Search, these plugin tools are discovered through `tool_search`/`tool_call` like other plugin tools.
 

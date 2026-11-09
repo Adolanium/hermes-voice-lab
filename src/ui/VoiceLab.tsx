@@ -5,6 +5,7 @@ import {STATE} from '../core/engine';
 import {midiToHz, noteName, hzToMidi, PARAM_NAMES, type ParamName, type Patch, VOICE_PARAMS} from '../core/params';
 import {lyricSyllables, planSong, planSpeech, type Plan, type SongPlan} from '../core/planner';
 import {PerformanceController} from '../performance/controller';
+import {jamMessage, PHRASE_GAP, PhraseRecorder, type JamAnswer} from '../performance/jam';
 import {VOICE_PRESETS} from '../core/presets';
 import {duetScore, newProject, projectScore, validateProject, type Mode, type Project} from '../core/project';
 import {planHit} from '../core/hits';
@@ -122,6 +123,11 @@ export default function VoiceLab({bridge}: Props) {
     bridge.storage.set('volume', volume);
   }, [volume, running, audio, bridge]);
 
+  // ---- Jam with Hermes: a phrase on the keys goes to the chat; the agent sings an answer --------
+  type JamState = 'off' | 'idle' | 'playing' | 'waiting' | 'answering';
+  const [jam, setJam] = useState<{state: JamState; text?: string}>({state: 'off'});
+  const jamRef = useRef({on: false, recorder: new PhraseRecorder(), timer: null as ReturnType<typeof setTimeout> | null, wait: null as ReturnType<typeof setTimeout> | null, last: null as JamAnswer | null});
+  const jamClock = () => performance.now() / 1000;
   const syllables = useMemo(() => (lexicon ? lyricSyllables(project.song.lyrics, lexicon) : []), [lexicon, project.song.lyrics]);
   const performanceOptions = useRef({ensureAudio, syllables, liveActive: false});
   performanceOptions.current = {ensureAudio, syllables, liveActive: liveSing && project.mode === 'sing' && syllables.length > 0};
@@ -133,6 +139,7 @@ export default function VoiceLab({bridge}: Props) {
       if (!liveActive) return;
       const syllable = syllables[liveCursor.current++ % syllables.length];
       setLiveIndex(liveCursor.current);
+      if (jamRef.current.on) jamRef.current.recorder.sang(syllable.text);
       return syllable;
     },
   }), [audio]);
@@ -161,8 +168,57 @@ export default function VoiceLab({bridge}: Props) {
   };
   const onHold = (on: boolean) => performanceController.sustain(on);
   const restartLive = () => { liveCursor.current = 0; setLiveIndex(0); };
-  const onNoteOn = (midi: number, source = `key:${midi}`) => performanceController.noteOn(source, midi);
-  const onNoteOff = (midi: number, source = `key:${midi}`) => performanceController.noteOff(source);
+  const clearJamTimer = () => {
+    const j = jamRef.current;
+    if (j.timer) clearTimeout(j.timer);
+    j.timer = null;
+  };
+  const sendPhrase = () => {
+    const j = jamRef.current;
+    clearJamTimer();
+    if (!j.on || !bridge.jam) return;
+    const phrase = j.recorder.take(projectRef.current.song.bpm, jamClock());
+    if (!phrase) return;
+    setJam({state: 'waiting'});
+    if (j.wait) clearTimeout(j.wait);
+    j.wait = setTimeout(() => {
+      j.wait = null;
+      setJam(s => (s.state === 'waiting' ? {state: 'idle', text: 'No answer yet. Play another phrase or check the chat.'} : s));
+    }, 90000);
+    bridge.jam.send(jamMessage(phrase)).catch(e => {
+      if (j.wait) clearTimeout(j.wait);
+      j.wait = null;
+      setJam({state: 'idle', text: (e as Error).message});
+    });
+  };
+  const onNoteOn = (midi: number, source = `key:${midi}`) => {
+    const j = jamRef.current;
+    if (j.on) {
+      clearJamTimer();
+      j.recorder.noteOn(source, midi, jamClock());
+      setJam(s => (s.state === 'playing' ? s : {state: 'playing'}));
+    }
+    performanceController.noteOn(source, midi);
+  };
+  const onNoteOff = (midi: number, source = `key:${midi}`) => {
+    performanceController.noteOff(source);
+    const j = jamRef.current;
+    if (!j.on) return;
+    j.recorder.noteOff(source, jamClock());
+    if (!j.recorder.holding && !j.recorder.empty) {
+      clearJamTimer();
+      j.timer = setTimeout(sendPhrase, PHRASE_GAP * 1000);
+    }
+  };
+  const toggleJam = () => {
+    const j = jamRef.current;
+    j.on = !j.on;
+    clearJamTimer();
+    if (j.wait) clearTimeout(j.wait);
+    j.wait = null;
+    j.recorder.clear();
+    setJam({state: j.on ? 'idle' : 'off'});
+  };
   const midi = useMidi((m, _v, source) => onNoteOn(m, source), (m, source) => onNoteOff(m, source));
   const previewNote = (midi: number) => performanceController.preview(midi);
 
@@ -195,6 +251,32 @@ export default function VoiceLab({bridge}: Props) {
       second: mode === 'sing' ? duetScore(source, lexicon) ?? undefined : undefined,
     });
   };
+  const singAnswer = (answer: JamAnswer) => {
+    if (!lexicon) return;
+    const plan = planSong(answer.notes, answer.lyrics, lexicon, {bpm: answer.bpm, voice: projectRef.current.voice, style: projectRef.current.song.style});
+    performanceController.play({score: plan.score, cues: plan.cues});
+  };
+  const singAnswerRef = useRef(singAnswer);
+  singAnswerRef.current = singAnswer;
+  useEffect(() => {
+    if (!bridge.jam) return;
+    const j = jamRef.current;
+    const off = bridge.jam.subscribe(answer => {
+      if (j.wait) clearTimeout(j.wait);
+      j.wait = null;
+      j.last = answer;
+      // A key already down for the next phrase keeps the floor.
+      if (j.recorder.holding) return;
+      setJam({state: j.on ? 'answering' : 'off', text: answer.lyrics});
+      singAnswerRef.current(answer);
+    });
+    return () => {
+      off();
+      clearJamTimer();
+      if (j.wait) clearTimeout(j.wait);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bridge]);
   const playPad = (id: string) => {
     if (!lexicon) return;
     performanceController.play({score: planHit(id, projectRef.current.voice, lexicon, projectRef.current.beat.bpm)});
@@ -263,7 +345,10 @@ export default function VoiceLab({bridge}: Props) {
   const scorePlaying = running && !!telemetry && telemetry.state[STATE.playing] > 0.5;
   const wasPlaying = useRef(false);
   useEffect(() => {
-    if (wasPlaying.current && !scorePlaying) performanceController.completePlayback();
+    if (wasPlaying.current && !scorePlaying) {
+      performanceController.completePlayback();
+      setJam(s => (s.state === 'answering' ? {state: 'idle', text: s.text} : s));
+    }
     wasPlaying.current = scorePlaying;
   }, [scorePlaying, performanceController]);
   const position = telemetry?.state[STATE.position] ?? 0;
@@ -530,7 +615,8 @@ export default function VoiceLab({bridge}: Props) {
         </main>
 
         <Keyboard base={base} onBaseChange={b => { setBase(b); bridge.storage.set('keyboardBase', b); }} onNoteOn={onNoteOn} onNoteOff={onNoteOff} activeNotes={performanceState.notes} enabled={!typing}
-          midi={midi} />
+          midi={midi}
+          jam={bridge.jam ? {state: jam.state, text: jam.text, onToggle: toggleJam, onAgain: jamRef.current.last ? () => singAnswer(jamRef.current.last!) : undefined} : undefined} />
         <details className="hvl-disclosure hvl-analysis" onToggle={e => setScopesOpen(e.currentTarget.open)}>
           <summary>Analysis scopes</summary>
           {scopesOpen && <section className="hvl-scopes" aria-label="Analysis">

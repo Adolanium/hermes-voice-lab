@@ -16,9 +16,19 @@ interface Props {
   enabled: boolean;
   onBaseChange: (base: number) => void;
   midi?: {status: MidiStatus; inputs: string[]; enable: () => void};
+  /** Jam with Hermes: absent when the host cannot reach the chat. */
+  jam?: {state: 'off' | 'idle' | 'playing' | 'waiting' | 'answering'; text?: string; onToggle: () => void; onAgain?: () => void};
 }
 
-export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBaseChange, midi, activeNotes}: Props) {
+const JAM_HINT = {
+  off: '',
+  idle: 'Play a phrase, then pause: Hermes answers.',
+  playing: 'Listening…',
+  waiting: 'Hermes is writing an answer…',
+  answering: 'Hermes answers',
+} as const;
+
+export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBaseChange, midi, activeNotes, jam}: Props) {
   const [down, setDown] = useState<Set<number>>(new Set());
   const held = useRef(new Map<string, number>());
   const pointers = useRef(new Map<number, number>());
@@ -117,8 +127,23 @@ export function Keyboard({base, octaves = 2, onNoteOn, onNoteOff, enabled, onBas
   return (
     <section className="hvl-card hvl-keys-card">
       <div className="hvl-section-title">
-        <span className="hvl-kicker">Keyboard</span>
+        <span className="hvl-row" style={{gap: 10, minWidth: 0}}>
+          <span className="hvl-kicker">Keyboard</span>
+          {jam && jam.state !== 'off' && (
+            <span className={`hvl-jam is-${jam.state}`} aria-live="polite">
+              <span className="hvl-jam-dot" />
+              <span className="hvl-jam-text">{jam.state === 'answering' && jam.text ? `Hermes: “${jam.text}”` : jam.state === 'idle' && jam.text ? jam.text : JAM_HINT[jam.state]}</span>
+              {jam.onAgain && jam.state === 'idle' && <button className="hvl-btn is-ghost" onClick={jam.onAgain} title="Hear Hermes's last answer again">Again</button>}
+            </span>
+          )}
+        </span>
         <span className="hvl-row" style={{gap: 6}}>
+          {jam && (
+            <button className={`hvl-btn ${jam.state !== 'off' ? 'is-on' : ''}`} onClick={jam.onToggle} aria-pressed={jam.state !== 'off'}
+              title="Trade phrases with Hermes: play, pause, and the agent sings an answer">
+              Jam with Hermes
+            </button>
+          )}
           <span className="hvl-note">Keys A–; play · Z/X octave</span>
           {midi && (
             <button className={`hvl-btn is-ghost ${midi.status === 'on' ? 'is-on' : ''}`} onClick={midi.enable} disabled={midi.status === 'on'}

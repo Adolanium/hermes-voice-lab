@@ -264,6 +264,14 @@ export const CSS = `
 
 /* Keyboard */
 .hvl-keys-card { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.hvl-jam { display: inline-flex; align-items: center; gap: 7px; min-width: 0; font-size: 11.5px; color: var(--hvl-fg2); }
+.hvl-jam-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
+.hvl-jam.is-answering .hvl-jam-text { color: var(--hvl-accent); font-weight: 600; }
+.hvl-jam-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--hvl-fg3); }
+.hvl-jam.is-playing .hvl-jam-dot { background: #e5484d; }
+.hvl-jam.is-waiting .hvl-jam-dot, .hvl-jam.is-answering .hvl-jam-dot { background: var(--hvl-accent); animation: hvl-jam-pulse 0.9s ease-in-out infinite; }
+@keyframes hvl-jam-pulse { 50% { transform: scale(1.7); opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .hvl-jam-dot { animation: none !important; } }
 .hvl-keys { position: relative; height: 92px; display: flex; user-select: none; touch-action: none; }
 .hvl-key { flex: 1; border: 1px solid var(--hvl-line); border-left-width: 0; background: var(--hvl-skin); border-radius: 0 0 6px 6px; position: relative; cursor: pointer;
   display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; font: 500 9.5px var(--hvl-mono); color: var(--hvl-fg4); }

@@ -5,6 +5,7 @@ declare module '@hermes/plugin-sdk' {
     state: {focusedStoredSessionId: Atom<string | null>; focusedSessionId: Atom<string | null>; focusedSessionProfile: Atom<string>};
     onEvent(type: string, listener: (event: {payload: unknown}) => void): () => void;
     navigate(path: string): void;
+    request?: <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>;
     notify?: (n: {kind: 'info' | 'error' | 'warning' | 'success'; message: string}) => void;
   };
   export function useValue<T>(atom: Atom<T>): T;

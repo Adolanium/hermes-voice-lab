@@ -8,3 +8,4 @@ provides_tools:
   - voice_lab_set_voice
   - voice_lab_perform
   - voice_lab_render
+  - voice_lab_jam

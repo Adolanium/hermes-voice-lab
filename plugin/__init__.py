@@ -203,6 +203,35 @@ def tool_render(args: dict, **_):
         return _error(e)
 
 
+JAM_NOTES, JAM_BEATS = 32, 32
+
+
+def tool_jam(args: dict, **_):
+    """Sing an answer to the user's phrase now. Nothing is saved: the open Voice Lab view sings it."""
+    try:
+        session = _session(args)
+        melody = args.get("melody")
+        if not isinstance(melody, str) or not melody.strip():
+            raise ValueError("melody is required, as NOTE:BEATS tokens such as 'E4:0.5 G4:0.5 A4:1'")
+        notes = vb.parse_melody(melody)
+        if not notes:
+            raise ValueError("The answer needs at least one note")
+        if len(notes) > JAM_NOTES:
+            raise ValueError(f"Keep a jam answer to {JAM_NOTES} notes or fewer")
+        beats = max(n["start"] + n["length"] for n in notes)
+        if beats > JAM_BEATS:
+            raise ValueError(f"Keep a jam answer within {JAM_BEATS} beats")
+        for n in notes:
+            n["midi"] = int(round(vb._number(n["midi"], 36, 96, "note")))
+        bpm = vb._number(args.get("bpm", 96), 30, 240, "bpm")
+        lyrics = str(args.get("lyrics") or "")[:400]
+        vb._broadcast("jam", {"session_id": session, "notes": notes, "lyrics": lyrics, "bpm": bpm})
+        return _ok(session_id=session, notes=len(notes), beats=beats,
+                   message="She is singing your answer in Voice Lab now. Say at most one short line, or nothing.")
+    except ValueError as e:
+        return _error(e)
+
+
 SESSION = {"type": "string", "description": "Optional. Defaults to the active conversation; other conversations are refused."}
 PATCH_HELP = ("Parameter values. Voice: pitch (50–1100 Hz), loudness, tenseness, breath, vibratoDepth, vibratoRate (3–9 Hz), "
               "tractLength (11–19 cm; child ≈12.6, woman 14.2, man ≈16.4), pharynx (0.75–1.3, throat length relative to the mouth), throat, humanize, space, gain, register (0 chest … 1 falsetto), fry, growl, twang; recording chain: mic (0 close … 1 far, 0.4 neutral), eqLow/eqMid/eqHigh (−12…12 dB), comp, drive. Shape: tongueX (back→front), tongueY (low→high), jaw, lipOpen, "
@@ -251,6 +280,18 @@ TOOLS = [
       "second_lyrics": {"type": "string", "description": "Sing, duet: lyrics for the written second part (default: the song's)."},
       "render": {"type": "boolean", "description": "Render a WAV attachment (default true)."}},
      ["mode"]),
+    ("voice_lab_jam",
+     "Jam with the user: sing a short answer to the phrase they just played on the Voice Lab keys. Use it whenever a message starts with "
+     "'🎹 Jam'. Answer like call and response: stay in their key and tempo, one or two bars, take something from their phrase (a rhythm, an "
+     "interval, the last note) and answer it, and vary it from turn to turn. `melody` is NOTE:BEATS tokens (e.g. 'E4:0.5 G4:0.5 A4:1 r:0.5 C5:2'); "
+     "`lyrics` are optional, one syllable per note (hyphens split syllables), short and playful, replying to their words if they sang any. "
+     "She sings it at once in the open Voice Lab; nothing is saved. Then say at most one short line.",
+     tool_jam,
+     {"session_id": SESSION,
+      "melody": {"type": "string", "description": "The answer as NOTE:BEATS tokens, r = rest. At most 32 notes and 32 beats."},
+      "lyrics": {"type": "string", "description": "Optional lyrics, one syllable per note; empty to scat on 'ah'."},
+      "bpm": {"type": "number", "description": "Tempo 30–240; use the user's."}},
+     ["melody"]),
     ("voice_lab_render",
      "Render this conversation's Voice Lab project (or a variation with parameter overrides that are not saved) to a WAV file attachment.",
      tool_render,
