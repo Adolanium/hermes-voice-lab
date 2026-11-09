@@ -1,5 +1,5 @@
 name: hermes-voice-lab
-version: "0.4.0"
+version: "0.4.1"
 description: "Articulatory voice synthesizer with a Nous Girl side-profile instrument: shape, speak and sing locally, and let Hermes play it."
 author: "Hermes Voice Lab contributors"
 license: MIT
