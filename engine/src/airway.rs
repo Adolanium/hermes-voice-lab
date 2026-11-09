@@ -50,6 +50,24 @@ const WALL_STIFF: f64 = 3.0e5;
 // already give formant bandwidths like real speakers' (LPC median 164 Hz vs 158 Hz on TSP
 // sentences). An extra 140 Hz above 1.5 kHz (removed 2026-11-08) made the voice dull and
 // muffled (predicted naturalness 2.70 without it vs 2.50 with it).
+/// Deep tissue behind the surface layer (cheeks, pharynx walls, the neck around the larynx), per
+/// unit area: it is too heavy to follow sound, but gives way to a pressure that lasts. Air
+/// behind a closure has somewhere to go for the first tens of milliseconds, so the folds keep
+/// vibrating into a voiced stop instead of stalling the moment the mouth seals. Resonant near
+/// 15 Hz and critically damped: about 10 cm³ of give at speech pressures.
+const DEEP_MASS: f64 = 4.3;
+const DEEP_RESIST: f64 = 810.0;
+const DEEP_STIFF: f64 = 3.8e4;
+/// Braced walls are this many times stiffer. Speakers slacken the walls for voiced stops and
+/// tense them for voiceless ones and for ejectives, where the trapped air must hold its pressure.
+const BRACED: f64 = 20.0;
+/// The tongue is a muscle of constant volume: where it rises under the palate it draws flesh from
+/// beside and below, so most of the air a gesture pushes out of one place has room made for it
+/// next door. A one-dimensional tube cannot hold that room, so only this share of the volume
+/// change of a tongue, jaw or lip gesture moves air. (All of it thumped at every closure.) The
+/// larynx rising under shut folds and the tongue pulling down between two seals are real pistons
+/// and move all of it: see `pump`.
+pub const DISPLACED_SHARE: f64 = 0.25;
 /// Opening speed limit of articulators: cm²/s, plus a rate proportional to area (1/s).
 const OPEN_SLEW: f64 = 40.0;
 const OPEN_GROWTH: f64 = 40.0;
@@ -95,9 +113,15 @@ pub struct Airway {
     pub u: [f64; N + 1],
     wall_y: [f64; N],
     wall_v: [f64; N],
+    deep_y: [f64; N],
+    deep_v: [f64; N],
     /// Volume change of each node from articulator motion (low-passed, cm³/s).
     dvdt: [f64; N],
     vol_prev: [f64; N],
+    /// How braced the deep tissue is: 0 slack (voiced sounds) .. 1 tense.
+    pub brace: f64,
+    /// Share of each node's volume change that moves air (DISPLACED_SHARE .. 1 for a piston).
+    pub pump: [f64; N],
     lip_l: f64,
     /// Nasal passage: fixed areas, node pressures, branch flows
     /// (un[0]: velopharyngeal port from oral node PORT, un[NASAL_N]: nostrils).
@@ -130,8 +154,12 @@ impl Airway {
             u: [0.0; N + 1],
             wall_y: [0.0; N],
             wall_v: [0.0; N],
+            deep_y: [0.0; N],
+            deep_v: [0.0; N],
             dvdt: [0.0; N],
             vol_prev: [0.0; N],
+            brace: 0.0,
+            pump: [DISPLACED_SHARE; N],
             lip_l: 0.0,
             nasal,
             pn: [0.0; NASAL_N],
@@ -149,6 +177,8 @@ impl Airway {
         self.u = [0.0; N + 1];
         self.wall_y = [0.0; N];
         self.wall_v = [0.0; N];
+        self.deep_y = [0.0; N];
+        self.deep_v = [0.0; N];
         self.dvdt = [0.0; N];
         self.pn = [0.0; NASAL_N];
         self.un = [0.0; NASAL_N + 1];
@@ -358,6 +388,8 @@ impl Airway {
         // to keep it sub-audio, as tissue moves smoothly).
         let lp = 1.0 - (-2.0 * std::f64::consts::PI * 60.0 * dt).exp();
         let mut walls = 0.0;
+        let tense = 1.0 + (BRACED - 1.0) * self.brace;
+        let (deep_k, deep_r) = (DEEP_STIFF * tense, DEEP_RESIST * tense.sqrt());
         for i in 0..N {
             let vol = self.node_area(i) * dx;
             let raw = (vol - self.vol_prev[i]) / dt;
@@ -365,9 +397,9 @@ impl Airway {
             self.dvdt[i] += lp * (raw - self.dvdt[i]);
             // Soft walls: a mass–spring–damper per unit area, driven by the pressure.
             let surface = 2.0 * (std::f64::consts::PI * self.area[i].max(NODE_FLOOR)).sqrt() * dx;
-            let uw = surface * self.wall_v[i];
+            let uw = surface * (self.wall_v[i] + self.deep_v[i]);
             walls += uw;
-            let mut net = self.u[i] - self.u[i + 1] - uw - self.dvdt[i];
+            let mut net = self.u[i] - self.u[i + 1] - uw - self.pump[i] * self.dvdt[i];
             if i == PORT {
                 net -= self.un[0];
             }
@@ -375,6 +407,8 @@ impl Airway {
             let pi = self.p[i];
             self.wall_v[i] += dt * (pi - WALL_RESIST * self.wall_v[i] - WALL_STIFF * self.wall_y[i]) / WALL_MASS;
             self.wall_y[i] += dt * self.wall_v[i];
+            self.deep_v[i] += dt * (pi - deep_r * self.deep_v[i] - deep_k * self.deep_y[i]) / DEEP_MASS;
+            self.deep_y[i] += dt * self.deep_v[i];
         }
         self.wall_flow = walls;
         for j in 0..NASAL_N {

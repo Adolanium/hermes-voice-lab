@@ -16,8 +16,10 @@ const CONTROL: u32 = 32;
 const MASTER: f32 = 15.0;
 /// Radiated pressure per unit rate of change of outflow (cm³/s²), before MASTER.
 const RADIATE: f64 = 2.5e-8;
-/// Share of the soft walls' volume velocity that radiates through the skin.
-const WALL_RADIATION: f64 = 0.05;
+/// Share of the walls' volume velocity that radiates through the skin of the cheeks and
+/// neck (the rest faces the spine and the skull). It carries the voice bar of a voiced
+/// stop: at 0.05 a /b/ closure was 25 dB quieter than real speakers' and read as silence.
+const WALL_RADIATION: f64 = 0.4;
 /// Lung pressure at full effort (dyn/cm²; ≈10 cmH₂O).
 const LUNG_FULL: f32 = 10_000.0;
 /// Transglottal pressure needed to set the folds vibrating (≈2.5 cmH₂O).
@@ -89,11 +91,11 @@ const TRILL_HZ: f32 = 27.0;
 const TRILL_OPEN: f32 = 0.25;
 /// Ejectives: the fraction of the pharynx's cross-section the rising larynx
 /// takes up as it rises (tuned so an ejective's release is about as strong as
-/// a plain stop's, ~10× its release without the rise).
-const LARYNX_SQUEEZE: f32 = 0.3;
+/// a plain stop's, ~10× its release without the rise, against braced walls).
+const LARYNX_SQUEEZE: f32 = 0.4;
 /// Clicks: how far the cavity between two oral seals widens as the tongue
 /// body pulls down.
-const SUCTION_EXPAND: f32 = 0.25;
+const SUCTION_EXPAND: f32 = 0.6;
 /// An oral section narrower than this (cm²) counts as a seal for a click.
 const CLICK_SEAL: f32 = 0.03;
 
@@ -361,6 +363,10 @@ impl Voice {
         // consonants pull the folds apart; breathiness widens the gap.
         let voicing = p[VOICING];
         self.abduction = CHINK + 0.34 * (1.0 - voicing).powf(1.5) + 0.05 * p[BREATH];
+        // Wall tension follows the larynx: slack while the folds are together to voice, braced when
+        // they are pulled apart or pressed shut.
+        let brace = (1.0 - smooth(0.2, 0.75, voicing)).max(p[GLOTTAL]) as f64;
+        self.airway.brace += (brace - self.airway.brace) * (1.0 - (-dt as f64 / 0.02).exp());
         // The folds vibrate only when adducted and when the pressure across
         // them is above threshold: they stop at a pause, and when pressure
         // builds behind a voiced closure.
@@ -489,6 +495,14 @@ impl Voice {
         // Ejective: with the folds pressed shut, the larynx rises like a piston
         // and squeezes the pharynx; the air trapped behind an oral closure is
         // compressed (the airway turns the volume change into flow).
+        // Both are true pistons: while they move, the air they displace is pumped in full.
+        let moving = |id: usize| (self.params[id].velocity.abs() as f64 / 4.0).min(1.0);
+        let (rise, pull) = (moving(LARYNX), moving(SUCTION));
+        let share = crate::airway::DISPLACED_SHARE;
+        for (i, w) in self.airway.pump.iter_mut().enumerate() {
+            let piston = if i < crate::tract::PORT { rise } else { pull };
+            *w = share + (1.0 - share) * piston;
+        }
         let lx = p[LARYNX];
         if lx > 0.0 {
             for a in self.areas[..crate::tract::PORT].iter_mut() {

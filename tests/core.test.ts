@@ -34,13 +34,13 @@ function f0Of(x: Float32Array, rate: number) {
     return s;
   };
   const c0 = corr(0);
-  let best = lo, bestV = -Infinity;
-  for (let lag = lo; lag < hi; lag++) {
-    const v = corr(lag) / c0;
-    if (v > bestV + 0.02) {
-      bestV = v;
-      best = lag;
-    }
+  // The first peak within 2% of the strongest: the period, not a multiple of it. (Taking any
+  // lag 0.02 better than the last one picked stalls just below a broad peak and jumps an octave.)
+  const v = Array.from({length: hi}, (_, lag) => (lag < lo ? -Infinity : corr(lag) / c0));
+  const top = Math.max(...v);
+  let best = lo;
+  for (let lag = lo + 1; lag < hi - 1; lag++) {
+    if (v[lag] > top - 0.02 && v[lag] >= v[lag - 1] && v[lag] >= v[lag + 1]) { best = lag; break; }
   }
   const [a, b, c] = [corr(best - 1), corr(best), corr(best + 1)];
   const rough = rate / (best + (0.5 * (a - c)) / (a - 2 * b + c));

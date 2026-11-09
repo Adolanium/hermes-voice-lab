@@ -242,8 +242,10 @@ fn closure_stops_airflow_and_sound_in_front_and_nose_takes_over() {
     let open_lips = v.energy[N - 1];
     assert!(open_flow > 0.05 && open_lips > 0.0 && v.state[STATE_CLOSED] == 0.0);
     // Seal the tongue tip: no air leaves, and the lips fall silent.
+    // The tissue behind the seal gives way for a while (the voice bar of a
+    // voiced stop), so the last air trickles in for a few hundred ms.
     v.set(TIP_CLOSE, 1.0, 8.0);
-    render(&mut v, 0.3);
+    render(&mut v, 0.8);
     assert_eq!(v.state[STATE_CLOSED], 1.0);
     assert!(v.state[STATE_AIRFLOW] < 0.01, "airflow {}", v.state[STATE_AIRFLOW]);
     assert!(v.energy[N - 1] < open_lips * 0.05, "lips {} vs {}", v.energy[N - 1], open_lips);
@@ -253,4 +255,49 @@ fn closure_stops_airflow_and_sound_in_front_and_nose_takes_over() {
     assert_eq!(v.state[STATE_CLOSED], 0.0);
     assert!(v.state[STATE_NASAL_SHARE] > 0.99);
     assert!(v.energy[N + crate::tract::NASAL_N - 1] > 0.0);
+}
+
+#[test]
+fn a_voiced_closure_keeps_its_voice_bar_and_a_voiceless_one_does_not() {
+    use crate::voice::STATE_VOICING;
+    // Lips shut on a voiced sound: the slack walls take up air, so the folds keep
+    // vibrating for tens of milliseconds and the skin radiates a low hum.
+    let closure = |voicing: f32, wait: f32| {
+        let mut v = Voice::new(48_000.0, 4);
+        for (id, val) in [(GATE, 1.0), (SPACE, 0.0), (HUMANIZE, 0.0)] {
+            v.jump(id, val);
+        }
+        let vowel = rms(&render(&mut v, 0.3)[9600..]);
+        v.set(LIP_OPEN, 0.0, 9.0);
+        v.set(VOICING, voicing, 8.0);
+        render(&mut v, wait);
+        let bar = render(&mut v, 0.03);
+        (v.state[STATE_VOICING], rms(&bar) / vowel)
+    };
+    let (voiced, bar) = closure(0.85, 0.035);
+    assert!(voiced > 0.6, "folds still vibrating about 40 ms after the seal: {voiced}");
+    assert!(bar > 0.02 && bar < 0.3, "voice bar re the vowel: {bar}");
+    // Folds apart: the walls are braced, nothing vibrates and, once the lips have
+    // sealed, the closure is silent.
+    let (voiced, bar) = closure(0.0, 0.09);
+    assert!(voiced < 0.05 && bar < 0.003, "voiceless closure: {voiced} {bar}");
+}
+
+#[test]
+fn a_tongue_gesture_moves_little_air_but_a_rising_larynx_moves_all_of_it() {
+    // With no breath at all, closing the tongue tip quickly should be near silent
+    // (the tongue is flesh of constant volume), while the larynx rising under shut
+    // folds behind that seal compresses the air and pops when the seal opens.
+    let mut v = Voice::new(48_000.0, 4);
+    v.jump(SPACE, 0.0);
+    render(&mut v, 0.1);
+    v.set(TIP_CLOSE, 1.0, 9.0);
+    let thump = render(&mut v, 0.1).iter().fold(0f32, |m, x| m.max(x.abs()));
+    v.set(GLOTTAL, 1.0, 5.0);
+    v.set(LARYNX, 1.0, 18.0);
+    render(&mut v, 0.1);
+    v.set(TIP_CLOSE, 0.0, 6.0);
+    let pop = render(&mut v, 0.05).iter().fold(0f32, |m, x| m.max(x.abs()));
+    assert!(thump < 0.02, "closing thump {thump}");
+    assert!(pop > 10.0 * thump && pop > 0.02, "ejective pop {pop} vs thump {thump}");
 }
