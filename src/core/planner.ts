@@ -9,7 +9,7 @@
  */
 import {compileScore, type Score, type ScoreEvent} from './engine';
 import {clampParam, defaultPatch, PARAM_ID, type ParamName, type Patch, VOICE_PARAMS, midiToHz} from './params';
-import {AFFRICATE_RELEASE, isVowel, parsePhone, PHONEMES, SCHWA, vowelTarget, type Phone} from './phonemes';
+import {AFFRICATE_RELEASE, isVowel, PALATAL, parsePhone, PHONEMES, SCHWA, vowelTarget, type Phone} from './phonemes';
 import {phonemize, parsePhonemeInput, reduceFunctionWords, syllabify, type Boundary, type Lexicon, type Word} from './text';
 
 export interface Segment {
@@ -78,7 +78,15 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
     const ph = PHONEMES[s.symbol];
     const dur = s.end - s.start;
     if (isVowel(s.symbol)) {
-      const target = vowelTarget({symbol: s.symbol, stress: s.stress});
+      let target = vowelTarget({symbol: s.symbol, stress: s.stress});
+      // Next to soft consonants a vowel is fronted and raised, strongly between two of them
+      // (Russian пять is [pʲætʲ]: its second formant never comes down to [a]'s).
+      const soft = [segments[i - 1], segments[i + 1]].filter(n => n && PHONEMES[n.symbol]?.palatalized).length;
+      if (soft) {
+        const k = soft === 2 ? 0.6 : 0.15;
+        const toward = (name: 'tongueX' | 'tongueY') => (target[name] ?? 0.5) + k * (PALATAL[name]! - (target[name] ?? 0.5));
+        target = {...target, tongueX: toward('tongueX'), tongueY: toward('tongueY')};
+      }
       if (s.held) {
         anchors.push({time: s.start + Math.min(0.06, 0.38 * dur), target, seg: i});
       } else if (ph.offglide) {
@@ -101,7 +109,14 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
     const t = ph.target;
     const body: Patch = {};
     for (const k of ['tongueX', 'tongueY', 'rhotic', 'jaw'] as ParamName[]) if (t[k] !== undefined) body[k] = t[k];
-    if (Object.keys(body).length) {
+    if (ph.palatalized) {
+      // The palatal gesture peaks at the release into a vowel (a [j]-like glide follows);
+      // elsewhere it is there before the consonant starts, so the vowel before ends in an
+      // [i]-like glide (Russian сталь [staⁱlʲ]); with a later gesture a recognizer heard стал.
+      const next = segments[i + 1];
+      const prevocalic = next && isVowel(next.symbol);
+      anchors.push({time: prevocalic ? s.start + 0.9 * dur : s.start - 0.03, target: {...body, ...PALATAL}, tau: 18, lead: 4, seg: i});
+    } else if (Object.keys(body).length) {
       if (s.symbol === 'R') body.jaw = 0.55;
       // Consonantal tongue-body targets are extreme and brief: move early
       // enough (4 time constants) to get close to them.
@@ -159,11 +174,13 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
       at(onset, param, stopped ? 1 : t[param]!, closeTau, i);
       if (stopped) at(s.start + 0.45 * dur, param, t[param]!, 6, i);
       holds.push({seg: i, name: param, start: onset, end: s.end, tau: releaseTau, value: t[param]!});
-      if (ph.manner === 'affricate' && AFFRICATE_RELEASE[s.symbol]) {
+      if (param === 'tipClose' && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
-        // The closure is the shorter part: real /tʃ dʒ/ hiss for more than half their length.
-        at(s.start + 0.42 * dur, 'tipClose', r.tipClose!, 6, i);
-        at(s.start + 0.32 * dur, 'tipPlace', r.tipPlace!, 10, i);
+        // The closure is the shorter part: real /tʃ dʒ/ hiss for more than half their length
+        // (a soft t or d likewise: Russian мать ends in about 100 ms of [sʲ]-like hiss).
+        const hiss = ph.manner === 'affricate' ? 0.42 : 0.45;
+        at(s.start + hiss * dur, 'tipClose', r.tipClose!, 6, i);
+        at(s.start + (hiss - 0.1) * dur, 'tipPlace', r.tipPlace!, 10, i);
       }
       if (!nextIsSame(param)) {
         const rest = param === 'lipOpen' ? vowelLips.lipOpen ?? 0.6 : 0;
@@ -225,7 +242,8 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
       const closing = ph.manner === 'stop' || ph.manner === 'affricate';
       at(phraseInitial ? onset : closing ? s.start : s.start - 0.02, 'voicing', 0, 7, i);
       const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === 'S';
-      const aspirated = ph.manner === 'stop' && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === 'SIL' || ['R', 'L', 'W', 'Y'].includes(next.symbol));
+      // Soft stops are short-lag: aspiration would cover the palatal glide that identifies them.
+      const aspirated = ph.manner === 'stop' && !ph.palatalized && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === 'SIL' || ['R', 'L', 'W', 'Y'].includes(next.symbol));
       // Voice onset time after release; adduction takes ~12 ms to reach the
       // point where the folds start to vibrate, so the command leads it.
       const vot = ph.manner === 'stop' ? (aspirated ? 0.055 : 0.015) : ph.manner === 'affricate' ? 0.02 : 0.0;

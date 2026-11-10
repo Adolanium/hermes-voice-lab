@@ -646,3 +646,47 @@ test('a body morph moves the resonances smoothly from child to adult male', () =
   assert.equal(bodyAt(5).tractLength, bodyAt(1).tractLength);
   for (const x of [-1, -0.4, 0, 0.3, 1]) assert.ok(Math.abs(bodyPosition({...SIGNATURE, ...bodyAt(x)}) - x) < 1e-9, `round trip ${x}`);
 });
+
+test('palatalized consonants: the tongue body takes the /j/ position and the vowel starts [i]-like', () => {
+  const {words, errors} = parsePhonemeInput('nʲɛt pʲatʲ');
+  assert.deepEqual(errors, []);
+  assert.deepEqual(words.map(w => w.phones.map(p => p.symbol).join(' ')), ['NJ EH T', 'PJ AA TJ']);
+  assert.equal(parsePhonemeInput('RRJ EH1 K AA0').words[0].phones[0].symbol, 'RRJ');
+  assert.equal(PHONEMES.LJ.target.tongueX, undefined, 'a soft l is not dark');
+  const sr = 24000;
+  // Energy near [i]'s second formant (2.2–3.2 kHz) against [a]'s (1.2–1.9 kHz), by DFT.
+  const tilt = (x: Float32Array, from: number, to: number) => {
+    const a = Math.round(from * sr), n = Math.round((to - from) * sr);
+    const band = (lo: number, hi: number) => {
+      let e = 0;
+      for (let f = lo; f <= hi; f += 50) {
+        let re = 0, im = 0;
+        for (let i = 0; i < n; i++) {
+          const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
+          re += w * x[a + i] * Math.cos((2 * Math.PI * f * i) / sr);
+          im += w * x[a + i] * Math.sin((2 * Math.PI * f * i) / sr);
+        }
+        e += re * re + im * im;
+      }
+      return e;
+    };
+    return 10 * Math.log10(band(2200, 3200) / band(1200, 1900));
+  };
+  for (const [plain, soft] of [['P AA1', 'PJ AA1'], ['M AA1', 'MJ AA1'], ['L AA1', 'LJ AA1'], ['Z AA1', 'ZJ AA1']]) {
+    const measure = (text: string) => {
+      const plan = planSpeech(text, lexicon, {phonemes: true});
+      const v = plan.segments.find(s => s.symbol === 'AA')!;
+      const out = renderScore(engine(sr, 3), plan.score)[0];
+      assert.ok(out.every(Number.isFinite) && Math.max(...out.map(Math.abs)) < 1, `${text} is bounded`);
+      return tilt(out, v.start + 0.01, v.start + 0.06) - tilt(out, v.end - 0.1, v.end - 0.05);
+    };
+    const [p, s] = [measure(plain), measure(soft)];
+    assert.ok(s > p + 6, `${soft} starts its vowel brighter than ${plain} (${s.toFixed(1)} vs ${p.toFixed(1)} dB)`);
+  }
+  // The body moves for the soft consonant only, and a soft stop is not aspirated.
+  const events = (text: string) => planSpeech(text, lexicon, {phonemes: true}).score.events;
+  const count = (ev: ArrayLike<number>, id: number, value: number) => { let n = 0; for (let i = 0; i < ev.length; i += 4) if (ev[i + 1] === id && Math.abs(ev[i + 2] - value) < 1e-6) n++; return n; };
+  const tx = PARAM_NAMES.indexOf('tongueX');
+  assert.equal(count(events('T AA1'), tx, 1), 0);
+  assert.equal(count(events('TJ AA1'), tx, 1), 1);
+});

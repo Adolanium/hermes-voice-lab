@@ -22,6 +22,8 @@ export interface Phoneme {
   /** Second target for diphthongs. */
   offglide?: Patch;
   example: string;
+  /** Secondary articulation: the tongue body rises to the hard palate (as for /j/) during the consonant. */
+  palatalized?: boolean;
 }
 
 type VowelRow = {params: Record<string, number>; model: number[]; target: number[]};
@@ -90,8 +92,31 @@ export const PHONEMES: Record<string, Phoneme> = Object.fromEntries([
   P('HH', 'h', 'aspirate', false, 65, {voicing: 0}, 'hat'),
 ].map(p => [p.symbol, p]));
 
-/** Released friction phase of affricates. */
+/**
+ * Palatalized ("soft") consonants, as in the Slavic languages, Irish and many others: the
+ * primary constriction stays where it is while the tongue body takes the /j/ position, so
+ * the consonant is released through an [i]-like tract. Symbols add J (TJ = tʲ).
+ */
+export const PALATAL: Patch = {tongueX: 1, tongueY: 0.95};
+const SOFT_EXAMPLES: Record<string, string> = {
+  P: 'Russian пять', B: 'Russian бить', T: 'Russian тётя', D: 'Russian дядя', K: 'Russian кит', G: 'Russian гид', M: 'Russian мять',
+  N: 'Russian нет', F: 'Russian кофе', V: 'Russian вес', S: 'Russian сядь', Z: 'Russian зима', L: 'Russian лес', RR: 'Russian река',
+};
+for (const [base, example] of Object.entries(SOFT_EXAMPLES)) {
+  const p = PHONEMES[base];
+  // The body belongs to the palatal gesture (a soft l is not dark).
+  const {tongueX: _x, tongueY: _y, ...target} = p.target;
+  // Soft t and d are released through a hiss (Russian мать ends in [tʲsʲ]), which takes time.
+  const duration = base === 'T' || base === 'D' ? p.duration + 35 : p.duration;
+  PHONEMES[`${base}J`] = {...p, symbol: `${base}J`, ipa: `${p.ipa}ʲ`, target, duration, example, palatalized: true};
+}
+/** Base symbols that have a palatalized counterpart. */
+export const PALATALIZABLE = Object.keys(SOFT_EXAMPLES);
+
+/** Released friction phase of affricates, and of the soft coronal stops. */
 export const AFFRICATE_RELEASE: Record<string, Patch> = {
+  TJ: {tipPlace: 0.5, tipClose: 0.83},
+  DJ: {tipPlace: 0.5, tipClose: 0.83},
   CH: {tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55},
   JH: {tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55},
 };
@@ -108,7 +133,7 @@ export interface Phone {
 }
 
 export function parsePhone(token: string): Phone | null {
-  const m = /^([A-Z]{1,2})([012])?$/.exec(token.trim().toUpperCase());
+  const m = /^([A-Z]{1,3})([012])?$/.exec(token.trim().toUpperCase());
   if (!m || !PHONEMES[m[1]]) return null;
   return {symbol: m[1], stress: isVowel(m[1]) ? Number(m[2] ?? 1) : 0};
 }

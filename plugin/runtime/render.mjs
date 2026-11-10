@@ -379,7 +379,33 @@ var PHONEMES = Object.fromEntries([
   P("Y", "j", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35 }, "yes"),
   P("HH", "h", "aspirate", false, 65, { voicing: 0 }, "hat")
 ].map((p) => [p.symbol, p]));
+var PALATAL = { tongueX: 1, tongueY: 0.95 };
+var SOFT_EXAMPLES = {
+  P: "Russian \u043F\u044F\u0442\u044C",
+  B: "Russian \u0431\u0438\u0442\u044C",
+  T: "Russian \u0442\u0451\u0442\u044F",
+  D: "Russian \u0434\u044F\u0434\u044F",
+  K: "Russian \u043A\u0438\u0442",
+  G: "Russian \u0433\u0438\u0434",
+  M: "Russian \u043C\u044F\u0442\u044C",
+  N: "Russian \u043D\u0435\u0442",
+  F: "Russian \u043A\u043E\u0444\u0435",
+  V: "Russian \u0432\u0435\u0441",
+  S: "Russian \u0441\u044F\u0434\u044C",
+  Z: "Russian \u0437\u0438\u043C\u0430",
+  L: "Russian \u043B\u0435\u0441",
+  RR: "Russian \u0440\u0435\u043A\u0430"
+};
+for (const [base, example] of Object.entries(SOFT_EXAMPLES)) {
+  const p = PHONEMES[base];
+  const { tongueX: _x, tongueY: _y, ...target } = p.target;
+  const duration = base === "T" || base === "D" ? p.duration + 35 : p.duration;
+  PHONEMES[`${base}J`] = { ...p, symbol: `${base}J`, ipa: `${p.ipa}\u02B2`, target, duration, example, palatalized: true };
+}
+var PALATALIZABLE = Object.keys(SOFT_EXAMPLES);
 var AFFRICATE_RELEASE = {
+  TJ: { tipPlace: 0.5, tipClose: 0.83 },
+  DJ: { tipPlace: 0.5, tipClose: 0.83 },
   CH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 },
   JH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 }
 };
@@ -387,7 +413,7 @@ var VOWEL_SYMBOLS = Object.values(PHONEMES).filter((p) => p.manner === "vowel" |
 var CONSONANT_SYMBOLS = Object.values(PHONEMES).filter((p) => !VOWEL_SYMBOLS.includes(p.symbol)).map((p) => p.symbol);
 var isVowel = (symbol) => VOWEL_SYMBOLS.includes(symbol);
 function parsePhone(token) {
-  const m = /^([A-Z]{1,2})([012])?$/.exec(token.trim().toUpperCase());
+  const m = /^([A-Z]{1,3})([012])?$/.exec(token.trim().toUpperCase());
   if (!m || !PHONEMES[m[1]]) return null;
   return { symbol: m[1], stress: isVowel(m[1]) ? Number(m[2] ?? 1) : 0 };
 }
@@ -670,6 +696,8 @@ function reduceFunctionWords(words) {
   });
 }
 var IPA = [
+  // Palatalized consonants: the letter plus ʲ (tʲ, nʲ, rʲ).
+  ...PALATALIZABLE.flatMap((s) => [[`${PHONEMES[s].ipa}\u02B2`, `${s}J`], ...s === "G" ? [["\u0261\u02B2", "GJ"]] : []]),
   ["t\u0283", "CH"],
   ["d\u0292", "JH"],
   ["a\u026A", "AY"],
@@ -729,7 +757,7 @@ var IPA = [
   ["\u01C0", "CD"],
   ["\u01C3", "CA"]
 ];
-var IPA_ONLY = /[ɪɛæɑɒɔʊʌəɝɜɚθðʃʒŋɹɾʔʙʀʘǀǃˈˌːɡ]/;
+var IPA_ONLY = /[ɪɛæɑɒɔʊʌəɝɜɚθðʃʒŋɹɾʔʙʀʘǀǃˈˌːɡʲ]/;
 function isIpa(text) {
   return IPA_ONLY.test(text);
 }
@@ -906,7 +934,13 @@ function articulate(segments, voice, withPreamble = true) {
     const ph = PHONEMES[s.symbol];
     const dur = s.end - s.start;
     if (isVowel(s.symbol)) {
-      const target = vowelTarget({ symbol: s.symbol, stress: s.stress });
+      let target = vowelTarget({ symbol: s.symbol, stress: s.stress });
+      const soft = [segments[i - 1], segments[i + 1]].filter((n) => n && PHONEMES[n.symbol]?.palatalized).length;
+      if (soft) {
+        const k = soft === 2 ? 0.6 : 0.15;
+        const toward = (name) => (target[name] ?? 0.5) + k * (PALATAL[name] - (target[name] ?? 0.5));
+        target = { ...target, tongueX: toward("tongueX"), tongueY: toward("tongueY") };
+      }
       if (s.held) {
         anchors.push({ time: s.start + Math.min(0.06, 0.38 * dur), target, seg: i });
       } else if (ph.offglide) {
@@ -926,7 +960,11 @@ function articulate(segments, voice, withPreamble = true) {
     const t = ph.target;
     const body = {};
     for (const k of ["tongueX", "tongueY", "rhotic", "jaw"]) if (t[k] !== void 0) body[k] = t[k];
-    if (Object.keys(body).length) {
+    if (ph.palatalized) {
+      const next = segments[i + 1];
+      const prevocalic = next && isVowel(next.symbol);
+      anchors.push({ time: prevocalic ? s.start + 0.9 * dur : s.start - 0.03, target: { ...body, ...PALATAL }, tau: 18, lead: 4, seg: i });
+    } else if (Object.keys(body).length) {
       if (s.symbol === "R") body.jaw = 0.55;
       anchors.push({ time: s.start + 0.5 * dur, target: body, tau: 18, lead: 4, seg: i });
     }
@@ -966,10 +1004,11 @@ function articulate(segments, voice, withPreamble = true) {
       at(onset, param, stopped ? 1 : t[param], closeTau, i);
       if (stopped) at(s.start + 0.45 * dur, param, t[param], 6, i);
       holds.push({ seg: i, name: param, start: onset, end: s.end, tau: releaseTau, value: t[param] });
-      if (ph.manner === "affricate" && AFFRICATE_RELEASE[s.symbol]) {
+      if (param === "tipClose" && AFFRICATE_RELEASE[s.symbol]) {
         const r = AFFRICATE_RELEASE[s.symbol];
-        at(s.start + 0.42 * dur, "tipClose", r.tipClose, 6, i);
-        at(s.start + 0.32 * dur, "tipPlace", r.tipPlace, 10, i);
+        const hiss = ph.manner === "affricate" ? 0.42 : 0.45;
+        at(s.start + hiss * dur, "tipClose", r.tipClose, 6, i);
+        at(s.start + (hiss - 0.1) * dur, "tipPlace", r.tipPlace, 10, i);
       }
       if (!nextIsSame(param)) {
         const rest = param === "lipOpen" ? vowelLips.lipOpen ?? 0.6 : 0;
@@ -1013,7 +1052,7 @@ function articulate(segments, voice, withPreamble = true) {
       const closing = ph.manner === "stop" || ph.manner === "affricate";
       at(phraseInitial ? onset : closing ? s.start : s.start - 0.02, "voicing", 0, 7, i);
       const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === "S";
-      const aspirated = ph.manner === "stop" && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === "SIL" || ["R", "L", "W", "Y"].includes(next.symbol));
+      const aspirated = ph.manner === "stop" && !ph.palatalized && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === "SIL" || ["R", "L", "W", "Y"].includes(next.symbol));
       const vot = ph.manner === "stop" ? aspirated ? 0.055 : 0.015 : ph.manner === "affricate" ? 0.02 : 0;
       const following = next && next.symbol !== "SIL" && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
       const final = !next || next.symbol === "SIL";

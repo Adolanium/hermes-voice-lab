@@ -280,6 +280,10 @@ const CHART: Array<[string, Array<string[]>]> = [
   ['Fricative', [[], ['F', 'V'], ['TH', 'DH'], ['S', 'Z'], ['SH', 'ZH'], [], [], [], ['HH']]],
   ['Affricate', [[], [], [], [], ['CH', 'JH'], [], [], [], []]],
   ['Approximant', [['W'], [], [], ['L'], ['R'], ['Y'], [], [], []]],
+  // Palatalized ("soft") consonants, at the place of their primary constriction.
+  ['Soft stop', [['PJ', 'BJ'], [], [], ['TJ', 'DJ'], [], [], ['KJ', 'GJ'], [], []]],
+  ['Soft fricative', [[], ['FJ', 'VJ'], [], ['SJ', 'ZJ'], [], [], [], [], []]],
+  ['Soft sonorant', [['MJ'], [], [], ['NJ', 'LJ', 'RRJ'], [], [], [], [], []]],
   ['Ejective', [['PE'], [], [], ['TE'], [], [], ['KE'], [], []]],
   ['Click', [['CB'], [], ['CD'], ['CA'], [], [], [], [], []]],
 ];
@@ -344,7 +348,7 @@ export function SpeakPanel({project, plan, onChange, onSpeak, onStop, playing, p
       </div>
       <textarea className="hvl-textarea" value={sp.text} maxLength={1000} spellCheck={!sp.phonemes}
         aria-label={sp.phonemes ? 'ARPABET or IPA phonemes' : 'Text to speak'}
-        placeholder={sp.phonemes ? 'ARPABET (HH AH0 L OW1 / W ER1 L D) or IPA (həˈloʊ wɝld)' : 'Type a short English phrase'}
+        placeholder={sp.phonemes ? 'ARPABET (HH AH0 L OW1 / W ER1 L D) or IPA (həˈloʊ wɝld, nʲɛt)' : 'Type a short English phrase'}
         onChange={e => onChange({text: e.target.value})}
         onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onSpeak(); } }} />
       {!sp.phonemes && (

@@ -3,7 +3,7 @@
  * letter-to-sound rule set, and direct ARPABET input.
  */
 import {PHONE_CODES} from './lexicon-codes.mjs';
-import {isVowel, parsePhone, type Phone} from './phonemes';
+import {isVowel, PALATALIZABLE, parsePhone, PHONEMES, type Phone} from './phonemes';
 
 export interface Lexicon {
   lookup(word: string): Phone[] | null;
@@ -193,6 +193,8 @@ export function reduceFunctionWords(words: Word[]): Word[] {
 
 /** IPA → phoneme symbols, longest first (affricates, diphthongs, ejectives before single letters). */
 const IPA: Array<[string, string, number?]> = [
+  // Palatalized consonants: the letter plus ʲ (tʲ, nʲ, rʲ).
+  ...PALATALIZABLE.flatMap((s): Array<[string, string]> => [[`${PHONEMES[s].ipa}ʲ`, `${s}J`], ...(s === 'G' ? [['ɡʲ', 'GJ'] as [string, string]] : [])]),
   ['tʃ', 'CH'], ['dʒ', 'JH'], ['aɪ', 'AY'], ['aʊ', 'AW'], ['ɔɪ', 'OY'], ['eɪ', 'EY'], ['oʊ', 'OW'],
   ['pʼ', 'PE'], ['tʼ', 'TE'], ['kʼ', 'KE'],
   ['i', 'IY'], ['ɪ', 'IH'], ['e', 'EY'], ['ɛ', 'EH'], ['æ', 'AE'], ['ɑ', 'AA'], ['a', 'AA'], ['ɒ', 'AA'], ['ɔ', 'AO'], ['o', 'OW'],
@@ -201,7 +203,7 @@ const IPA: Array<[string, string, number?]> = [
   ['s', 'S'], ['z', 'Z'], ['ʃ', 'SH'], ['ʒ', 'ZH'], ['h', 'HH'], ['m', 'M'], ['n', 'N'], ['ŋ', 'NG'], ['l', 'L'], ['ɹ', 'R'],
   ['r', 'RR'], ['ɾ', 'DX'], ['w', 'W'], ['j', 'Y'], ['ʔ', 'Q'], ['ʙ', 'BR'], ['ʀ', 'RU'], ['ʘ', 'CB'], ['ǀ', 'CD'], ['ǃ', 'CA'],
 ];
-const IPA_ONLY = /[ɪɛæɑɒɔʊʌəɝɜɚθðʃʒŋɹɾʔʙʀʘǀǃˈˌːɡ]/;
+const IPA_ONLY = /[ɪɛæɑɒɔʊʌəɝɜɚθðʃʒŋɹɾʔʙʀʘǀǃˈˌːɡʲ]/;
 
 /** True when phoneme input is IPA rather than ARPABET. */
 export function isIpa(text: string): boolean {

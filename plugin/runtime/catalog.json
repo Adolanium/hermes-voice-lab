@@ -1284,6 +1284,76 @@
    "symbol": "HH",
    "ipa": "h",
    "example": "hat"
+  },
+  {
+   "symbol": "PJ",
+   "ipa": "pʲ",
+   "example": "Russian пять"
+  },
+  {
+   "symbol": "BJ",
+   "ipa": "bʲ",
+   "example": "Russian бить"
+  },
+  {
+   "symbol": "TJ",
+   "ipa": "tʲ",
+   "example": "Russian тётя"
+  },
+  {
+   "symbol": "DJ",
+   "ipa": "dʲ",
+   "example": "Russian дядя"
+  },
+  {
+   "symbol": "KJ",
+   "ipa": "kʲ",
+   "example": "Russian кит"
+  },
+  {
+   "symbol": "GJ",
+   "ipa": "gʲ",
+   "example": "Russian гид"
+  },
+  {
+   "symbol": "MJ",
+   "ipa": "mʲ",
+   "example": "Russian мять"
+  },
+  {
+   "symbol": "NJ",
+   "ipa": "nʲ",
+   "example": "Russian нет"
+  },
+  {
+   "symbol": "FJ",
+   "ipa": "fʲ",
+   "example": "Russian кофе"
+  },
+  {
+   "symbol": "VJ",
+   "ipa": "vʲ",
+   "example": "Russian вес"
+  },
+  {
+   "symbol": "SJ",
+   "ipa": "sʲ",
+   "example": "Russian сядь"
+  },
+  {
+   "symbol": "ZJ",
+   "ipa": "zʲ",
+   "example": "Russian зима"
+  },
+  {
+   "symbol": "LJ",
+   "ipa": "lʲ",
+   "example": "Russian лес"
+  },
+  {
+   "symbol": "RRJ",
+   "ipa": "rʲ",
+   "example": "Russian река"
   }
  ],
  "beatSounds": [
