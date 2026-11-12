@@ -1,10 +1,10 @@
 {
  "plan: speech": "a95cfe1b697a7e08c5e6",
- "plan: song": "0b48830e89161aa33265",
- "audio: speech": "5461c3b28c9c4bb04648",
- "audio: song": "01ccff5935a9cccc21b7",
+ "plan: song": "58ba156a0a08f6216bbe",
+ "audio: speech": "70a69afc5bba16280461",
+ "audio: song": "29b77ade24d47bd89a52",
  "audio: beat": "ba11ed76daa29f580fbf",
- "audio: clicks, ejectives, trills": "bbbe8cfdf992cf7cfe6d",
+ "audio: clicks, ejectives, trills": "8bad4f121f4ccba8104c",
  "audio: voice qualities": "49fea5527ed503bc2540",
  "audio: bodies and recording chain": "5a691a4910cb42423c97"
 }

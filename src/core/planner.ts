@@ -26,6 +26,12 @@ export interface Segment extends Marks {
   held?: boolean;
 }
 
+/** Notes shorter than this (s) keep an unstressed syllable weak. */
+const WEAK_NOTE = 0.35;
+/** Latest time into a vowel (s) at which its shape is reached. */
+const VOWEL_REACH = 0.06;
+/** The release of the alveolar stops: tip opening held for `hold` seconds before it lets go. */
+const CORONAL_BURST: Record<string, {gap: number; hold: number}> = {T: {gap: 0.84, hold: 0.022}, D: {gap: 0.84, hold: 0.012}};
 /** Velum opening for a nasalized vowel (a nasal consonant opens it fully). */
 const NASAL_VOWEL = 0.6;
 /** Fold adduction for breathy voice: apart enough to leak air, close enough to keep vibrating. */
@@ -101,7 +107,9 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
         anchors.push({time: s.start + (long ? Math.min(0.22 * dur, 0.1) : 0.22 * dur), target, seg: i});
         anchors.push({time: long ? s.end - 0.1 : s.start + 0.8 * dur, target: {...ph.offglide, rhotic: 0}, seg: i});
       } else {
-        anchors.push({time: s.start + 0.38 * dur, target, seg: i});
+        // A vowel is reached early in its length: 38% in for a short spoken one, but within
+        // 60 ms on a long (sung) one, or a held note would start as the vowel before it.
+        anchors.push({time: s.start + Math.min(0.38 * dur, VOWEL_REACH), target, seg: i});
       }
       return;
     }
@@ -208,8 +216,17 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
         const late = ph.manner === 'click' && param === 'dorsumClose' ? 0.03 : 0;
         // An unreleased stop lets go only after the breath has stopped (before a pause) or
         // behind the next consonant, slowly, so there is no burst.
-        const held = s.unreleased && complete ? (!next || next.symbol === 'SIL' ? 0.12 : isVowel(next.symbol) ? 0 : 0.03) : 0;
-        at(s.end - (param === 'lipOpen' ? 0.004 : 0.002) + late + held, param, rest, held ? 25 : late ? 12 : releaseTau, i);
+        // A voiced fricative before a pause keeps its narrowing until the breath has gone:
+        // opening while the voice is on adds a vowel ("toes" ending as "toe-zuh").
+        const lastFricative = ph.voiced && ph.manner === 'fricative' && (!next || next.symbol === 'SIL');
+        const held = s.unreleased && complete ? (!next || next.symbol === 'SIL' ? 0.12 : isVowel(next.symbol) ? 0 : 0.03) : lastFricative ? 0.08 : 0;
+        // /t/ and /d/ let go through a narrow gap at the ridge for a moment, so the burst is a
+        // short hiss at the teeth and not only a pop. Against real speakers the /t/ burst was
+        // 2.7 dB weak and is now within their range (−2.8 dB re the vowels, theirs −4.4 ± 2.1).
+        // On /d/ speech did not change, but sung words did: without it real songs lost 5 points.
+        const hiss = param === 'tipClose' && !held ? CORONAL_BURST[s.symbol] : undefined;
+        if (hiss) at(s.end - 0.002, param, hiss.gap, 4, i);
+        at(s.end - (param === 'lipOpen' ? 0.004 : 0.002) + late + held + (hiss?.hold ?? 0), param, rest, held ? 25 : late ? 12 : releaseTau, i);
       }
     }
     // Non-pulmonic airstreams. A glottal stop or an ejective presses the folds
@@ -300,6 +317,13 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
         // vibrate through a murmur for about 80 ms.
         at(s.end - 0.015, 'voicing', BREATHY, 8, i);
         at(s.end + 0.1, 'voicing', 1, 18, i);
+      } else if (!next || next.symbol === 'SIL') {
+        // Before a pause the voice fades out of a voiced obstruent, as speakers' does: a
+        // fricative loses it halfway through and ends as a hiss, and a stop is released into
+        // breath, not into a vowel as loud as the note before it.
+        if (ph.manner === 'fricative') at(s.start + 0.5 * dur, 'voicing', 0.15, 12, i);
+        else at(s.end - 0.004, 'voicing', 0.55, 6, i);
+        at(s.end + 0.09, 'voicing', 1, 20, i);
       } else at(s.end, 'voicing', 1, 10, i);
     }
   });
@@ -603,7 +627,7 @@ function singingVoice(voice: Patch & ReturnType<typeof defaultPatch>) {
 
 /** A sung consonant's length (s): its spoken length, a little shorter in clusters, capped. */
 function sungConsonant(p: Phone, cluster: boolean): number {
-  return Math.min(0.1, (PHONEMES[p.symbol].duration / 1000) * (cluster ? 0.7 : 0.85));
+  return Math.min(0.14, (PHONEMES[p.symbol].duration / 1000) * (cluster ? 1.0 : 1.2));
 }
 
 /**
@@ -736,6 +760,7 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
       segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: k, ...marksOf(p)});
       t += d;
     });
+    const noteSeconds = Math.min(end, nextStart) - start;
     // A phrase that ends in punctuation leaves room for a breath when the next note follows at once.
     const breath = unit && /[,.!?;:]$/.test(unit.text) && nextStart - end < BREATH && Math.min(end, nextStart) - start > 0.3;
     const stop = breath ? nextStart - BREATH : Math.min(end, nextStart - 0.005);
@@ -743,7 +768,10 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
     const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.45);
     const vowelEnd = stop - codaTotal;
     if (unit) cues.push({text: unit.text, start: onset.length ? segments[segments.length - onset.length].start : t, vowel: t, end: stop, midi: n.midi});
-    segments.push({symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text, ...marksOf(nucleus)});
+    // An unstressed syllable on a short note keeps its weak vowel ("the", the end of "little")
+    // and is sung a little softer; on a long note a singer opens it to the full vowel.
+    const weak = nucleus.stress === 0 && noteSeconds < WEAK_NOTE;
+    segments.push({symbol: nucleus.symbol, stress: weak ? 0 : Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text, ...marksOf(nucleus)});
     let c = vowelEnd;
     coda.forEach((p, i) => {
       const d = codaTotal * (codaDur[i] / Math.max(1e-3, codaDur.reduce((a, b) => a + b, 0)));
@@ -781,8 +809,9 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
       pitchEvents.push([start + (cartoon ? 0.12 : 0.22), 'vibratoDepth', cartoon ? 0.62 : voice.vibratoDepth, cartoon ? 120 : 180]);
       if (cartoon) pitchEvents.push([start, 'vibratoRate', 6.6, 0]);
     }
-    pitchEvents.push([start - 0.02, 'loudness', clampParam('loudness', voice.loudness + (cartoon ? 0.12 : 0.04)), 25]);
-    pitchEvents.push([start + 0.12, 'loudness', voice.loudness, 120]);
+    const level = voice.loudness - (weak ? 0.07 : 0);
+    pitchEvents.push([start - 0.02, 'loudness', clampParam('loudness', level + (cartoon ? 0.12 : 0.04)), 25]);
+    pitchEvents.push([start + 0.12, 'loudness', clampParam('loudness', level), 120]);
   });
   segments.push({symbol: 'SIL', stress: 0, start: cursor, end: cursor + 0.3, word: -1, boundary: 'period'});
   const events = articulate(segments, voice);

@@ -1138,6 +1138,9 @@ function syllabify(phones) {
 }
 
 // src/core/planner.ts
+var WEAK_NOTE = 0.35;
+var VOWEL_REACH = 0.06;
+var CORONAL_BURST = { T: { gap: 0.84, hold: 0.022 }, D: { gap: 0.84, hold: 0.012 } };
 var NASAL_VOWEL = 0.6;
 var BREATHY = 0.6;
 function voiceDefaults(voice) {
@@ -1190,7 +1193,7 @@ function articulate(segments, voice, withPreamble = true) {
         anchors.push({ time: s.start + (long ? Math.min(0.22 * dur, 0.1) : 0.22 * dur), target, seg: i });
         anchors.push({ time: long ? s.end - 0.1 : s.start + 0.8 * dur, target: { ...ph.offglide, rhotic: 0 }, seg: i });
       } else {
-        anchors.push({ time: s.start + 0.38 * dur, target, seg: i });
+        anchors.push({ time: s.start + Math.min(0.38 * dur, VOWEL_REACH), target, seg: i });
       }
       return;
     }
@@ -1268,8 +1271,11 @@ function articulate(segments, voice, withPreamble = true) {
       if (!nextIsSame(param)) {
         const rest = param === "lipOpen" ? vowelLips.lipOpen ?? 0.6 : 0;
         const late = ph.manner === "click" && param === "dorsumClose" ? 0.03 : 0;
-        const held = s.unreleased && complete ? !next || next.symbol === "SIL" ? 0.12 : isVowel(next.symbol) ? 0 : 0.03 : 0;
-        at(s.end - (param === "lipOpen" ? 4e-3 : 2e-3) + late + held, param, rest, held ? 25 : late ? 12 : releaseTau, i);
+        const lastFricative = ph.voiced && ph.manner === "fricative" && (!next || next.symbol === "SIL");
+        const held = s.unreleased && complete ? !next || next.symbol === "SIL" ? 0.12 : isVowel(next.symbol) ? 0 : 0.03 : lastFricative ? 0.08 : 0;
+        const hiss = param === "tipClose" && !held ? CORONAL_BURST[s.symbol] : void 0;
+        if (hiss) at(s.end - 2e-3, param, hiss.gap, 4, i);
+        at(s.end - (param === "lipOpen" ? 4e-3 : 2e-3) + late + held + (hiss?.hold ?? 0), param, rest, held ? 25 : late ? 12 : releaseTau, i);
       }
     }
     if (t.glottal) {
@@ -1327,6 +1333,10 @@ function articulate(segments, voice, withPreamble = true) {
       if (s.breathy && ph.manner !== "fricative") {
         at(s.end - 0.015, "voicing", BREATHY, 8, i);
         at(s.end + 0.1, "voicing", 1, 18, i);
+      } else if (!next || next.symbol === "SIL") {
+        if (ph.manner === "fricative") at(s.start + 0.5 * dur, "voicing", 0.15, 12, i);
+        else at(s.end - 4e-3, "voicing", 0.55, 6, i);
+        at(s.end + 0.09, "voicing", 1, 20, i);
       } else at(s.end, "voicing", 1, 10, i);
     }
   });
@@ -1513,7 +1523,7 @@ function singingVoice(voice) {
   return { ...voice, loudness: clampParam("loudness", voice.loudness + 0.1) };
 }
 function sungConsonant(p, cluster) {
-  return Math.min(0.1, PHONEMES[p.symbol].duration / 1e3 * (cluster ? 0.7 : 0.85));
+  return Math.min(0.14, PHONEMES[p.symbol].duration / 1e3 * (cluster ? 1 : 1.2));
 }
 function yieldPreviousVowel(segments, cues, cursor, onsetStart) {
   if (onsetStart >= cursor) return cursor;
@@ -1626,13 +1636,15 @@ function planSong(notes, lyrics, lexicon2, opts) {
       segments.push({ symbol: p.symbol, stress: 0, start: t, end: t + d, word: k, ...marksOf(p) });
       t += d;
     });
+    const noteSeconds = Math.min(end, nextStart) - start;
     const breath = unit && /[,.!?;:]$/.test(unit.text) && nextStart - end < BREATH && Math.min(end, nextStart) - start > 0.3;
     const stop = breath ? nextStart - BREATH : Math.min(end, nextStart - 5e-3);
     const codaDur = coda.map((p) => sungConsonant(p, coda.length > 1));
     const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.45);
     const vowelEnd = stop - codaTotal;
     if (unit) cues.push({ text: unit.text, start: onset.length ? segments[segments.length - onset.length].start : t, vowel: t, end: stop, midi: n.midi });
-    segments.push({ symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text, ...marksOf(nucleus) });
+    const weak = nucleus.stress === 0 && noteSeconds < WEAK_NOTE;
+    segments.push({ symbol: nucleus.symbol, stress: weak ? 0 : Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text, ...marksOf(nucleus) });
     let c = vowelEnd;
     coda.forEach((p, i) => {
       const d = codaTotal * (codaDur[i] / Math.max(1e-3, codaDur.reduce((a, b) => a + b, 0)));
@@ -1662,8 +1674,9 @@ function planSong(notes, lyrics, lexicon2, opts) {
       pitchEvents.push([start + (cartoon ? 0.12 : 0.22), "vibratoDepth", cartoon ? 0.62 : voice.vibratoDepth, cartoon ? 120 : 180]);
       if (cartoon) pitchEvents.push([start, "vibratoRate", 6.6, 0]);
     }
-    pitchEvents.push([start - 0.02, "loudness", clampParam("loudness", voice.loudness + (cartoon ? 0.12 : 0.04)), 25]);
-    pitchEvents.push([start + 0.12, "loudness", voice.loudness, 120]);
+    const level = voice.loudness - (weak ? 0.07 : 0);
+    pitchEvents.push([start - 0.02, "loudness", clampParam("loudness", level + (cartoon ? 0.12 : 0.04)), 25]);
+    pitchEvents.push([start + 0.12, "loudness", clampParam("loudness", level), 120]);
   });
   segments.push({ symbol: "SIL", stress: 0, start: cursor, end: cursor + 0.3, word: -1, boundary: "period" });
   const events = articulate(segments, voice);

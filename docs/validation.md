@@ -141,6 +141,34 @@ What it cost: the voice is about 1 dB darker at 1–4 kHz against the speakers (
 
 Rejected changes and their numbers are in `research/hill-climb/log.md`. The owner listened at four checkpoints and preferred the new version each time (the third only slightly). An earlier, deeper sung vibrato moved toward the real singer but was not audibly different, so it was not kept. Still open: about 0.2 naturalness behind the reference, speech slower than real (×1.23), and shallow sung vibrato.
 
+## Sung words (2026-11-12)
+
+Two judges for sung diction, both with Whisper `small.en` (research tooling, `research/tools/sung/`):
+- **Real songs** (`songs.py`): ten English songs of the Children's Song Dataset whose lyric text has one syllable per sung note (991 words), sung on the singer's own note times and pitches from the lyrics as text, the way a user makes a song. Whisper transcribes the whole song. On her recordings it gets 16.0% of the words wrong, which is what this judge can reach.
+- **Sentences** (`sung240.py`): the 240 Harvard sentences of the speech judge, one syllable per eighth note at 120 bpm, with a paired error bar.
+
+A phone aligner given the planned sounds (`lost.py`) says which of them it cannot find in the render.
+
+| | Before | After | Real singer |
+|---|---|---|---|
+| Real songs, word errors | 55.6% | **32.5%** (−23.1 ± 5.5, paired over songs) | 16.0% |
+| 240 sung sentences, word errors | 62.0% | **51.6%** (−10.4 ± 1.7, paired) | not measured |
+| Sung consonants the aligner cannot find (240 sentences) | 19.5% | 17.6% | — |
+| Speech, 240 sentences, word errors | 29.3% | 29.4% (+0.2 ± 0.8) | — |
+| Speech, predicted naturalness (UTMOS, 30 sentences) | 3.32 | 3.32 | 4.25 |
+| Speech consonants the aligner cannot find, of 6,012 | 515 | 443 | 158 |
+
+What was changed, each step measured on its own:
+- **A held vowel is reached within 60 ms.** The rule that places a vowel's target 38% into its length was written for spoken vowels of about 100 ms. On a half-second note the tongue arrived 100–190 ms late, so long notes began as the vowel before them. This was the largest step: real songs 48.1% → 31.4% (−16.8 ± 5.1, eight songs better, none worse).
+- **Sung consonants keep their spoken length** (they were cut to about 70% of it): real songs −10.5 ± 6.3, sentences −4.4 ± 2.2.
+- **/t/ and /d/ release through a short hiss at the ridge.** Against real speakers the /t/ burst was 2.7 dB weak and is now in their range; the aligner misses 22% of sung /t/ where it missed 55%. Without the stage on /d/, real songs lost 5.1 ± 3.7 points.
+- **Unstressed syllables on short notes stay weak** ("the", the end of "little") and a little softer; on notes of 0.35 s or more they open to the full vowel. Sentences −5.8 ± 1.8.
+- **A final voiced consonant ends like a speaker's.** After a last /z/ or /d/ the mouth opened while the voice was on, adding a vowel ("toes" as "toe-zuh"). The voice now fades out of a final fricative and a final stop is released into breath. Final fricatives the aligner misses: 44% → 30%.
+
+Tried and dropped: reaching the vowel within 35 ms (no better than 60), a longer breath after a final consonant (no change), no vibrato (no change). Singing on one note or an octave lower made no difference to the errors; an octave higher cost 12 points on sentences. The timing of the syllables matters most: sung on one pitch with speech timing, the same sentences score 36.6%.
+
+Still open: final stops (43% not found), final /z v/, /r/ at the end of a syllable, nasals at the start, and consonants on high notes. The song judge moves by about ±4 points between runs of near-identical builds, so steps smaller than that need the sentence judge. No listener has compared before and after yet.
+
 ## Other languages' sounds (2026-11-12)
 
 A sound English does not use is checked against something independent of our own tests: Whisper `small` chooses between the two words of a minimal pair (`research/tools/judge/contrast.sh`), for our render and for the macOS voice of that language as the control. A pair counts when the recording of the second word prefers the second word more than the recording of the first does.

@@ -85,7 +85,13 @@ test('aspiration: a marked stop decides its own voice onset, whatever English wo
   assert.ok(onset('T AA1') - onset('T= AA1') > 0.03, 'T= before a stressed vowel is not');
   // Heard in the sound: the vowel reaches its level later after the aspirated stop.
   const rise = (text: string) => {
-    const {plan, audio} = say(text);
+    const {plan, audio: raw} = say(text);
+    // The voice, not the burst's hiss: a 2 ms running mean keeps the low harmonics only.
+    const audio = new Float32Array(raw.length);
+    for (let i = 0, sum = 0; i < raw.length; i++) {
+      sum += raw[i] - (i >= 96 ? raw[i - 96] : 0);
+      audio[i] = sum / 96;
+    }
     const stop = plan.segments.find(s => s.symbol === 'T')!;
     const full = rms(audio, stop.end + 0.12, stop.end + 0.16);
     for (let t = stop.end - 0.01; t < stop.end + 0.2; t += 0.002) if (rms(audio, t, t + 0.01) > 0.5 * full) return t - stop.end;
