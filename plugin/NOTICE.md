@@ -23,6 +23,8 @@ Version 0.3's feature set also follows that project's feature list and architect
 - golden tests;
 - tuning against real voices: a real-speaker judge (the TSP speech database) and a real-singer judge (the Children's Song Dataset), with one measured change at a time and an owner's listening checkpoints.
 
+After version 0.4.1 we added features that project gained after `5ab44de` (read at `1d3ea49`), again in our own code: sound marks in IPA (aspiration, nasalized vowels, breathy voice), the alveolo-palatal and retroflex sibilants, Korean lyrics in Hangul, importing a score from MusicXML, and a speech judge whose phone times come from a forced aligner. Its Korean rules are the standard pronunciation rules of the language; ours were written from those rules and not from its code.
+
 The mechanisms for ejectives (a sealed glottis and a rising larynx) and clicks (two oral seals and a lowering tongue body), and the sung-phrase details (onset consonants at the new note's pitch, phrase breaths, a firmer singing voice), follow the approach its documentation describes. The songbird (van der Pol labia rather than its normal-form model) and the elephant (driven lips into a delay-line trunk) are different models of our own.
 
 The lounge-singer format of the demo videos also comes from its demo: spoken asides, scat, a beatbox break and a closing joke. The lines, melodies and jokes are ours.

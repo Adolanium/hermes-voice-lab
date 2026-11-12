@@ -2,6 +2,7 @@
  * Offline renderer used by the agent tools (and for tests):
  *   node plugin/runtime/render.mjs --project in.json --output out.wav [--mode speak] [--rate 48000]
  *   node plugin/runtime/render.mjs --text "Hello there" --output out.wav
+ *   node plugin/runtime/render.mjs --score song.musicxml [--part P1] --output out.wav   (MusicXML, .mxl or MIDI)
  * Prints JSON metadata on stdout. Uses the same WASM engine and planner as
  * Desktop playback.
  */
@@ -10,7 +11,8 @@ import {gunzipSync} from 'node:zlib';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Engine, renderScore} from '../core/engine';
-import {duetScore, newProject, projectScore, validateProject, type Mode} from '../core/project';
+import {duetScore, newProject, projectScore, songFromScore, validateProject, type Mode} from '../core/project';
+import {importScoreFile} from '../core/score-import';
 import {decodeLexicon} from '../core/text';
 import {validatePatch} from '../core/params';
 import {VOICE_PRESETS} from '../core/presets';
@@ -30,6 +32,13 @@ const output = args.get('output') || fail('--output is required');
 let project = newProject();
 if (args.has('project')) project = validateProject(JSON.parse(readFileSync(args.get('project')!, 'utf8')));
 if (args.has('text')) project = {...project, mode: 'speak', speech: {...project.speech, text: args.get('text')!, phonemes: args.get('phonemes') === '1'}};
+const scoreNotes: string[] = [];
+if (args.has('score')) {
+  const file = args.get('score')!;
+  const {song, messages} = songFromScore(await importScoreFile(file, new Uint8Array(readFileSync(file)), {part: args.get('part') || undefined}));
+  scoreNotes.push(...messages);
+  project = validateProject({...project, mode: 'sing', song: {...project.song, ...song}});
+}
 if (args.has('voice')) {
   const preset = VOICE_PRESETS.find(p => p.id === args.get('voice'));
   if (!preset) fail(`unknown voice preset ${args.get('voice')}`);
@@ -73,5 +82,5 @@ const state = engine.state();
 process.stdout.write(JSON.stringify({
   ok: true, output, mode, sampleRate: rate, channels: mono ? 1 : 2, seconds: left.length / rate,
   peak: Number(stats.peak.toFixed(4)), rms: Number(stats.rms.toFixed(4)), renderSeconds: Number(elapsed.toFixed(3)),
-  resets: state[15], warnings, name: project.name,
+  resets: state[15], warnings: [...scoreNotes, ...warnings], name: project.name,
 }) + '\n');

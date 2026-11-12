@@ -1,6 +1,6 @@
 """Optional read-aloud provider: set ``tts.provider: voice-lab`` to hear Hermes'
 replies in the Voice Lab character voice. Synthesis is the same local
-articulatory engine; English only, and less natural than neural TTS.
+articulatory engine; English (and a first Korean), and less natural than neural TTS.
 """
 from __future__ import annotations
 

@@ -425,7 +425,8 @@ test('IPA input: stress marks, diphthongs, affricates and the non-English sounds
   assert.equal(flat(3), 'Q');
   assert.equal(flat(4), 'KE AA1');
   assert.equal(flat(5), 'CA AA1');
-  assert.equal(flat(6), 'P EY1 RR OW0');
+  // IPA e and o are plain vowels; the English glides are written eɪ and oʊ.
+  assert.equal(flat(6), 'P E1 RR O0');
   // ARPABET still works, and planSpeech speaks IPA.
   assert.equal(parsePhonemeInput('HH AH0 L OW1').words[0].phones.length, 4);
   assert.ok(planSpeech('ˈsiːsɔ', lexicon, {phonemes: true}).segments.some(s => s.symbol === 'AO'));

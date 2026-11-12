@@ -9,7 +9,7 @@ Golden tests (`tests/golden.test.ts`) fingerprint fixed renders and plans with S
 | Suite | Command | Result |
 |---|---|---|
 | Rust engine (17 tests) | `npm run test:engine` | pass |
-| Node core (63 tests) | `npm test` | pass |
+| Node core (93 tests) | `npm test` | pass |
 | Types | `npm run typecheck` | pass |
 | Hermes manifest/security/desktop-surface lint | `hermes plugins validate <installed path>` | pass |
 
@@ -140,6 +140,23 @@ What the judge found, and what was changed for it:
 What it cost: the voice is about 1 dB darker at 1–4 kHz against the speakers (−1.5 and −2.4 dB became −2.6 and −3.3 dB), the singing note MCD rose 0.34 dB, and the lip click is weaker (the tongue clicks and ejectives were retuned to their old strength). Tried and dropped: a slower breath attack (no judge moved), a faster tempo (length ×1.20 → ×1.09 but +2.6 ± 0.9 points of WER), a slower release of the back of the tongue, and a second step of nasal loudness (no change). Still open: nasals 3.5 dB quiet, /ɝ/ 3.6 dB quiet, speech 20% slower than real, and no listener has compared before and after yet.
 
 Rejected changes and their numbers are in `research/hill-climb/log.md`. The owner listened at four checkpoints and preferred the new version each time (the third only slightly). An earlier, deeper sung vibrato moved toward the real singer but was not audibly different, so it was not kept. Still open: about 0.2 naturalness behind the reference, speech slower than real (×1.23), and shallow sung vibrato.
+
+## Other languages' sounds (2026-11-12)
+
+A sound English does not use is checked against something independent of our own tests: Whisper `small` chooses between the two words of a minimal pair (`research/tools/judge/contrast.sh`), for our render and for the macOS voice of that language as the control. A pair counts when the recording of the second word prefers the second word more than the recording of the first does.
+
+| Contrast | Pairs | Control voice | Ours |
+|---|---|---|---|
+| Hindi aspirated and breathy stops (पल/फल, बाल/भाल …) | 8 | Lekha 7/8 | **7/8** |
+| Polish sibilants s / ɕ / ʂ and their affricates (kasa/Kasia/kasza, bicz/bić …) | 9 | Zosia 9/9 | **8/9** (ʐ/ʑ not told apart) |
+| Korean lax / tense / aspirated stops (달/탈/딸 …), through the Korean front end | 15 | Yuna 10/15 | **11/15** |
+| French nasal vowels (beau/bon, paix/pain …) | 10 | Thomas 10/10 | 5/10: not heard |
+
+Whole Korean phrases (10, transcribed by Whisper): 38% of characters wrong from ours, 3% from Yuna; five of the ten came back exactly. Nasal vowels do change the modeled spectrum (first formant 7 dB weaker and 60 Hz wider on /a/), but the low nasal resonance real nasal vowels have is missing. A larger velar port changed nothing and a less damped nasal passage did not help, so both were reverted and the engine is unchanged.
+
+With the voice off, the airway was put into 20 random corners of the articulator space at 16 and 48 kHz device rates (jaw, lips, tongue, tip, velum, throat, larynx, tract length and pharynx at their limits): once a pose is held the output is silent (peak under 0.0003). Jumping between corners in 30 ms thumps, up to the limiter's ceiling when the tract length jumps from 11 to 32 cm.
+
+Score import was checked with a two-part MusicXML file (English and Korean) from the command line and in the built web page.
 
 ## Listening and intelligibility
 

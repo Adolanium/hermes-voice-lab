@@ -8,11 +8,12 @@
  * targets into smooth movements, identically in live and offline playback.
  */
 import {compileScore, type Score, type ScoreEvent} from './engine';
+import {isHangul, koreanSyllables} from './korean';
 import {clampParam, defaultPatch, PARAM_ID, type ParamName, type Patch, VOICE_PARAMS, midiToHz} from './params';
-import {AFFRICATE_RELEASE, isVowel, PALATAL, parsePhone, PHONEMES, SCHWA, vowelTarget, type Phone} from './phonemes';
+import {AFFRICATE_RELEASE, isVowel, marksOf, PALATAL, parsePhone, PHONEMES, SCHWA, vowelTarget, type Marks, type Phone} from './phonemes';
 import {phonemize, parsePhonemeInput, reduceFunctionWords, syllabify, type Boundary, type Lexicon, type Word} from './text';
 
-export interface Segment {
+export interface Segment extends Marks {
   symbol: string; // ARPABET or 'SIL'
   stress: number;
   start: number;
@@ -25,6 +26,10 @@ export interface Segment {
   held?: boolean;
 }
 
+/** Velum opening for a nasalized vowel (a nasal consonant opens it fully). */
+const NASAL_VOWEL = 0.6;
+/** Fold adduction for breathy voice: apart enough to leak air, close enough to keep vibrating. */
+const BREATHY = 0.6;
 const LEAD_SCALE = 2.4; // start a movement ~2.4 time constants before its target time
 
 function voiceDefaults(voice: Patch) {
@@ -137,7 +142,22 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
 
   // Local consonant gestures.
   segments.forEach((s, i) => {
-    if (s.symbol === 'SIL' || isVowel(s.symbol)) return;
+    if (s.symbol === 'SIL') return;
+    if (isVowel(s.symbol)) {
+      const after = segments[i + 1];
+      if (s.nasalized) {
+        // The velum is down for the vowel. It is up again before an obstruent starts (or the
+        // obstruent's pressure leaks through the nose) and stays down into a nasal consonant.
+        at(s.start - 0.02, 'velum', NASAL_VOWEL, 14, i);
+        const obstruent = after && ['stop', 'fricative', 'affricate'].includes(PHONEMES[after.symbol]?.manner);
+        if (!(after && PHONEMES[after.symbol]?.target.velum)) at(obstruent ? s.end - 0.035 : s.end - 0.01, 'velum', 0, obstruent ? 9 : 20, i);
+      }
+      if (s.breathy) {
+        at(s.start, 'voicing', BREATHY, 15, i);
+        at(s.end - 0.01, 'voicing', 1, 12, i);
+      }
+      return;
+    }
     const ph = PHONEMES[s.symbol];
     const t = ph.target;
     const dur = s.end - s.start;
@@ -186,7 +206,10 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
         const rest = param === 'lipOpen' ? vowelLips.lipOpen ?? 0.6 : 0;
         // A click's back seal lets go after the front one has popped.
         const late = ph.manner === 'click' && param === 'dorsumClose' ? 0.03 : 0;
-        at(s.end - (param === 'lipOpen' ? 0.004 : 0.002) + late, param, rest, late ? 12 : releaseTau, i);
+        // An unreleased stop lets go only after the breath has stopped (before a pause) or
+        // behind the next consonant, slowly, so there is no burst.
+        const held = s.unreleased && complete ? (!next || next.symbol === 'SIL' ? 0.12 : isVowel(next.symbol) ? 0 : 0.03) : 0;
+        at(s.end - (param === 'lipOpen' ? 0.004 : 0.002) + late + held, param, rest, held ? 25 : late ? 12 : releaseTau, i);
       }
     }
     // Non-pulmonic airstreams. A glottal stop or an ejective presses the folds
@@ -243,10 +266,13 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
       at(phraseInitial ? onset : closing ? s.start : s.start - 0.02, 'voicing', 0, 7, i);
       const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === 'S';
       // Soft stops are short-lag: aspiration would cover the palatal glide that identifies them.
-      const aspirated = ph.manner === 'stop' && !ph.palatalized && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === 'SIL' || ['R', 'L', 'W', 'Y'].includes(next.symbol));
+      const byRule = ph.manner === 'stop' && !ph.palatalized && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === 'SIL' || ['R', 'L', 'W', 'Y'].includes(next.symbol));
+      // A language that marks aspiration decides it; unmarked, English's rule applies.
+      const closure = ph.manner === 'stop' || ph.manner === 'affricate';
+      const aspirated = closure && s.aspirated !== undefined ? s.aspirated : byRule;
       // Voice onset time after release; adduction takes ~12 ms to reach the
       // point where the folds start to vibrate, so the command leads it.
-      const vot = ph.manner === 'stop' ? (aspirated ? 0.055 : 0.015) : ph.manner === 'affricate' ? 0.02 : 0.0;
+      const vot = closure && s.vot !== undefined ? s.vot : ph.manner === 'stop' ? (aspirated ? 0.055 : 0.015) : ph.manner === 'affricate' ? (s.aspirated ? 0.06 : 0.02) : 0.0;
       const following = next && next.symbol !== 'SIL' && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
       // After a fricative the folds adduct as the constriction opens (no gap).
       // Fricatives keep the glottis open to just past their end: voicing that
@@ -261,12 +287,20 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
       // the folds are apart but not vibrating during the closure; voicing
       // starts just after the release.
       at(onset, 'voicing', 0.15, 10, i);
-      at(s.end - 0.006, 'voicing', 1, 6, i);
+      if (s.breathy) {
+        at(s.end - 0.015, 'voicing', BREATHY, 8, i);
+        at(s.end + 0.1, 'voicing', 1, 18, i);
+      } else at(s.end - 0.006, 'voicing', 1, 6, i);
     } else if (ph.manner === 'fricative' || ph.manner === 'stop' || ph.manner === 'affricate') {
       // Voiced obstruents: the glottis opens partly, keeping the folds
       // vibrating while feeding enough flow for frication / pressure build-up.
       at(s.start - 0.01, 'voicing', ph.manner === 'stop' ? 0.85 : 0.66, 10, i);
-      at(s.end, 'voicing', 1, 10, i);
+      if (s.breathy && ph.manner !== 'fricative') {
+        // Breathy-voiced release (Hindi bʱ dʱ gʱ): the folds part as the stop opens and
+        // vibrate through a murmur for about 80 ms.
+        at(s.end - 0.015, 'voicing', BREATHY, 8, i);
+        at(s.end + 0.1, 'voicing', 1, 18, i);
+      } else at(s.end, 'voicing', 1, 10, i);
     }
   });
   return resolveGestures(tagged, holds, withPreamble ? preamble(voice) : []);
@@ -367,11 +401,11 @@ export function planWords(words: Word[], opts: SpeechOptions = {}): Plan {
       const next = !crossWord ? w.phones[pi + 1] : w.boundary === 'word' ? words[wi + 1]?.phones[0] : undefined;
       // American English flapping: T/D between a vowel and an unstressed vowel
       // ("city", "ladder"), or at a word end before a vowel ("put it").
-      if ((p.symbol === 'T' || p.symbol === 'D') && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
+      if (w.source !== 'korean' && p.aspirated === undefined && (p.symbol === 'T' || p.symbol === 'D') && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
         p = {symbol: 'DX', stress: 0};
       }
       const d = durationOf(p, w.phones[pi - 1], w.phones[pi + 1], final, rate);
-      segments.push({symbol: p.symbol, stress: p.stress, start: t, end: t + d, word: wi});
+      segments.push({symbol: p.symbol, stress: p.stress, start: t, end: t + d, word: wi, ...marksOf(p)});
       t += d;
     });
     if (w.boundary !== 'word') {
@@ -514,10 +548,17 @@ export function lyricSyllables(lyrics: string, lexicon: Lexicon): SungSyllable[]
       return;
     }
     // Bracketed phonemes are one syllable as written: [T+S], [PE], [BR].
-    const bracket = /^\[([A-Za-z0-9+]+)\]([!?.,]*)$/.exec(part);
+    const bracket = /^\[([A-Za-z0-9+~^=%-]+)\]([!?.,]*)$/.exec(part);
     if (bracket) {
       const phones = bracket[1].split('+').map(t => parsePhone(t.toUpperCase())).filter((p): p is Phone => !!p);
       if (phones.length) out.push({phones, text: phones.map(p => PHONEMES[p.symbol].ipa).join(''), word: wi});
+      return;
+    }
+    if (isHangul(part)) {
+      // Korean: every Hangul block is one syllable, said by the Korean front end.
+      const trail = part.match(/[!?.,]+$/)?.[0] ?? '';
+      const syl = koreanSyllables(part);
+      syl.forEach((unit, k) => out.push({phones: unit.phones, text: k === syl.length - 1 ? unit.text + trail : unit.text, word: wi}));
       return;
     }
     const spelled = part.replace(/[^A-Za-z'-]/g, '').split('-').filter(Boolean);
@@ -658,7 +699,7 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
       else if (segments.length) segments[segments.length - 1].end = t;
       cues.push({text: unit.text, start: t, vowel: start, end: t + durs.reduce((a, b) => a + b, 0), midi: n.midi});
       unit.phones.forEach((p, i) => {
-        segments.push({symbol: p.symbol, stress: 0, start: t, end: t + durs[i], word: k});
+        segments.push({symbol: p.symbol, stress: 0, start: t, end: t + durs[i], word: k, ...marksOf(p)});
         t += durs[i];
       });
       cursor = t;
@@ -692,7 +733,7 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
     }
     onset.forEach((p, i) => {
       const d = onsetDur[i] * squeeze;
-      segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: k});
+      segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: k, ...marksOf(p)});
       t += d;
     });
     // A phrase that ends in punctuation leaves room for a breath when the next note follows at once.
@@ -702,11 +743,11 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
     const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.45);
     const vowelEnd = stop - codaTotal;
     if (unit) cues.push({text: unit.text, start: onset.length ? segments[segments.length - onset.length].start : t, vowel: t, end: stop, midi: n.midi});
-    segments.push({symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text});
+    segments.push({symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text, ...marksOf(nucleus)});
     let c = vowelEnd;
     coda.forEach((p, i) => {
       const d = codaTotal * (codaDur[i] / Math.max(1e-3, codaDur.reduce((a, b) => a + b, 0)));
-      segments.push({symbol: p.symbol, stress: 0, start: c, end: c + d, word: k});
+      segments.push({symbol: p.symbol, stress: 0, start: c, end: c + d, word: k, ...marksOf(p)});
       c += d;
     });
     cursor = c;
@@ -777,11 +818,11 @@ export function planLiveOn(phones: Phone[], midi: number, voicePatch: Patch, opt
   let t = 0.005;
   for (const p of [...(opts.fromCoda ?? []), ...onset]) {
     const d = sungConsonant(p, false);
-    segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: 0});
+    segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: 0, ...marksOf(p)});
     t += d;
   }
   const vowelAt = t;
-  if (v >= 0) segments.push({symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: t + HOLD, word: 0, held: true});
+  if (v >= 0) segments.push({symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: t + HOLD, word: 0, held: true, ...marksOf(nucleus)});
   else segments.push({symbol: 'SIL', stress: 0, start: t, end: t + 0.3, word: -1});
   const events = articulate(segments, voice, false);
   for (const name of ['tenseness', 'breath', 'loudness'] as ParamName[]) events.push([0, name, voice[name], 30]);
@@ -801,12 +842,12 @@ export function planLiveOff(phones: Phone[], voicePatch: Patch): Score {
   const segments: Segment[] = [];
   let t = 0;
   if (glide) {
-    segments.push({symbol: phones[v].symbol, stress: 1, start: 0, end: 0.09, word: 0});
+    segments.push({symbol: phones[v].symbol, stress: 1, start: 0, end: 0.09, word: 0, ...marksOf(phones[v])});
     t = 0.09;
   }
   for (const p of coda) {
     const d = sungConsonant(p, coda.length > 1);
-    segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: 0});
+    segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: 0, ...marksOf(p)});
     t += d;
   }
   segments.push({symbol: 'SIL', stress: 0, start: t, end: t + 0.3, word: -1, boundary: 'period'});

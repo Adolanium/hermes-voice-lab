@@ -252,7 +252,7 @@ TOOLS = [
       "render": {"type": "boolean", "description": "Also render a 2-second preview WAV (default false)."}},
      []),
     ("voice_lab_perform",
-     "Make the voice speak a short English phrase, sing a melody with lyrics, or beatbox a pattern. The phrase/song is loaded into the Voice Lab view for the user to replay and edit, "
+     "Make the voice speak a short phrase (English, or Korean in Hangul), sing a melody with lyrics, or beatbox a pattern. The phrase/song is loaded into the Voice Lab view for the user to replay and edit, "
      "and (by default) rendered to a WAV attachment. Singing: give `melody` as space-separated NOTE:BEATS tokens (e.g. 'E4:0.5 G4:0.5 A4:1 r:0.5 C5:2', r = rest) "
      "or explicit `notes`, plus `lyrics` (each note takes the next syllable; hyphens split syllables; a lone '-' holds the previous vowel; "
      "a bracketed phoneme group such as [T+S] or [PE] is one syllable sung as written). Beat: `pattern` of 16 or 32 steps (16ths), each one of "

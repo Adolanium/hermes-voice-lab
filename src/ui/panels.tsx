@@ -6,7 +6,8 @@ import {midiToHz, noteName, type ParamName, type Patch} from '../core/params';
 import {PHONEMES, isVowel} from '../core/phonemes';
 import {bodyAt, bodyPosition, VOWEL_PRESETS} from '../core/presets';
 import {morphVowel, VOWEL_ANCHORS} from '../performance/vowels';
-import {SILLY_SONG, type Project} from '../core/project';
+import {LIMITS, SILLY_SONG, songFromScore, type Project} from '../core/project';
+import {importScoreFile} from '../core/score-import';
 import {DUET_PARTS, type DuetPart} from '../core/duet';
 import {VOICE_PRESETS as ALL_VOICES} from '../core/presets';
 import {HoldButton} from './HoldButton';
@@ -477,6 +478,23 @@ const BEAT = 46;
 export function SingPanel({project, plan, onChange, onSing, onStop, playing, position, ready, onPreviewNote, liveSing, onLiveSing, nextSyllable, onLiveRestart}: SingProps) {
   const song = project.song;
   const [selected, setSelected] = useState<number | null>(null);
+  // Score import (MusicXML, .mxl or MIDI): the file is read here, in the page; nothing is uploaded.
+  const scoreInput = useRef<HTMLInputElement>(null);
+  const [importNote, setImportNote] = useState('');
+  const importScore = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const score = await importScoreFile(file.name, new Uint8Array(await file.arrayBuffer()));
+      const {song: imported, messages} = songFromScore(score);
+      if (!imported.notes.length) throw new Error('no notes found in it');
+      onChange(imported);
+      setSelected(null);
+      const part = score.parts.find(p => p.id === score.part)?.name;
+      setImportNote([`Imported ${imported.notes.length} notes${part ? ` from “${part}”` : ''}${imported.lyrics ? '' : ', no lyrics (she hums)'}.`, ...messages].join(' '));
+    } catch (e) {
+      setImportNote(`Could not import ${file.name}: ${(e as Error).message}`);
+    }
+  };
   const notes = song.notes;
   const setNotes = (n: Note[]) => onChange({notes: n});
   const beats = Math.max(16, Math.ceil(Math.max(0, ...notes.map(n => n.start + n.length)) + 4));
@@ -628,6 +646,9 @@ export function SingPanel({project, plan, onChange, onSing, onStop, playing, pos
           {liveSing && <span className="hvl-note" aria-live="polite">Next: <b>{nextSyllable}</b> <button className="hvl-btn is-ghost" onClick={onLiveRestart} title="Back to the first syllable">↺</button></span>}
           <button className="hvl-btn is-ghost" onClick={() => { onChange({...SILLY_SONG, notes: SILLY_SONG.notes.map(n => ({...n}))}); setSelected(null); }}
             title="Load the novelty demo song">Silly song</button>
+          <button className="hvl-btn is-ghost" onClick={() => scoreInput.current?.click()} title="Import a melody and its lyrics from a MusicXML (.musicxml, .mxl) or MIDI file">Import score</button>
+          <input ref={scoreInput} type="file" accept=".musicxml,.xml,.mxl,.mid,.midi,.kar" style={{display: 'none'}} aria-label="Score file"
+            onChange={e => { void importScore(e.target.files?.[0]); e.target.value = ''; }} />
         </div>
         <div className="hvl-row">
           <label className="hvl-note" htmlFor="hvl-bpm">Tempo</label>
@@ -636,8 +657,9 @@ export function SingPanel({project, plan, onChange, onSing, onStop, playing, pos
           <button className="hvl-btn is-ghost" onClick={() => { setNotes([]); setSelected(null); }} title="Clear all notes">{Icon.trash}</button>
         </div>
       </div>
-      <input className="hvl-input" value={song.lyrics} maxLength={2000} aria-label="Lyrics" placeholder="Lyrics — use hy-phens to split syllables, a lone - to hold a vowel"
+      <input className="hvl-input" value={song.lyrics} maxLength={LIMITS.lyrics} aria-label="Lyrics" placeholder="Lyrics — use hy-phens to split syllables, a lone - to hold a vowel; English or 한국어"
         onChange={e => onChange({lyrics: e.target.value})} />
+      {importNote && <div className="hvl-note" role="status">{importNote}</div>}
       <div className="hvl-roll" onContextMenu={e => e.preventDefault()}
         onKeyDown={e => { if ((e.key === 'Delete' || e.key === 'Backspace') && selected !== null) { setNotes(notes.filter((_, i) => i !== selected)); setSelected(null); } }} tabIndex={0}
         ref={el => { if (el && !el.dataset.scrolled) { el.scrollTop = (HIGH - 74) * ROW; el.dataset.scrolled = '1'; } }}>

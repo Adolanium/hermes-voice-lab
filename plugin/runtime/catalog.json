@@ -1086,6 +1086,31 @@
    "example": "blue"
   },
   {
+   "symbol": "E",
+   "ipa": "e",
+   "example": "Spanish mesa"
+  },
+  {
+   "symbol": "O",
+   "ipa": "o",
+   "example": "Spanish como"
+  },
+  {
+   "symbol": "U",
+   "ipa": "u",
+   "example": "Korean 우"
+  },
+  {
+   "symbol": "EO",
+   "ipa": "ʌ̹",
+   "example": "Korean 어"
+  },
+  {
+   "symbol": "UU",
+   "ipa": "ɯ",
+   "example": "Korean 으"
+  },
+  {
    "symbol": "EY",
    "ipa": "eɪ",
    "example": "day"
@@ -1286,6 +1311,51 @@
    "example": "hat"
   },
   {
+   "symbol": "SC",
+   "ipa": "ɕ",
+   "example": "Mandarin 西"
+  },
+  {
+   "symbol": "ZC",
+   "ipa": "ʑ",
+   "example": "Polish ziemia"
+  },
+  {
+   "symbol": "CC",
+   "ipa": "tɕ",
+   "example": "Korean 자"
+  },
+  {
+   "symbol": "JC",
+   "ipa": "dʑ",
+   "example": "Japanese じ"
+  },
+  {
+   "symbol": "SR",
+   "ipa": "ʂ",
+   "example": "Mandarin 是"
+  },
+  {
+   "symbol": "ZR",
+   "ipa": "ʐ",
+   "example": "Polish żona"
+  },
+  {
+   "symbol": "CR",
+   "ipa": "tʂ",
+   "example": "Mandarin 知"
+  },
+  {
+   "symbol": "JR",
+   "ipa": "dʐ",
+   "example": "Polish dżem"
+  },
+  {
+   "symbol": "YW",
+   "ipa": "ɥ",
+   "example": "French huit"
+  },
+  {
    "symbol": "PJ",
    "ipa": "pʲ",
    "example": "Russian пять"
@@ -1462,10 +1532,10 @@
   }
  ],
  "limits": {
-  "notes": 512,
+  "notes": 2048,
   "text": 1000,
-  "lyrics": 2000,
-  "seconds": 120,
+  "lyrics": 8000,
+  "seconds": 360,
   "name": 120
  },
  "defaultProject": {

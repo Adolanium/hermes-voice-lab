@@ -7,6 +7,7 @@ import {planSong, planSpeech, planSustain, type Note, type SongStyle} from './pl
 import {SIGNATURE, VOWEL_PRESETS} from './presets';
 import type {Score} from './engine';
 import type {Lexicon} from './text';
+import type {ImportedScore} from './score-import';
 import {beatSong, newBeat, validateBeat, type Beat} from './beat';
 import {duetNotes, duetVoice, newDuet, validateDuet, type Duet} from './duet';
 
@@ -26,7 +27,8 @@ export interface Project {
   sustain: number;
 }
 
-export const LIMITS = {notes: 512, text: 1000, lyrics: 2000, seconds: 120, name: 120};
+/** A song may be six minutes long (it renders at about 18 times real time). */
+export const LIMITS = {notes: 2048, text: 1000, lyrics: 8000, seconds: 360, name: 120};
 
 /** Original demonstration material. */
 export const DEMO_PHRASE = 'Hello there! I shape every sound with my tongue, my lips and a little breath. Shall we sing?';
@@ -126,6 +128,30 @@ export function validateProject(input: unknown): Project {
     beat: validateBeat(p.beat),
     sustain: num(p.sustain ?? base.sustain, 0.2, 30, 'sustain'),
   };
+}
+
+/**
+ * An imported score (MusicXML or MIDI, see score-import.ts) as a song that fits the project's
+ * limits: the tempo is brought into range and a score that is too long is cut at the limit.
+ * `messages` says in plain words what was changed.
+ */
+export function songFromScore(score: ImportedScore): {song: Pick<Project['song'], 'bpm' | 'notes' | 'lyrics'>; messages: string[]} {
+  const messages = [...score.warnings];
+  let bpm = score.bpm;
+  let scale = 1;
+  // A tempo outside 30–240 is halved or doubled with the note lengths, so the song sounds the same.
+  while (bpm * scale > 240) scale /= 2;
+  while (bpm * scale < 30) scale *= 2;
+  bpm = Math.round(bpm * scale * 1000) / 1000;
+  const beats = (LIMITS.seconds * bpm) / 60;
+  let notes = score.notes.map(n => ({start: n.start * scale, length: Math.min(64, Math.max(0.0625, n.length * scale)), midi: n.midi}));
+  const kept = notes.filter(n => n.start + n.length <= Math.min(beats, 1024 + 64) && n.start <= 1024).slice(0, LIMITS.notes);
+  if (kept.length < notes.length) messages.push(`The score is longer than a song can be (${LIMITS.seconds / 60} minutes, ${LIMITS.notes} notes): the first ${kept.length} of ${notes.length} notes were imported.`);
+  notes = kept;
+  // One lyric token can cover several notes ("hel-lo"), so cut the words by counting syllables loosely.
+  let lyrics = score.lyrics;
+  if (lyrics.length > LIMITS.lyrics) lyrics = lyrics.slice(0, lyrics.lastIndexOf(' ', LIMITS.lyrics));
+  return {song: {bpm, notes, lyrics}, messages};
 }
 
 /** The duet's second singer (Sing mode), or null when there is none. */

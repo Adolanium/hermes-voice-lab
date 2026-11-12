@@ -3,6 +3,7 @@
  * letter-to-sound rule set, and direct ARPABET input.
  */
 import {PHONE_CODES} from './lexicon-codes.mjs';
+import {isHangul, koreanPhones} from './korean';
 import {isVowel, PALATALIZABLE, parsePhone, PHONEMES, type Phone} from './phonemes';
 
 export interface Lexicon {
@@ -69,7 +70,8 @@ export function tokenize(input: string): Token[] {
       return ` ${numberToWords(Number(whole))}${frac ? ` point ${frac.split('').map(d => ONES[Number(d)]).join(' ')}` : ''} `;
     });
   const tokens: Token[] = [];
-  const re = /([A-Za-z]+(?:'[A-Za-z]+)*)|([,;:—–-]+)|([.]+)|([?]+)|([!]+)/g;
+  // A word is a run of Latin letters or of Hangul blocks; each script has its own front end.
+  const re = /([A-Za-z]+(?:'[A-Za-z]+)*|[\uAC00-\uD7A3]+)|([,;:—–-]+)|([.]+)|([?]+)|([!]+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     if (m[1]) tokens.push({text: m[1].toLowerCase(), boundary: 'word'});
@@ -145,7 +147,8 @@ export function letterToSound(word: string): Phone[] {
 export interface Word {
   text: string;
   phones: Phone[];
-  source: 'dictionary' | 'rules' | 'phonemes';
+  /** Where the pronunciation came from: the English dictionary, the English fallback rules, phoneme input, or another language's front end. */
+  source: 'dictionary' | 'rules' | 'phonemes' | 'korean';
   boundary: Boundary;
 }
 
@@ -159,6 +162,7 @@ function trillWord(word: string): Phone[] | null {
 
 export function phonemize(text: string, lexicon: Lexicon): Word[] {
   return tokenize(text).map((t): Word => {
+    if (isHangul(t.text)) return {text: t.text, phones: koreanPhones(t.text), source: 'korean', boundary: t.boundary};
     const trill = trillWord(t.text);
     if (trill) return {text: t.text, phones: trill, source: 'rules', boundary: t.boundary};
     const known = lexicon.lookup(t.text);
@@ -195,15 +199,17 @@ export function reduceFunctionWords(words: Word[]): Word[] {
 const IPA: Array<[string, string, number?]> = [
   // Palatalized consonants: the letter plus ʲ (tʲ, nʲ, rʲ).
   ...PALATALIZABLE.flatMap((s): Array<[string, string]> => [[`${PHONEMES[s].ipa}ʲ`, `${s}J`], ...(s === 'G' ? [['ɡʲ', 'GJ'] as [string, string]] : [])]),
+  ['tɕ', 'CC'], ['dʑ', 'JC'], ['tʂ', 'CR'], ['dʐ', 'JR'],
   ['tʃ', 'CH'], ['dʒ', 'JH'], ['aɪ', 'AY'], ['aʊ', 'AW'], ['ɔɪ', 'OY'], ['eɪ', 'EY'], ['oʊ', 'OW'],
   ['pʼ', 'PE'], ['tʼ', 'TE'], ['kʼ', 'KE'],
-  ['i', 'IY'], ['ɪ', 'IH'], ['e', 'EY'], ['ɛ', 'EH'], ['æ', 'AE'], ['ɑ', 'AA'], ['a', 'AA'], ['ɒ', 'AA'], ['ɔ', 'AO'], ['o', 'OW'],
+  ['i', 'IY'], ['ɪ', 'IH'], ['e', 'E'], ['ɛ', 'EH'], ['æ', 'AE'], ['ɑ', 'AA'], ['a', 'AA'], ['ɒ', 'AA'], ['ɔ', 'AO'], ['o', 'O'], ['ɯ', 'UU'],
   ['ʊ', 'UH'], ['u', 'UW'], ['ʌ', 'AH'], ['ə', 'AH', 0], ['ɝ', 'ER'], ['ɜ', 'ER'], ['ɚ', 'ER', 0],
   ['p', 'P'], ['b', 'B'], ['t', 'T'], ['d', 'D'], ['k', 'K'], ['g', 'G'], ['ɡ', 'G'], ['f', 'F'], ['v', 'V'], ['θ', 'TH'], ['ð', 'DH'],
   ['s', 'S'], ['z', 'Z'], ['ʃ', 'SH'], ['ʒ', 'ZH'], ['h', 'HH'], ['m', 'M'], ['n', 'N'], ['ŋ', 'NG'], ['l', 'L'], ['ɹ', 'R'],
   ['r', 'RR'], ['ɾ', 'DX'], ['w', 'W'], ['j', 'Y'], ['ʔ', 'Q'], ['ʙ', 'BR'], ['ʀ', 'RU'], ['ʘ', 'CB'], ['ǀ', 'CD'], ['ǃ', 'CA'],
+  ['ɕ', 'SC'], ['ʑ', 'ZC'], ['ʂ', 'SR'], ['ʐ', 'ZR'], ['ɥ', 'YW'],
 ];
-const IPA_ONLY = /[ɪɛæɑɒɔʊʌəɝɜɚθðʃʒŋɹɾʔʙʀʘǀǃˈˌːɡʲ]/;
+const IPA_ONLY = /[ɪɛæɑɒɔʊʌəɝɜɚθðʃʒŋɹɾʔʙʀʘǀǃˈˌːɡʲɕʑʂʐɥɯʰʱ˭\u0303\u0324\u031a\u00e3\u00f5\u1ebd\u0129\u0169]/;
 
 /** True when phoneme input is IPA rather than ARPABET. */
 export function isIpa(text: string): boolean {
@@ -213,15 +219,18 @@ export function isIpa(text: string): boolean {
 /**
  * IPA input: words separated by spaces, ˈ and ˌ mark the stress of the next
  * vowel (a word without marks stresses its first full vowel; ə and ɚ are
- * unstressed), ː and syllable dots are ignored, and , . ? ! mark boundaries.
+ * unstressed), ː, tie bars and syllable dots are ignored, and , . ? ! mark boundaries.
+ * Marks after a sound are kept as flags on it: ʰ aspirated, ˭ unaspirated, a tilde above
+ * nasalized (ã, ɔ̃), ʱ or a diaeresis below breathy (bʱ, a̤), ̚ unreleased, ʲ palatalized.
  */
 export function parseIpaInput(text: string): {words: Word[]; errors: string[]} {
   const words: Word[] = [];
   const errors: string[] = [];
-  const clean = text.trim().replace(/^[/[]|[/\]]$/g, '').normalize('NFC');
+  // Decomposed, so a precomposed ã is a + tilde like ɔ̃ is.
+  const clean = text.trim().replace(/^[/[]|[/\]]$/g, '').normalize('NFD');
   for (const token of clean.split(/\s+/).filter(Boolean)) {
     const trail = token.match(/[,?!.]+$/)?.[0] ?? '';
-    const body = token.slice(0, token.length - trail.length).replace(/[.ː‿]/g, '');
+    const body = token.slice(0, token.length - trail.length).replace(/[.ː‿\u0361\u035c]/g, '');
     const phones: Phone[] = [];
     const marked = /[ˈˌ]/.test(body);
     let stress: number | null = null;
@@ -239,15 +248,28 @@ export function parseIpaInput(text: string): {words: Word[]; errors: string[]} {
         continue;
       }
       const [ipa, symbol, fixed] = hit;
+      let phone: Phone;
       if (isVowel(symbol)) {
         const s = fixed ?? (marked ? stress ?? 0 : firstFull ? 1 : 0);
         if (fixed === undefined) firstFull = false;
-        phones.push({symbol, stress: s});
+        phone = {symbol, stress: s};
         stress = null;
       } else {
-        phones.push({symbol, stress: 0});
+        phone = {symbol, stress: 0};
       }
       i += ipa.length;
+      // Marks that follow the sound.
+      for (; i < body.length; i++) {
+        const c = body[i];
+        if (c === 'ʰ') phone.aspirated = true;
+        else if (c === '˭') phone.aspirated = false;
+        else if (c === '\u0303') phone.nasalized = true;
+        else if (c === 'ʱ' || c === '\u0324') phone.breathy = true;
+        else if (c === '\u031a') phone.unreleased = true;
+        else if (c === 'ʲ' && PHONEMES[`${phone.symbol}J`]) phone.symbol = `${phone.symbol}J`;
+        else break;
+      }
+      phones.push(phone);
     }
     if (!phones.length) continue;
     const boundary: Boundary = trail.includes('?') ? 'question' : trail.includes('!') ? 'exclaim' : trail.includes('.') ? 'period' : trail.includes(',') ? 'comma' : 'word';

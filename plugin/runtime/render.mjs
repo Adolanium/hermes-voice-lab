@@ -303,6 +303,182 @@ function renderScore(engine2, score2, patch = {}, tail = 0.6) {
   return [left2, right2];
 }
 
+// src/core/korean.ts
+var INITIALS = [..."\u3131\u3132\u3134\u3137\u3138\u3139\u3141\u3142\u3143\u3145\u3146\u3147\u3148\u3149\u314A\u314B\u314C\u314D\u314E"];
+var MEDIALS = [..."\u314F\u3150\u3151\u3152\u3153\u3154\u3155\u3156\u3157\u3158\u3159\u315A\u315B\u315C\u315D\u315E\u315F\u3160\u3161\u3162\u3163"];
+var FINALS = ["", "\u3131", "\u3132", "\u3131\u3145", "\u3134", "\u3134\u3148", "\u3134\u314E", "\u3137", "\u3139", "\u3139\u3131", "\u3139\u3141", "\u3139\u3142", "\u3139\u3145", "\u3139\u314C", "\u3139\u314D", "\u3139\u314E", "\u3141", "\u3142", "\u3142\u3145", "\u3145", "\u3146", "\u3147", "\u3148", "\u314A", "\u314B", "\u314C", "\u314D", "\u314E"];
+var HANGUL = /[가-힣]/;
+var isHangul = (text) => HANGUL.test(text);
+function decompose(word) {
+  const out = [];
+  for (const ch of word) {
+    const code = ch.charCodeAt(0) - 44032;
+    if (code < 0 || code > 11171) continue;
+    out.push({ initial: INITIALS[Math.floor(code / 588)], vowel: MEDIALS[Math.floor(code / 28) % 21], final: [...FINALS[code % 28]], text: ch });
+  }
+  return out;
+}
+var ASPIRATE = { \u3131: "\u314B", \u3137: "\u314C", \u3142: "\u314D", \u3148: "\u314A" };
+var TENSE = { \u3131: "\u3132", \u3137: "\u3138", \u3142: "\u3143", \u3145: "\u3146", \u3148: "\u3149" };
+var CODA = {
+  \u3131: "\u3131",
+  \u3132: "\u3131",
+  \u314B: "\u3131",
+  \u3137: "\u3137",
+  \u314C: "\u3137",
+  \u3145: "\u3137",
+  \u3146: "\u3137",
+  \u3148: "\u3137",
+  \u314A: "\u3137",
+  \u314E: "\u3137",
+  \u3142: "\u3142",
+  \u314D: "\u3142",
+  \u3134: "\u3134",
+  \u3141: "\u3141",
+  \u3147: "\u3147",
+  \u3139: "\u3139"
+};
+var CLUSTER = { \u3131\u3145: "\u3131", \u3134\u3148: "\u3134", \u3134\u314E: "\u3134", \u3139\u3131: "\u3131", \u3139\u3141: "\u3141", \u3139\u3142: "\u3139", \u3139\u3145: "\u3139", \u3139\u314C: "\u3139", \u3139\u314D: "\u3142", \u3139\u314E: "\u3139", \u3142\u3145: "\u3142" };
+var NASAL_OF = { \u3131: "\u3147", \u3137: "\u3134", \u3142: "\u3141" };
+var Y_VOWELS = /* @__PURE__ */ new Set([..."\u3163\u3151\u3152\u3155\u3156\u315B\u3160"]);
+function soundRules(blocks) {
+  for (let k = 0; k < blocks.length; k++) {
+    const a = blocks[k];
+    const b = blocks[k + 1];
+    if (!b) {
+      a.final = a.final.length ? [CODA[CLUSTER[a.final.join("")] ?? a.final[0]]] : [];
+      continue;
+    }
+    if (!a.final.length) continue;
+    const last = a.final[a.final.length - 1];
+    if (b.initial === "\u3147") {
+      if (last === "\u3147") continue;
+      if (last === "\u314E") {
+        a.final.pop();
+        if (a.final.length) b.initial = a.final.pop();
+      } else {
+        a.final.pop();
+        b.initial = b.vowel === "\u3163" && last === "\u3137" ? "\u3148" : b.vowel === "\u3163" && last === "\u314C" ? "\u314A" : last;
+        if (a.final.length && b.initial === "\u3145" && CODA[a.final[0]] !== "\u3139" && CODA[a.final[0]] !== "\u3134") b.initial = "\u3146";
+      }
+      if (a.final.length) a.final = [CODA[a.final[0]]];
+      continue;
+    }
+    if (last === "\u314E") {
+      a.final.pop();
+      if (ASPIRATE[b.initial]) b.initial = ASPIRATE[b.initial];
+      else if (b.initial === "\u3145") b.initial = "\u3146";
+      else if (!a.final.length && b.initial === "\u3134") a.final = ["\u3134"];
+    }
+    let coda = a.final.length ? CODA[CLUSTER[a.final.join("")] ?? a.final[0]] : "";
+    const stop = coda === "\u3131" || coda === "\u3137" || coda === "\u3142";
+    if (stop && b.initial === "\u314E") {
+      const written = a.final.length === 1 && a.final[0] === "\u3148" ? "\u3148" : coda;
+      b.initial = coda === "\u3137" && b.vowel === "\u3163" ? "\u314A" : ASPIRATE[written] ?? ASPIRATE[coda];
+      coda = "";
+    } else if (stop && TENSE[b.initial]) {
+      b.initial = TENSE[b.initial];
+    } else if (stop && (b.initial === "\u3134" || b.initial === "\u3141")) {
+      coda = NASAL_OF[coda];
+    } else if (b.initial === "\u3139" && (stop || coda === "\u3141" || coda === "\u3147")) {
+      b.initial = "\u3134";
+      if (stop) coda = NASAL_OF[coda];
+    } else if (coda === "\u3134" && b.initial === "\u3139" || coda === "\u3139" && b.initial === "\u3134") {
+      coda = "\u3139";
+      b.initial = "\u3139";
+    }
+    a.final = coda ? [coda] : [];
+  }
+}
+var VOWELS = {
+  \u314F: ["AA"],
+  \u3150: ["EH"],
+  \u3151: ["Y", "AA"],
+  \u3152: ["Y", "EH"],
+  \u3153: ["EO"],
+  \u3154: ["E"],
+  \u3155: ["Y", "EO"],
+  \u3156: ["Y", "E"],
+  \u3157: ["O"],
+  \u3158: ["W", "AA"],
+  \u3159: ["W", "EH"],
+  \u315A: ["W", "E"],
+  \u315B: ["Y", "O"],
+  \u315C: ["U"],
+  \u315D: ["W", "EO"],
+  \u315E: ["W", "E"],
+  \u315F: ["W", "IY"],
+  \u3160: ["Y", "U"],
+  \u3161: ["UU"],
+  \u3162: ["IY"],
+  \u3163: ["IY"]
+};
+var PLACE = {
+  // [voiceless symbol, voiced symbol]
+  \u3131: ["K", "G"],
+  \u3132: ["K", "G"],
+  \u314B: ["K", "G"],
+  \u3137: ["T", "D"],
+  \u3138: ["T", "D"],
+  \u314C: ["T", "D"],
+  \u3142: ["P", "B"],
+  \u3143: ["P", "B"],
+  \u314D: ["P", "B"],
+  \u3148: ["CC", "JC"],
+  \u3149: ["CC", "JC"],
+  \u314A: ["CC", "JC"]
+};
+var VOT = { lax: 0.03, tense: 8e-3, aspirated: 0.095 };
+function initialPhones(letter, vowel2, voicedBefore, afterL) {
+  const c = (symbol, marks = {}) => ({ symbol, stress: 0, ...marks });
+  if (PLACE[letter]) {
+    const [voiceless, voiced] = PLACE[letter];
+    if ("\u3132\u3138\u3143\u3149".includes(letter)) return [c(voiceless, { aspirated: false, vot: VOT.tense })];
+    if ("\u314B\u314C\u314D\u314A".includes(letter)) return [c(voiceless, { aspirated: true, vot: VOT.aspirated })];
+    return voicedBefore ? [c(voiced)] : [c(voiceless, { aspirated: true, vot: VOT.lax })];
+  }
+  switch (letter) {
+    case "\u3145":
+    case "\u3146":
+      return [c(Y_VOWELS.has(vowel2) || vowel2 === "\u315F" ? "SC" : "S")];
+    case "\u3134":
+      return [c("N")];
+    case "\u3141":
+      return [c("M")];
+    case "\u314E":
+      return [c("HH")];
+    // ㄹ is a tap, and a long [l] after another ㄹ.
+    case "\u3139":
+      return [c(afterL ? "L" : "DX")];
+    default:
+      return [];
+  }
+}
+var FINAL_PHONE = {
+  \u3131: { symbol: "K", stress: 0, unreleased: true },
+  \u3137: { symbol: "T", stress: 0, unreleased: true },
+  \u3142: { symbol: "P", stress: 0, unreleased: true },
+  \u3134: { symbol: "N", stress: 0 },
+  \u3141: { symbol: "M", stress: 0 },
+  \u3147: { symbol: "NG", stress: 0 },
+  \u3139: { symbol: "L", stress: 0 }
+};
+function koreanSyllables(word) {
+  const blocks = decompose(word);
+  soundRules(blocks);
+  return blocks.map((b, k) => {
+    const before = blocks[k - 1];
+    const beforeCoda = before?.final[0];
+    const voicedBefore = !!before && (!beforeCoda || "\u3134\u3141\u3147\u3139".includes(beforeCoda));
+    const vowel2 = VOWELS[b.vowel].map((symbol, i, all) => ({ symbol, stress: i === all.length - 1 ? k === 0 ? 1 : 2 : 0 }));
+    const phones = [...initialPhones(b.initial, b.vowel, voicedBefore, beforeCoda === "\u3139"), ...vowel2, ...b.final.map((f) => ({ ...FINAL_PHONE[f] }))];
+    return { text: b.text, phones };
+  });
+}
+function koreanPhones(word) {
+  return koreanSyllables(word).flatMap((s) => s.phones);
+}
+
 // src/core/vowels.generated.json
 var vowels_generated_default = {
   IY: { params: { tongueX: 1, tongueY: 0.907, jaw: 0.246, lipOpen: 0.983, lipRound: 0, throat: 0.411 }, model: [424, 2617, 3020], target: [437, 2761, 3372] },
@@ -323,6 +499,7 @@ var vowels_generated_default = {
 var V = vowels_generated_default;
 var vowel = (s) => ({ ...V[s].params, rhotic: V[s].params.rhotic ?? 0 });
 var SCHWA = { tongueX: 0.5, tongueY: 0.32, jaw: 0.5, lipOpen: 0.62, lipRound: 0.12, throat: 0.4, rhotic: 0 };
+var PALATAL_BODY = { tongueX: 1, tongueY: 0.95 };
 var P = (symbol, ipa, manner, voiced, duration, target, example, offglide) => ({ symbol, ipa, manner, voiced, duration, target, example, offglide });
 var PHONEMES = Object.fromEntries([
   P("AA", "\u0251", "vowel", true, 150, vowel("AA"), "father"),
@@ -335,6 +512,15 @@ var PHONEMES = Object.fromEntries([
   P("IY", "i", "vowel", true, 130, vowel("IY"), "see"),
   P("UH", "\u028A", "vowel", true, 95, vowel("UH"), "book"),
   P("UW", "u", "vowel", true, 118, vowel("UW"), "blue"),
+  // Plain vowels English lacks. [e] is the nucleus of EY without its glide. The back vowels
+  // are further back and rounder than English's (shapes chosen with engine/src/bin/areas.rs,
+  // modeled F1/F2 in Hz): [o] 421/915, [u] 394/981, Korean 어 644/1078. The close back vowel
+  // with spread lips (Korean 으) comes out at 493/1446 only with the lips half rounded.
+  P("E", "e", "vowel", true, 125, vowel("EY"), "Spanish mesa"),
+  P("O", "o", "vowel", true, 125, { tongueX: 0, tongueY: 0.6, jaw: 0.5, lipOpen: 0.22, lipRound: 1, throat: 0.2, rhotic: 0 }, "Spanish como"),
+  P("U", "u", "vowel", true, 115, { tongueX: 0.07, tongueY: 0.81, jaw: 0.35, lipOpen: 0.2, lipRound: 1, throat: 0.49, rhotic: 0 }, "Korean \uC6B0"),
+  P("EO", "\u028C\u0339", "vowel", true, 125, { tongueX: 0, tongueY: 0.5, jaw: 0.6, lipOpen: 0.45, lipRound: 0.6, throat: 0, rhotic: 0 }, "Korean \uC5B4"),
+  P("UU", "\u026F", "vowel", true, 110, { tongueX: 0.1, tongueY: 0.95, jaw: 0.28, lipOpen: 0.3, lipRound: 0.35, throat: 0.6, rhotic: 0 }, "Korean \uC73C"),
   P("EY", "e\u026A", "diphthong", true, 160, vowel("EY"), "day", vowel("IY")),
   P("OW", "o\u028A", "diphthong", true, 148, vowel("OW"), "go", vowel("UH")),
   P("AY", "a\u026A", "diphthong", true, 190, vowel("AA"), "my", vowel("IH")),
@@ -377,9 +563,22 @@ var PHONEMES = Object.fromEntries([
   P("R", "\u0279", "approximant", true, 70, { rhotic: 1, lipRound: 0.7, tongueX: 0.15, tongueY: 0.85, lipOpen: 0.6 }, "red"),
   P("W", "w", "approximant", true, 65, { lipOpen: 0.15, lipRound: 1, tongueX: 0, tongueY: 0.9 }, "we"),
   P("Y", "j", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35 }, "yes"),
-  P("HH", "h", "aspirate", false, 65, { voicing: 0 }, "hat")
+  P("HH", "h", "aspirate", false, 65, { voicing: 0 }, "hat"),
+  // Sibilants made behind the alveolar ridge in two more ways (Korean, Mandarin, Polish,
+  // Russian): alveolo-palatal, with the tongue body up at the hard palate and the lips spread,
+  // and retroflex, further back with a larger space under the tongue. Each has its affricates.
+  P("SC", "\u0255", "fricative", false, 115, { tipPlace: 0.6, tipClose: 0.82, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Mandarin \u897F"),
+  P("ZC", "\u0291", "fricative", true, 90, { tipPlace: 0.6, tipClose: 0.815, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Polish ziemia"),
+  P("CC", "t\u0255", "affricate", false, 110, { tipPlace: 0.55, tipClose: 1, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Korean \uC790"),
+  P("JC", "d\u0291", "affricate", true, 105, { tipPlace: 0.55, tipClose: 1, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Japanese \u3058"),
+  P("SR", "\u0282", "fricative", false, 115, { tipPlace: 1, tipClose: 0.815, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Mandarin \u662F"),
+  P("ZR", "\u0290", "fricative", true, 90, { tipPlace: 1, tipClose: 0.815, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Polish \u017Cona"),
+  P("CR", "t\u0282", "affricate", false, 115, { tipPlace: 0.95, tipClose: 1, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Mandarin \u77E5"),
+  P("JR", "d\u0290", "affricate", true, 110, { tipPlace: 0.95, tipClose: 1, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Polish d\u017Cem"),
+  // The glide of French huit and Mandarin 月: the tongue of [j] with the lips of [w].
+  P("YW", "\u0265", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35, lipOpen: 0.15, lipRound: 1 }, "French huit")
 ].map((p) => [p.symbol, p]));
-var PALATAL = { tongueX: 1, tongueY: 0.95 };
+var PALATAL = PALATAL_BODY;
 var SOFT_EXAMPLES = {
   P: "Russian \u043F\u044F\u0442\u044C",
   B: "Russian \u0431\u0438\u0442\u044C",
@@ -407,15 +606,33 @@ var AFFRICATE_RELEASE = {
   TJ: { tipPlace: 0.5, tipClose: 0.83 },
   DJ: { tipPlace: 0.5, tipClose: 0.83 },
   CH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 },
-  JH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 }
+  JH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 },
+  CC: { tipPlace: 0.6, tipClose: 0.82 },
+  JC: { tipPlace: 0.6, tipClose: 0.815 },
+  CR: { tipPlace: 1, tipClose: 0.815 },
+  JR: { tipPlace: 1, tipClose: 0.815 }
 };
 var VOWEL_SYMBOLS = Object.values(PHONEMES).filter((p) => p.manner === "vowel" || p.manner === "diphthong").map((p) => p.symbol);
 var CONSONANT_SYMBOLS = Object.values(PHONEMES).filter((p) => !VOWEL_SYMBOLS.includes(p.symbol)).map((p) => p.symbol);
 var isVowel = (symbol) => VOWEL_SYMBOLS.includes(symbol);
+var MARK_KEYS = ["aspirated", "vot", "nasalized", "breathy", "unreleased"];
+function marksOf(p) {
+  const out = {};
+  for (const k of MARK_KEYS) if (p[k] !== void 0) out[k] = p[k];
+  return out;
+}
 function parsePhone(token) {
-  const m = /^([A-Z]{1,3})([012])?$/.exec(token.trim().toUpperCase());
+  const m = /^([A-Z]{1,3})([012])?([~^=%-]*)$/.exec(token.trim().toUpperCase());
   if (!m || !PHONEMES[m[1]]) return null;
-  return { symbol: m[1], stress: isVowel(m[1]) ? Number(m[2] ?? 1) : 0 };
+  const phone = { symbol: m[1], stress: isVowel(m[1]) ? Number(m[2] ?? 1) : 0 };
+  for (const c of m[3]) {
+    if (c === "^") phone.aspirated = true;
+    else if (c === "=") phone.aspirated = false;
+    else if (c === "~") phone.nasalized = true;
+    else if (c === "%") phone.breathy = true;
+    else if (c === "-") phone.unreleased = true;
+  }
+  return phone;
 }
 function vowelTarget(phone) {
   if (phone.symbol === "AH" && phone.stress === 0) return SCHWA;
@@ -425,9 +642,9 @@ function vowelTarget(phone) {
 var VOWEL_CALIBRATION = Object.entries(V).map(([symbol, row]) => ({ symbol, model: row.model, target: row.target }));
 
 // src/core/lexicon-codes.mjs
-var VOWELS = ["AA", "AE", "AH", "AO", "AW", "AY", "EH", "ER", "EY", "IH", "IY", "OW", "OY", "UH", "UW"];
+var VOWELS2 = ["AA", "AE", "AH", "AO", "AW", "AY", "EH", "ER", "EY", "IH", "IY", "OW", "OY", "UH", "UW"];
 var CONSONANTS = ["B", "CH", "D", "DH", "F", "G", "HH", "JH", "K", "L", "M", "N", "NG", "P", "R", "S", "SH", "T", "TH", "V", "W", "Y", "Z", "ZH"];
-var PHONE_CODES = [...VOWELS.flatMap((v) => [`${v}0`, `${v}1`, `${v}2`]), ...CONSONANTS];
+var PHONE_CODES = [...VOWELS2.flatMap((v) => [`${v}0`, `${v}1`, `${v}2`]), ...CONSONANTS];
 
 // src/core/text.ts
 function decodeLexicon(text) {
@@ -488,7 +705,7 @@ function tokenize(input) {
     return ` ${numberToWords(Number(whole))}${frac ? ` point ${frac.split("").map((d) => ONES[Number(d)]).join(" ")}` : ""} `;
   });
   const tokens = [];
-  const re = /([A-Za-z]+(?:'[A-Za-z]+)*)|([,;:—–-]+)|([.]+)|([?]+)|([!]+)/g;
+  const re = /([A-Za-z]+(?:'[A-Za-z]+)*|[\uAC00-\uD7A3]+)|([,;:—–-]+)|([.]+)|([?]+)|([!]+)/g;
   let m;
   while (m = re.exec(text)) {
     if (m[1]) tokens.push({ text: m[1].toLowerCase(), boundary: "word" });
@@ -632,6 +849,7 @@ function trillWord(word) {
 }
 function phonemize(text, lexicon2) {
   return tokenize(text).map((t) => {
+    if (isHangul(t.text)) return { text: t.text, phones: koreanPhones(t.text), source: "korean", boundary: t.boundary };
     const trill = trillWord(t.text);
     if (trill) return { text: t.text, phones: trill, source: "rules", boundary: t.boundary };
     const known = lexicon2.lookup(t.text);
@@ -698,6 +916,10 @@ function reduceFunctionWords(words) {
 var IPA = [
   // Palatalized consonants: the letter plus ʲ (tʲ, nʲ, rʲ).
   ...PALATALIZABLE.flatMap((s) => [[`${PHONEMES[s].ipa}\u02B2`, `${s}J`], ...s === "G" ? [["\u0261\u02B2", "GJ"]] : []]),
+  ["t\u0255", "CC"],
+  ["d\u0291", "JC"],
+  ["t\u0282", "CR"],
+  ["d\u0290", "JR"],
   ["t\u0283", "CH"],
   ["d\u0292", "JH"],
   ["a\u026A", "AY"],
@@ -710,14 +932,15 @@ var IPA = [
   ["k\u02BC", "KE"],
   ["i", "IY"],
   ["\u026A", "IH"],
-  ["e", "EY"],
+  ["e", "E"],
   ["\u025B", "EH"],
   ["\xE6", "AE"],
   ["\u0251", "AA"],
   ["a", "AA"],
   ["\u0252", "AA"],
   ["\u0254", "AO"],
-  ["o", "OW"],
+  ["o", "O"],
+  ["\u026F", "UU"],
   ["\u028A", "UH"],
   ["u", "UW"],
   ["\u028C", "AH"],
@@ -755,19 +978,24 @@ var IPA = [
   ["\u0280", "RU"],
   ["\u0298", "CB"],
   ["\u01C0", "CD"],
-  ["\u01C3", "CA"]
+  ["\u01C3", "CA"],
+  ["\u0255", "SC"],
+  ["\u0291", "ZC"],
+  ["\u0282", "SR"],
+  ["\u0290", "ZR"],
+  ["\u0265", "YW"]
 ];
-var IPA_ONLY = /[ɪɛæɑɒɔʊʌəɝɜɚθðʃʒŋɹɾʔʙʀʘǀǃˈˌːɡʲ]/;
+var IPA_ONLY = /[ɪɛæɑɒɔʊʌəɝɜɚθðʃʒŋɹɾʔʙʀʘǀǃˈˌːɡʲɕʑʂʐɥɯʰʱ˭\u0303\u0324\u031a\u00e3\u00f5\u1ebd\u0129\u0169]/;
 function isIpa(text) {
   return IPA_ONLY.test(text);
 }
 function parseIpaInput(text) {
   const words = [];
   const errors = [];
-  const clean = text.trim().replace(/^[/[]|[/\]]$/g, "").normalize("NFC");
+  const clean = text.trim().replace(/^[/[]|[/\]]$/g, "").normalize("NFD");
   for (const token of clean.split(/\s+/).filter(Boolean)) {
     const trail = token.match(/[,?!.]+$/)?.[0] ?? "";
-    const body = token.slice(0, token.length - trail.length).replace(/[.ː‿]/g, "");
+    const body = token.slice(0, token.length - trail.length).replace(/[.ː‿\u0361\u035c]/g, "");
     const phones = [];
     const marked = /[ˈˌ]/.test(body);
     let stress = null;
@@ -785,15 +1013,27 @@ function parseIpaInput(text) {
         continue;
       }
       const [ipa, symbol, fixed] = hit;
+      let phone;
       if (isVowel(symbol)) {
         const s = fixed ?? (marked ? stress ?? 0 : firstFull ? 1 : 0);
         if (fixed === void 0) firstFull = false;
-        phones.push({ symbol, stress: s });
+        phone = { symbol, stress: s };
         stress = null;
       } else {
-        phones.push({ symbol, stress: 0 });
+        phone = { symbol, stress: 0 };
       }
       i += ipa.length;
+      for (; i < body.length; i++) {
+        const c = body[i];
+        if (c === "\u02B0") phone.aspirated = true;
+        else if (c === "\u02ED") phone.aspirated = false;
+        else if (c === "\u0303") phone.nasalized = true;
+        else if (c === "\u02B1" || c === "\u0324") phone.breathy = true;
+        else if (c === "\u031A") phone.unreleased = true;
+        else if (c === "\u02B2" && PHONEMES[`${phone.symbol}J`]) phone.symbol = `${phone.symbol}J`;
+        else break;
+      }
+      phones.push(phone);
     }
     if (!phones.length) continue;
     const boundary = trail.includes("?") ? "question" : trail.includes("!") ? "exclaim" : trail.includes(".") ? "period" : trail.includes(",") ? "comma" : "word";
@@ -898,6 +1138,8 @@ function syllabify(phones) {
 }
 
 // src/core/planner.ts
+var NASAL_VOWEL = 0.6;
+var BREATHY = 0.6;
 function voiceDefaults(voice) {
   const all = { ...defaultPatch(), ...voice };
   return all;
@@ -979,7 +1221,20 @@ function articulate(segments, voice, withPreamble = true) {
     }
   });
   segments.forEach((s, i) => {
-    if (s.symbol === "SIL" || isVowel(s.symbol)) return;
+    if (s.symbol === "SIL") return;
+    if (isVowel(s.symbol)) {
+      const after = segments[i + 1];
+      if (s.nasalized) {
+        at(s.start - 0.02, "velum", NASAL_VOWEL, 14, i);
+        const obstruent = after && ["stop", "fricative", "affricate"].includes(PHONEMES[after.symbol]?.manner);
+        if (!(after && PHONEMES[after.symbol]?.target.velum)) at(obstruent ? s.end - 0.035 : s.end - 0.01, "velum", 0, obstruent ? 9 : 20, i);
+      }
+      if (s.breathy) {
+        at(s.start, "voicing", BREATHY, 15, i);
+        at(s.end - 0.01, "voicing", 1, 12, i);
+      }
+      return;
+    }
     const ph = PHONEMES[s.symbol];
     const t = ph.target;
     const dur = s.end - s.start;
@@ -1013,7 +1268,8 @@ function articulate(segments, voice, withPreamble = true) {
       if (!nextIsSame(param)) {
         const rest = param === "lipOpen" ? vowelLips.lipOpen ?? 0.6 : 0;
         const late = ph.manner === "click" && param === "dorsumClose" ? 0.03 : 0;
-        at(s.end - (param === "lipOpen" ? 4e-3 : 2e-3) + late, param, rest, late ? 12 : releaseTau, i);
+        const held = s.unreleased && complete ? !next || next.symbol === "SIL" ? 0.12 : isVowel(next.symbol) ? 0 : 0.03 : 0;
+        at(s.end - (param === "lipOpen" ? 4e-3 : 2e-3) + late + held, param, rest, held ? 25 : late ? 12 : releaseTau, i);
       }
     }
     if (t.glottal) {
@@ -1052,18 +1308,26 @@ function articulate(segments, voice, withPreamble = true) {
       const closing = ph.manner === "stop" || ph.manner === "affricate";
       at(phraseInitial ? onset : closing ? s.start : s.start - 0.02, "voicing", 0, 7, i);
       const afterS = prevSeg && prevSeg.word === s.word && prevSeg.symbol === "S";
-      const aspirated = ph.manner === "stop" && !ph.palatalized && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === "SIL" || ["R", "L", "W", "Y"].includes(next.symbol));
-      const vot = ph.manner === "stop" ? aspirated ? 0.055 : 0.015 : ph.manner === "affricate" ? 0.02 : 0;
+      const byRule = ph.manner === "stop" && !ph.palatalized && !afterS && next && (isVowel(next.symbol) ? next.stress > 0 : next.symbol === "SIL" || ["R", "L", "W", "Y"].includes(next.symbol));
+      const closure = ph.manner === "stop" || ph.manner === "affricate";
+      const aspirated = closure && s.aspirated !== void 0 ? s.aspirated : byRule;
+      const vot = closure && s.vot !== void 0 ? s.vot : ph.manner === "stop" ? aspirated ? 0.055 : 0.015 : ph.manner === "affricate" ? s.aspirated ? 0.06 : 0.02 : 0;
       const following = next && next.symbol !== "SIL" && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
       const final = !next || next.symbol === "SIL";
       if (final) at(s.end + 0.09, "voicing", 1, 20, i);
       else if (!following) at(s.end + (ph.manner === "fricative" ? 5e-3 : ph.manner === "aspirate" ? -0.02 : vot - 0.012), "voicing", 1, 8, i);
     } else if (phraseInitial && (ph.manner === "stop" || ph.manner === "affricate")) {
       at(onset, "voicing", 0.15, 10, i);
-      at(s.end - 6e-3, "voicing", 1, 6, i);
+      if (s.breathy) {
+        at(s.end - 0.015, "voicing", BREATHY, 8, i);
+        at(s.end + 0.1, "voicing", 1, 18, i);
+      } else at(s.end - 6e-3, "voicing", 1, 6, i);
     } else if (ph.manner === "fricative" || ph.manner === "stop" || ph.manner === "affricate") {
       at(s.start - 0.01, "voicing", ph.manner === "stop" ? 0.85 : 0.66, 10, i);
-      at(s.end, "voicing", 1, 10, i);
+      if (s.breathy && ph.manner !== "fricative") {
+        at(s.end - 0.015, "voicing", BREATHY, 8, i);
+        at(s.end + 0.1, "voicing", 1, 18, i);
+      } else at(s.end, "voicing", 1, 10, i);
     }
   });
   return resolveGestures(tagged, holds, withPreamble ? preamble(voice) : []);
@@ -1124,11 +1388,11 @@ function planWords(words, opts = {}) {
       const prev = pi > 0 ? w.phones[pi - 1] : wi > 0 && words[wi - 1].boundary === "word" ? words[wi - 1].phones.at(-1) : void 0;
       const crossWord = pi === w.phones.length - 1;
       const next = !crossWord ? w.phones[pi + 1] : w.boundary === "word" ? words[wi + 1]?.phones[0] : void 0;
-      if ((p.symbol === "T" || p.symbol === "D") && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
+      if (w.source !== "korean" && p.aspirated === void 0 && (p.symbol === "T" || p.symbol === "D") && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
         p = { symbol: "DX", stress: 0 };
       }
       const d = durationOf(p, w.phones[pi - 1], w.phones[pi + 1], final, rate2);
-      segments.push({ symbol: p.symbol, stress: p.stress, start: t, end: t + d, word: wi });
+      segments.push({ symbol: p.symbol, stress: p.stress, start: t, end: t + d, word: wi, ...marksOf(p) });
       t += d;
     });
     if (w.boundary !== "word") {
@@ -1220,10 +1484,16 @@ function lyricSyllables(lyrics, lexicon2) {
       out.push({ phones: [], text: "\u2013", word: wi });
       return;
     }
-    const bracket = /^\[([A-Za-z0-9+]+)\]([!?.,]*)$/.exec(part);
+    const bracket = /^\[([A-Za-z0-9+~^=%-]+)\]([!?.,]*)$/.exec(part);
     if (bracket) {
       const phones = bracket[1].split("+").map((t) => parsePhone(t.toUpperCase())).filter((p) => !!p);
       if (phones.length) out.push({ phones, text: phones.map((p) => PHONEMES[p.symbol].ipa).join(""), word: wi });
+      return;
+    }
+    if (isHangul(part)) {
+      const trail2 = part.match(/[!?.,]+$/)?.[0] ?? "";
+      const syl2 = koreanSyllables(part);
+      syl2.forEach((unit, k) => out.push({ phones: unit.phones, text: k === syl2.length - 1 ? unit.text + trail2 : unit.text, word: wi }));
       return;
     }
     const spelled = part.replace(/[^A-Za-z'-]/g, "").split("-").filter(Boolean);
@@ -1324,7 +1594,7 @@ function planSong(notes, lyrics, lexicon2, opts) {
       else if (segments.length) segments[segments.length - 1].end = t2;
       cues.push({ text: unit.text, start: t2, vowel: start, end: t2 + durs.reduce((a, b) => a + b, 0), midi: n.midi });
       unit.phones.forEach((p, i) => {
-        segments.push({ symbol: p.symbol, stress: 0, start: t2, end: t2 + durs[i], word: k });
+        segments.push({ symbol: p.symbol, stress: 0, start: t2, end: t2 + durs[i], word: k, ...marksOf(p) });
         t2 += durs[i];
       });
       cursor = t2;
@@ -1353,7 +1623,7 @@ function planSong(notes, lyrics, lexicon2, opts) {
     }
     onset.forEach((p, i) => {
       const d = onsetDur[i] * squeeze;
-      segments.push({ symbol: p.symbol, stress: 0, start: t, end: t + d, word: k });
+      segments.push({ symbol: p.symbol, stress: 0, start: t, end: t + d, word: k, ...marksOf(p) });
       t += d;
     });
     const breath = unit && /[,.!?;:]$/.test(unit.text) && nextStart - end < BREATH && Math.min(end, nextStart) - start > 0.3;
@@ -1362,11 +1632,11 @@ function planSong(notes, lyrics, lexicon2, opts) {
     const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.45);
     const vowelEnd = stop - codaTotal;
     if (unit) cues.push({ text: unit.text, start: onset.length ? segments[segments.length - onset.length].start : t, vowel: t, end: stop, midi: n.midi });
-    segments.push({ symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text });
+    segments.push({ symbol: nucleus.symbol, stress: Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text, ...marksOf(nucleus) });
     let c = vowelEnd;
     coda.forEach((p, i) => {
       const d = codaTotal * (codaDur[i] / Math.max(1e-3, codaDur.reduce((a, b) => a + b, 0)));
-      segments.push({ symbol: p.symbol, stress: 0, start: c, end: c + d, word: k });
+      segments.push({ symbol: p.symbol, stress: 0, start: c, end: c + d, word: k, ...marksOf(p) });
       c += d;
     });
     cursor = c;
@@ -1556,7 +1826,7 @@ function validateDuet(input, validateNotes) {
 }
 
 // src/core/project.ts
-var LIMITS = { notes: 512, text: 1e3, lyrics: 2e3, seconds: 120, name: 120 };
+var LIMITS = { notes: 2048, text: 1e3, lyrics: 8e3, seconds: 360, name: 120 };
 var DEMO_PHRASE = "Hello there! I shape every sound with my tongue, my lips and a little breath. Shall we sing?";
 var DEMO_LYRICS = "Ev-ery qui-et sig-nal finds a way to sing, o-pen up the morn-ing light";
 var DEMO_NOTES = [
@@ -1696,6 +1966,22 @@ function validateProject(input) {
     sustain: num(p.sustain ?? base.sustain, 0.2, 30, "sustain")
   };
 }
+function songFromScore(score2) {
+  const messages = [...score2.warnings];
+  let bpm = score2.bpm;
+  let scale = 1;
+  while (bpm * scale > 240) scale /= 2;
+  while (bpm * scale < 30) scale *= 2;
+  bpm = Math.round(bpm * scale * 1e3) / 1e3;
+  const beats = LIMITS.seconds * bpm / 60;
+  let notes = score2.notes.map((n) => ({ start: n.start * scale, length: Math.min(64, Math.max(0.0625, n.length * scale)), midi: n.midi }));
+  const kept = notes.filter((n) => n.start + n.length <= Math.min(beats, 1024 + 64) && n.start <= 1024).slice(0, LIMITS.notes);
+  if (kept.length < notes.length) messages.push(`The score is longer than a song can be (${LIMITS.seconds / 60} minutes, ${LIMITS.notes} notes): the first ${kept.length} of ${notes.length} notes were imported.`);
+  notes = kept;
+  let lyrics = score2.lyrics;
+  if (lyrics.length > LIMITS.lyrics) lyrics = lyrics.slice(0, lyrics.lastIndexOf(" ", LIMITS.lyrics));
+  return { song: { bpm, notes, lyrics }, messages };
+}
 function duetScore(project2, lexicon2) {
   const duet = project2.song.duet;
   const notes = duetNotes(project2.song.notes, duet);
@@ -1719,6 +2005,854 @@ function projectScore(project2, lexicon2, mode2 = project2.mode) {
     return { score: plan.score, warnings: plan.warnings };
   }
   return { score: planSustain(project2.shape, project2.voice, project2.sustain), warnings: [] };
+}
+
+// src/core/score-import.ts
+var MAX_BYTES = 20 * 1024 * 1024;
+var MAX_NOTES = 2e4;
+var MAX_RAW = 2e5;
+var MAX_MEASURES = 5e4;
+var MAX_ELEMENTS = 3e6;
+var MAX_REPEAT_TIMES = 32;
+var MAX_ZIP_ENTRIES = 1e4;
+var MIN_LEN = 0.0625;
+var MAX_LEN = 64;
+var GRID = 960;
+var LOW = 36;
+var HIGH = 96;
+var MAX_DURATION = 4096;
+function cleanSyllable(raw) {
+  const hangul = raw.normalize("NFC").match(/[\uAC00-\uD7A3]+/)?.[0];
+  if (hangul) return { text: hangul, trail: /[!?.,]+$/.exec(raw.trim())?.[0] ?? "" };
+  const plain = raw.normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[‘’ʼ]/g, "'");
+  const word = plain.split(/[\s_]+/).find((w) => /[A-Za-z]/.test(w));
+  if (!word) return null;
+  return { text: word.replace(/[^A-Za-z']/g, ""), trail: /[!?.,]+$/.exec(word)?.[0] ?? "" };
+}
+function buildLyrics(evs, warnings2) {
+  if (!evs.some((e) => e.lyric)) {
+    if (evs.length) warnings2.push("This part has no lyrics; it will be hummed.");
+    return "";
+  }
+  const tokens = [];
+  let word = null;
+  let inWord = false;
+  let sung = false;
+  let split = 0;
+  const flush = () => {
+    if (word) tokens.push(word.map((l) => l.text).join("-") + word[word.length - 1].trail);
+    word = null;
+  };
+  for (const e of evs) {
+    const l = e.lyric;
+    if (!l) {
+      flush();
+      tokens.push(sung ? "-" : "la");
+      continue;
+    }
+    const continues = inWord && (l.kind === "middle" || l.kind === "end");
+    if (continues && word) word.push(l);
+    else {
+      if (continues) split++;
+      flush();
+      word = [l];
+    }
+    inWord = l.kind === "begin" || l.kind === "middle";
+    sung = true;
+  }
+  flush();
+  if (split) warnings2.push(`${split} word${split === 1 ? " has" : "s have"} a melisma inside and ${split === 1 ? "was" : "were"} split there.`);
+  return tokens.join(" ");
+}
+function finish(input, bpm, parts, part, warnings2) {
+  const round = (x) => Math.round(x * GRID) / GRID;
+  let bad = 0;
+  const sorted = [];
+  for (const e of input) {
+    if (Number.isFinite(e.start) && Number.isFinite(e.end) && Number.isFinite(e.midi) && e.start >= 0 && e.midi >= 0 && e.midi <= 127) {
+      sorted.push({ ...e, start: round(e.start), midi: Math.round(e.midi) });
+    } else bad++;
+  }
+  if (bad) warnings2.push(`${bad} malformed note${bad === 1 ? " was" : "s were"} skipped.`);
+  sorted.sort((a, b) => a.start - b.start || b.midi - a.midi);
+  const line = [];
+  let dropped = 0;
+  for (const e of sorted) {
+    let last = line[line.length - 1];
+    if (last && e.start === last.start) {
+      last.lyric ??= e.lyric;
+      dropped++;
+      continue;
+    }
+    while (last && e.start - last.start < MIN_LEN) {
+      line.pop();
+      dropped++;
+      e.lyric ??= last.lyric;
+      last = line[line.length - 1];
+    }
+    if (last && last.end > e.start) last.end = e.start;
+    line.push(e);
+  }
+  if (dropped) warnings2.push(`${dropped} overlapping note${dropped === 1 ? " was" : "s were"} dropped to keep one note at a time.`);
+  if (line.length > MAX_NOTES) {
+    warnings2.push(`Only the first ${MAX_NOTES} notes were imported.`);
+    line.length = MAX_NOTES;
+  }
+  if (line.length) {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const e of line) {
+      lo = Math.min(lo, e.midi);
+      hi = Math.max(hi, e.midi);
+    }
+    if (lo < LOW || hi > HIGH) {
+      const k = lo < LOW ? 12 * Math.ceil((LOW - lo) / 12) : -12 * Math.ceil((hi - HIGH) / 12);
+      if (lo + k >= LOW && hi + k <= HIGH) {
+        for (const e of line) e.midi += k;
+        warnings2.push(`The melody was transposed ${Math.abs(k) / 12} octave${Math.abs(k) === 12 ? "" : "s"} ${k > 0 ? "up" : "down"} to fit the singer's range.`);
+      } else {
+        let moved = 0;
+        for (const e of line) {
+          const m = e.midi < LOW ? e.midi + 12 * Math.ceil((LOW - e.midi) / 12) : e.midi > HIGH ? e.midi - 12 * Math.ceil((e.midi - HIGH) / 12) : e.midi;
+          if (m !== e.midi) moved++;
+          e.midi = m;
+        }
+        warnings2.push(`${moved} note${moved === 1 ? "" : "s"} outside the singer's range ${moved === 1 ? "was" : "were"} moved by octaves into it.`);
+      }
+    }
+    if (line[0].start > 4) {
+      const shift = Math.floor(line[0].start);
+      for (const e of line) {
+        e.start = round(e.start - shift);
+        e.end -= shift;
+      }
+      warnings2.push(`${shift} beats of silence before the first note were removed.`);
+    }
+  }
+  const notes = line.map((e) => ({ start: e.start, length: Math.min(MAX_LEN, Math.max(MIN_LEN, round(e.end - e.start))), midi: e.midi }));
+  return { bpm, notes, lyrics: buildLyrics(line, warnings2), parts, part, warnings: warnings2 };
+}
+var ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\xA0" };
+function decodeEntities(s) {
+  if (!s.includes("&")) return s;
+  return s.replace(/&(#x[0-9a-fA-F]{1,6}|#[0-9]{1,7}|[A-Za-z]{2,8});/g, (all, body) => {
+    if (body[0] !== "#") return ENTITIES[body] ?? all;
+    const code = body[1] === "x" ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+    return code > 0 && code <= 1114111 && !(code >= 55296 && code <= 57343) ? String.fromCodePoint(code) : "";
+  });
+}
+function parseXml(src) {
+  const root = { name: "#document", attrs: "", kids: [], text: "" };
+  const stack = [root];
+  const n = src.length;
+  let i = 0;
+  let count = 0;
+  const local = (name) => name.slice(name.lastIndexOf(":") + 1);
+  while (i < n) {
+    const lt = src.indexOf("<", i);
+    const top = stack[stack.length - 1];
+    if (lt < 0) break;
+    if (lt > i && !top.kids.length) top.text += src.slice(i, lt);
+    if (src.startsWith("<!--", lt)) {
+      const e = src.indexOf("-->", lt + 4);
+      i = e < 0 ? n : e + 3;
+    } else if (src.startsWith("<![CDATA[", lt)) {
+      const e = src.indexOf("]]>", lt + 9);
+      top.text += src.slice(lt + 9, e < 0 ? n : e).replace(/&/g, "&amp;");
+      i = e < 0 ? n : e + 3;
+    } else if (src.startsWith("<?", lt)) {
+      const e = src.indexOf("?>", lt + 2);
+      i = e < 0 ? n : e + 2;
+    } else if (src.startsWith("<!", lt)) {
+      let e = lt + 2;
+      let depth = 0;
+      for (; e < n; e++) {
+        const c = src.charCodeAt(e);
+        if (c === 91) depth++;
+        else if (c === 93) depth--;
+        else if (c === 62 && depth <= 0) break;
+      }
+      i = e + 1;
+    } else if (src.charCodeAt(lt + 1) === 47) {
+      const e = src.indexOf(">", lt);
+      const name = local(src.slice(lt + 2, e < 0 ? n : e).trim());
+      for (let k = stack.length - 1; k > 0; k--) {
+        if (stack[k].name === name) {
+          stack.length = k;
+          break;
+        }
+      }
+      i = e < 0 ? n : e + 1;
+    } else {
+      let e = lt + 1;
+      let quote = 0;
+      for (; e < n; e++) {
+        const c = src.charCodeAt(e);
+        if (quote) {
+          if (c === quote) quote = 0;
+        } else if (c === 34 || c === 39) quote = c;
+        else if (c === 62) break;
+      }
+      const body = src.slice(lt + 1, e);
+      i = e + 1;
+      const selfClosing = body.endsWith("/");
+      const m = /^([^\s/]+)/.exec(body);
+      if (!m) continue;
+      if (++count > MAX_ELEMENTS) throw new Error("The score is too large to import (too many XML elements).");
+      const el = { name: local(m[1]), attrs: body.slice(m[1].length, selfClosing ? -1 : void 0), kids: [], text: "" };
+      top.kids.push(el);
+      if (!selfClosing) stack.push(el);
+    }
+  }
+  return root;
+}
+var kid = (el, name) => el?.kids.find((k) => k.name === name);
+var kidsOf = (el, name) => el ? el.kids.filter((k) => k.name === name) : [];
+var textOf = (el) => el ? decodeEntities(el.text).trim() : "";
+var ATTR_CACHE = /* @__PURE__ */ new Map();
+function attr(el, name) {
+  if (!el || !el.attrs) return void 0;
+  let re = ATTR_CACHE.get(name);
+  if (!re) ATTR_CACHE.set(name, re = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`));
+  const m = re.exec(el.attrs);
+  return m ? decodeEntities(m[1] ?? m[2]) : void 0;
+}
+function walk(el, visit) {
+  const stack = [el];
+  while (stack.length) {
+    const e = stack.pop();
+    visit(e);
+    for (let k = e.kids.length - 1; k >= 0; k--) stack.push(e.kids[k]);
+  }
+}
+function num2(s) {
+  if (s === void 0) return NaN;
+  const t = s.trim();
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t)) return NaN;
+  const v = Number(t);
+  return Number.isFinite(v) ? v : NaN;
+}
+var STEPS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+var BEAT_UNITS = { long: 16, breve: 8, whole: 4, half: 2, quarter: 1, eighth: 0.5, "16th": 0.25, "32nd": 0.125, "64th": 0.0625 };
+var isSounded = (note) => !!kid(note, "pitch") && !kid(note, "grace") && !kid(note, "cue");
+function verseOf(lyric, index) {
+  const v = parseInt(attr(lyric, "number") ?? "", 10);
+  return Number.isFinite(v) ? v : index + 1;
+}
+function lyricOf(note, verse) {
+  const lyrics = kidsOf(note, "lyric");
+  for (let k = 0; k < lyrics.length; k++) {
+    if (verseOf(lyrics[k], k) !== verse) continue;
+    const clean = cleanSyllable(textOf(kid(lyrics[k], "text")));
+    if (!clean) continue;
+    const syllabic = textOf(kid(lyrics[k], "syllabic"));
+    const kind = syllabic === "begin" || syllabic === "middle" || syllabic === "end" ? syllabic : "single";
+    return { ...clean, kind };
+  }
+  return void 0;
+}
+function surveyPart(part) {
+  const measures = kidsOf(part, "measure");
+  let notes = 0;
+  let verse = Infinity;
+  for (const m of measures) {
+    for (const note of m.kids) {
+      if (note.name !== "note" || !isSounded(note)) continue;
+      notes++;
+      const lyrics = kidsOf(note, "lyric");
+      for (let k = 0; k < lyrics.length; k++) {
+        if (cleanSyllable(textOf(kid(lyrics[k], "text")))) verse = Math.min(verse, verseOf(lyrics[k], k));
+      }
+    }
+  }
+  return { measures, notes, verse };
+}
+function marksOf2(measure2) {
+  const marks = { forward: false, back: 0, endingStart: null, endingStop: false };
+  for (const barline of kidsOf(measure2, "barline")) {
+    const repeat = kid(barline, "repeat");
+    const direction = attr(repeat, "direction");
+    if (direction === "forward") marks.forward = true;
+    if (direction === "backward") {
+      const times = parseInt(attr(repeat, "times") ?? "", 10);
+      marks.back = Number.isFinite(times) && times >= 1 ? Math.min(times, MAX_REPEAT_TIMES) : 2;
+    }
+    for (const ending of kidsOf(barline, "ending")) {
+      const type = attr(ending, "type");
+      if (type === "start") {
+        const numbers = (attr(ending, "number") ?? "").split(/[,\s]+/).map((s) => parseInt(s, 10)).filter((v) => Number.isFinite(v) && v >= 1 && v <= MAX_REPEAT_TIMES);
+        marks.endingStart = numbers.length ? numbers : [1];
+      } else if (type === "stop" || type === "discontinue") marks.endingStop = true;
+    }
+  }
+  return marks;
+}
+function unroll(marks) {
+  const n = marks.length;
+  const ending = [];
+  let open = null;
+  for (const m of marks) {
+    if (m.endingStart) open = m.endingStart;
+    ending.push(open);
+    if (m.endingStop) open = null;
+  }
+  const groupMax = new Array(n).fill(0);
+  for (let i2 = 0; i2 < n; ) {
+    if (!ending[i2]) {
+      i2++;
+      continue;
+    }
+    let j = i2;
+    let max = 0;
+    for (; j < n && ending[j]; j++) max = Math.max(max, ...ending[j]);
+    for (let k = i2; k < j; k++) groupMax[k] = max;
+    i2 = j;
+  }
+  const order = [];
+  let i = 0;
+  let start = 0;
+  let pass = 1;
+  while (i < n) {
+    if (order.length >= MAX_MEASURES) return { order, capped: true };
+    const m = marks[i];
+    if (m.forward && i !== start) {
+      start = i;
+      pass = 1;
+    }
+    const e = ending[i];
+    const leavesEndings = !!e && (i + 1 >= n || !ending[i + 1]);
+    if (e && !e.includes(pass)) {
+      if (leavesEndings) {
+        start = i + 1;
+        pass = 1;
+      }
+      i++;
+      continue;
+    }
+    order.push(i);
+    if (m.back) {
+      if (pass < (e ? Math.max(groupMax[i], m.back) : m.back)) {
+        pass++;
+        i = start;
+        continue;
+      }
+      if (!e) {
+        start = i + 1;
+        pass = 1;
+      }
+    }
+    if (leavesEndings) {
+      start = i + 1;
+      pass = 1;
+    }
+    i++;
+  }
+  return { order, capped: false };
+}
+function temposOf(root) {
+  const out = [];
+  const add = (bpm) => {
+    if (bpm >= 5 && bpm <= 1e3) out.push(bpm);
+  };
+  walk(root, (e) => {
+    if (e.name === "sound") add(num2(attr(e, "tempo")));
+    else if (e.name === "metronome") {
+      const perMinute = /\d+(\.\d+)?/.exec(textOf(kid(e, "per-minute")))?.[0];
+      if (!perMinute) return;
+      const unit = BEAT_UNITS[textOf(kid(e, "beat-unit"))] ?? 1;
+      let dots = 0;
+      for (const k of e.kids) {
+        if (k.name === "per-minute") break;
+        if (k.name === "beat-unit-dot") dots++;
+      }
+      add(Number(perMinute) * unit * (2 - Math.pow(0.5, Math.min(dots, 4))));
+    }
+  });
+  return out;
+}
+function partsOfTimewise(root) {
+  const parts = /* @__PURE__ */ new Map();
+  for (const measure2 of kidsOf(root, "measure")) {
+    for (const p of kidsOf(measure2, "part")) {
+      const id = attr(p, "id") ?? "";
+      let part = parts.get(id);
+      if (!part) parts.set(id, part = { name: "part", attrs: p.attrs, kids: [], text: "" });
+      part.kids.push({ name: "measure", attrs: measure2.attrs, kids: p.kids, text: "" });
+    }
+  }
+  return [...parts.values()];
+}
+function playPart(measures, verse, warnings2) {
+  const divisionsAt = [];
+  let divisions = 1;
+  let jumps = false;
+  for (const m of measures) {
+    divisionsAt.push(divisions);
+    for (const k of m.kids) {
+      if (k.name === "attributes") {
+        const d = num2(textOf(kid(k, "divisions")));
+        if (d > 0) divisions = d;
+      } else if (k.name === "direction" || k.name === "sound") {
+        walk(k, (e) => {
+          if (e.name === "segno" || e.name === "coda" || e.name === "sound" && /(?:^|\s)(dacapo|dalsegno|tocoda|fine|segno|coda)\s*=/.test(e.attrs)) jumps = true;
+        });
+      }
+    }
+  }
+  if (jumps) warnings2.push("D.C., D.S., segno and coda jumps are not followed; the score is read straight through.");
+  const { order, capped } = unroll(measures.map(marksOf2));
+  if (capped) warnings2.push(`Repeats were cut off after ${MAX_MEASURES} measures.`);
+  const out = [];
+  let skipped = 0;
+  let measureStart = 0;
+  const duration = (el, div) => {
+    const d = num2(textOf(kid(el, "duration"))) / div;
+    return d >= 0 && d <= MAX_DURATION ? d : NaN;
+  };
+  play: for (const index of order) {
+    let div = divisionsAt[index];
+    let pos = 0;
+    let reach = 0;
+    let lastStart = 0;
+    for (const k of measures[index].kids) {
+      if (k.name === "attributes") {
+        const d = num2(textOf(kid(k, "divisions")));
+        if (d > 0) div = d;
+      } else if (k.name === "backup") {
+        const d = duration(k, div);
+        if (d >= 0) pos = Math.max(0, pos - d);
+      } else if (k.name === "forward") {
+        const d = duration(k, div);
+        if (d >= 0) pos += d;
+        reach = Math.max(reach, pos);
+      } else if (k.name === "note") {
+        if (kid(k, "grace")) continue;
+        const d = duration(k, div);
+        if (Number.isNaN(d)) {
+          skipped++;
+          continue;
+        }
+        const chord = !!kid(k, "chord");
+        const start = chord ? lastStart : pos;
+        if (!chord) {
+          lastStart = pos;
+          pos += d;
+          reach = Math.max(reach, pos);
+        }
+        const pitch = kid(k, "pitch");
+        if (!pitch || kid(k, "rest") || kid(k, "cue")) continue;
+        const step = STEPS[textOf(kid(pitch, "step")).toUpperCase()];
+        const octave = num2(textOf(kid(pitch, "octave")));
+        const alter = kid(pitch, "alter") ? num2(textOf(kid(pitch, "alter"))) : 0;
+        const midi = 12 * (octave + 1) + step + Math.round(Number.isNaN(alter) ? 0 : alter);
+        if (!Number.isInteger(midi) || midi < 0 || midi > 127 || d === 0) {
+          skipped++;
+          continue;
+        }
+        let ties = kidsOf(k, "tie").map((t) => attr(t, "type"));
+        if (!ties.length) ties = kidsOf(kid(k, "notations"), "tied").map((t) => attr(t, "type"));
+        out.push({
+          start: measureStart + start,
+          end: measureStart + start + d,
+          midi,
+          lyric: lyricOf(k, verse),
+          voice: textOf(kid(k, "voice")) || "1",
+          chord,
+          tieStart: ties.includes("start") || ties.includes("continue"),
+          tieStop: ties.includes("stop") || ties.includes("continue")
+        });
+        if (out.length >= MAX_RAW) {
+          warnings2.push(`Only the first ${MAX_RAW} notes of the part were read.`);
+          break play;
+        }
+      }
+    }
+    measureStart += reach;
+  }
+  if (skipped) warnings2.push(`${skipped} malformed note${skipped === 1 ? " was" : "s were"} skipped.`);
+  return out;
+}
+function reduceVoice(raw, warnings2) {
+  const voices = /* @__PURE__ */ new Map();
+  for (const n of raw) {
+    let v = voices.get(n.voice);
+    if (!v) voices.set(n.voice, v = { notes: 0, lyrics: 0 });
+    v.notes++;
+    if (n.lyric) v.lyrics++;
+  }
+  let voice = "";
+  let best = { notes: -1, lyrics: -1 };
+  for (const [name, v] of voices) {
+    if (v.lyrics > best.lyrics || v.lyrics === best.lyrics && v.notes > best.notes) {
+      voice = name;
+      best = v;
+    }
+  }
+  if (voices.size > 1) warnings2.push(`The part has ${voices.size} voices; voice ${voice} was kept and the rest dropped.`);
+  const single = [];
+  let chords = 0;
+  for (const n of raw) {
+    if (n.voice !== voice) continue;
+    const head = single[single.length - 1];
+    if (n.chord && head && head.start === n.start) {
+      if (!chords++) warnings2.push("Chords were reduced to their highest note.");
+      if (n.midi > head.midi) single[single.length - 1] = { ...n, lyric: head.lyric ?? n.lyric, chord: false };
+      else head.lyric ??= n.lyric;
+    } else single.push({ ...n, chord: false });
+  }
+  single.sort((a, b) => a.start - b.start);
+  const out = [];
+  const tied = /* @__PURE__ */ new Map();
+  for (const n of single) {
+    const from = tied.get(n.midi);
+    if (n.tieStop && from && Math.abs(n.start - from.end) < 0.01) {
+      from.end = n.end;
+      if (!n.tieStart) tied.delete(n.midi);
+      continue;
+    }
+    out.push(n);
+    if (n.tieStart) tied.set(n.midi, n);
+    else tied.delete(n.midi);
+  }
+  return out;
+}
+function importMusicXml(xml, opts = {}) {
+  if (typeof xml !== "string") throw new Error("MusicXML import needs the file as text.");
+  if (xml.length > MAX_BYTES) throw new Error("The score is too large to import (over 20 MB).");
+  if (!/<(?:[\w.-]+:)?score-(?:partwise|timewise)[\s>/]/.test(xml)) {
+    throw new Error("This is not a MusicXML score (no <score-partwise> element).");
+  }
+  let root;
+  walk(parseXml(xml), (e) => {
+    if (!root && (e.name === "score-partwise" || e.name === "score-timewise")) root = e;
+  });
+  if (!root) throw new Error("This is not a MusicXML score (no <score-partwise> element).");
+  const warnings2 = [];
+  const names = /* @__PURE__ */ new Map();
+  walk(kid(root, "part-list") ?? { name: "", attrs: "", kids: [], text: "" }, (e) => {
+    if (e.name === "score-part") names.set(attr(e, "id") ?? "", textOf(kid(e, "part-name")));
+  });
+  const partEls = root.name === "score-timewise" ? partsOfTimewise(root) : kidsOf(root, "part");
+  const surveyed = partEls.map((el, k) => {
+    const id = attr(el, "id") ?? `P${k + 1}`;
+    return { id, name: names.get(id) || id, ...surveyPart(el) };
+  });
+  const parts = surveyed.map((p) => ({ id: p.id, name: p.name, notes: p.notes }));
+  const tempos = temposOf(root);
+  const bpm = tempos.length ? Math.round(tempos[0] * 1e3) / 1e3 : 120;
+  if (tempos.some((t) => Math.abs(t - tempos[0]) > 0.01)) warnings2.push(`The tempo changes during the score; the first tempo (${bpm} bpm) is used throughout.`);
+  if (!surveyed.length) {
+    warnings2.push("The score has no parts.");
+    return { bpm, notes: [], lyrics: "", parts, part: "", warnings: warnings2 };
+  }
+  let chosen = opts.part !== void 0 ? surveyed.find((p) => p.id === opts.part) : void 0;
+  if (opts.part !== void 0 && !chosen) warnings2.push(`The score has no part "${opts.part}"; another was chosen.`);
+  chosen ??= surveyed.find((p) => Number.isFinite(p.verse) && p.notes > 0) ?? surveyed[0];
+  const line = reduceVoice(playPart(chosen.measures, chosen.verse, warnings2), warnings2);
+  return finish(line, bpm, parts, chosen.id, warnings2);
+}
+function decodeBytes(bytes) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    let s = "";
+    for (const b of bytes) s += String.fromCharCode(b);
+    return s;
+  }
+}
+function readTrack(b, from, to, budget) {
+  const track = { name: "", notes: [], lyrics: [], texts: [], tempos: [] };
+  const open = /* @__PURE__ */ new Map();
+  let p = from;
+  let tick = 0;
+  let status = 0;
+  const varlen = () => {
+    let v = 0;
+    for (let k = 0; k < 4 && p < to; k++) {
+      const c = b[p++];
+      v = v * 128 + (c & 127);
+      if (!(c & 128)) break;
+    }
+    return v;
+  };
+  const noteOff = (key) => {
+    const n = open.get(key)?.shift();
+    if (n) n.end = tick;
+  };
+  while (p < to) {
+    tick += varlen();
+    if (p >= to) break;
+    let s = b[p];
+    if (s & 128) p++;
+    else if (status) s = status;
+    else break;
+    if (s === 255) {
+      const type = b[p++];
+      const length = varlen();
+      const data = b.subarray(p, Math.min(to, p + length));
+      p += length;
+      if (type === 47) break;
+      if (type === 81 && data.length >= 3) {
+        const micros = data[0] << 16 | data[1] << 8 | data[2];
+        if (micros > 0) track.tempos.push({ tick, bpm: 6e7 / micros });
+      } else if (type === 3 && !track.name) track.name = decodeBytes(data).trim().slice(0, 200);
+      else if ((type === 5 || type === 1) && data.length <= 1024 && track.lyrics.length + track.texts.length < MAX_RAW) {
+        (type === 5 ? track.lyrics : track.texts).push({ tick, text: decodeBytes(data) });
+      }
+    } else if (s === 240 || s === 247) {
+      p += varlen();
+    } else if (s >= 240) {
+      break;
+    } else {
+      status = s;
+      const kind = s & 240;
+      const channel = s & 15;
+      const d1 = b[p++] & 127;
+      const d2 = kind === 192 || kind === 208 ? 0 : b[p++] & 127;
+      if (p > to) break;
+      const key = channel * 128 + d1;
+      if (kind === 144 && d2 > 0) {
+        if (budget.notes <= 0) continue;
+        budget.notes--;
+        const n = { tick, end: -1, midi: d1, channel };
+        track.notes.push(n);
+        const stack = open.get(key);
+        if (stack) stack.push(n);
+        else open.set(key, [n]);
+      } else if (kind === 128 || kind === 144) noteOff(key);
+    }
+  }
+  for (const n of track.notes) if (n.end < 0) n.end = tick;
+  return track;
+}
+function midiSyllables(events) {
+  const items = [];
+  let pendingBreak = false;
+  for (const ev of events) {
+    const raw = ev.text;
+    const clean = cleanSyllable(raw.replace(/^[\s/\\]+/, ""));
+    if (!clean) {
+      pendingBreak = true;
+      continue;
+    }
+    items.push({ tick: ev.tick, ...clean, lead: /^[\s/\\]/.test(raw), space: /\s$/.test(raw), hyphen: /-\s*$/.test(raw), breakBefore: pendingBreak });
+    pendingBreak = false;
+  }
+  const spaced = items.some((it) => it.lead || it.space);
+  const starts = items.map((it, k) => {
+    if (k === 0 || it.breakBefore) return true;
+    const prev = items[k - 1];
+    if (prev.hyphen) return false;
+    return spaced ? it.lead || prev.space : true;
+  });
+  return items.map((it, k) => {
+    const more = k + 1 < items.length && !starts[k + 1];
+    const kind = starts[k] ? more ? "begin" : "single" : more ? "middle" : "end";
+    return { tick: it.tick, lyric: { text: it.text, trail: it.trail, kind } };
+  });
+}
+function lyricEventsOf(track) {
+  if (track.lyrics.length) return track.lyrics;
+  const texts = track.texts.filter((t) => !t.text.startsWith("@"));
+  return texts.filter((t) => t.tick > 0).length >= 2 ? texts : [];
+}
+function importMidi(bytes, opts = {}) {
+  if (!(bytes instanceof Uint8Array)) throw new Error("MIDI import needs the file as bytes.");
+  if (bytes.length > MAX_BYTES) throw new Error("The MIDI file is too large to import (over 20 MB).");
+  const tag = (at2) => String.fromCharCode(bytes[at2], bytes[at2 + 1], bytes[at2 + 2], bytes[at2 + 3]);
+  const u32 = (at2) => bytes[at2] * 16777216 + (bytes[at2 + 1] << 16) + (bytes[at2 + 2] << 8) + bytes[at2 + 3];
+  const u16 = (at2) => bytes[at2] << 8 | bytes[at2 + 1];
+  let head = -1;
+  for (let k = 0; k + 14 <= bytes.length && k < 256; k++) {
+    if (bytes[k] === 77 && tag(k) === "MThd") {
+      head = k;
+      break;
+    }
+  }
+  if (head < 0) throw new Error("This is not a MIDI file (no MThd header).");
+  const warnings2 = [];
+  const format = u16(head + 8);
+  const division = u16(head + 12);
+  let ticksPerBeat = division;
+  let timecode = false;
+  if (division & 32768) {
+    timecode = true;
+    ticksPerBeat = (256 - (division >> 8)) * (division & 255) / 2;
+    warnings2.push("The file is timed in seconds, not beats; it is read as 120 bpm.");
+  }
+  if (!(ticksPerBeat > 0)) throw new Error("This MIDI file has no usable time division.");
+  if (format === 2) warnings2.push("The file holds independent patterns (format 2); each is listed as a track.");
+  const tracks = [];
+  const budget = { notes: MAX_RAW };
+  for (let p = head + 8 + u32(head + 4); p + 8 <= bytes.length && tracks.length < 1024; ) {
+    const end = Math.min(bytes.length, p + 8 + u32(p + 4));
+    if (tag(p) === "MTrk") tracks.push(readTrack(bytes, p + 8, end, budget));
+    p = end;
+  }
+  if (budget.notes <= 0) warnings2.push(`Only the first ${MAX_RAW} notes of the file were read.`);
+  const pitched = tracks.map((t) => t.notes.filter((n) => n.channel !== 9));
+  const parts = tracks.map((t, k) => ({ id: String(k), name: t.name || `Track ${k + 1}`, notes: pitched[k].length }));
+  const tempos = tracks.flatMap((t) => t.tempos).sort((a, b) => a.tick - b.tick);
+  const bpm = timecode || !tempos.length ? 120 : Math.round(tempos[0].bpm * 1e3) / 1e3;
+  if (!timecode && tempos.some((t) => Math.abs(t.bpm - tempos[0].bpm) > 0.01)) warnings2.push(`The tempo changes during the file; the first tempo (${bpm} bpm) is used throughout.`);
+  if (!tracks.length) {
+    warnings2.push("The MIDI file has no tracks.");
+    return { bpm, notes: [], lyrics: "", parts, part: "", warnings: warnings2 };
+  }
+  let chosen = -1;
+  if (opts.track !== void 0) {
+    if (Number.isInteger(opts.track) && opts.track >= 0 && opts.track < tracks.length) chosen = opts.track;
+    else warnings2.push(`The file has no track ${opts.track}; another was chosen.`);
+  }
+  if (chosen < 0) chosen = tracks.findIndex((t, k) => pitched[k].length > 0 && lyricEventsOf(t).length > 0);
+  if (chosen < 0) chosen = pitched.reduce((best, notes2, k) => notes2.length > pitched[best].length ? k : best, 0);
+  let notes = pitched[chosen];
+  if (!notes.length && tracks[chosen].notes.length) warnings2.push("The chosen track only has percussion; nothing was imported.");
+  const channels = /* @__PURE__ */ new Map();
+  for (const n of notes) channels.set(n.channel, (channels.get(n.channel) ?? 0) + 1);
+  if (channels.size > 1) {
+    const keep = [...channels].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
+    notes = notes.filter((n) => n.channel === keep);
+    warnings2.push(`The track uses ${channels.size} channels; channel ${keep + 1} was kept and the rest dropped.`);
+  }
+  notes = [...notes].sort((a, b) => a.tick - b.tick || b.midi - a.midi);
+  const line = notes.filter((n, k) => k === 0 || n.tick !== notes[k - 1].tick);
+  const chords = notes.length - line.length;
+  if (chords) warnings2.push(`${chords} simultaneous note${chords === 1 ? " was" : "s were"} dropped; the highest of each chord is kept.`);
+  let events = lyricEventsOf(tracks[chosen]);
+  if (!events.length) events = tracks.filter((t, k) => !pitched[k].length).map(lyricEventsOf).find((e) => e.length) ?? [];
+  const slack = Math.max(1, ticksPerBeat / 16);
+  let at = 0;
+  let unplaced = 0;
+  for (const s of midiSyllables([...events].sort((a, b) => a.tick - b.tick))) {
+    while (at < line.length && line[at].tick < s.tick - slack) at++;
+    if (at < line.length && line[at].tick - s.tick <= ticksPerBeat) line[at++].lyric = s.lyric;
+    else unplaced++;
+  }
+  if (unplaced) warnings2.push(`${unplaced} lyric syllable${unplaced === 1 ? " was" : "s were"} not on a note and ${unplaced === 1 ? "was" : "were"} left out.`);
+  const evs = line.map((n) => ({ start: n.tick / ticksPerBeat, end: n.end / ticksPerBeat, midi: n.midi, lyric: n.lyric }));
+  return finish(evs, bpm, parts, String(chosen), warnings2);
+}
+function decodeXmlBytes(bytes) {
+  let label = "utf-8";
+  if (bytes[0] === 255 && bytes[1] === 254) label = "utf-16le";
+  else if (bytes[0] === 254 && bytes[1] === 255) label = "utf-16be";
+  else if (bytes[0] === 60 && bytes[1] === 0) label = "utf-16le";
+  else if (bytes[0] === 0 && bytes[1] === 60) label = "utf-16be";
+  else {
+    let headText = "";
+    for (let k = 0; k < Math.min(200, bytes.length); k++) headText += String.fromCharCode(bytes[k]);
+    const declared = /^(?:ï»¿)?<\?xml[^>]*encoding\s*=\s*["']([A-Za-z0-9._-]+)["']/.exec(headText)?.[1];
+    if (declared) label = declared;
+  }
+  let text;
+  try {
+    text = new TextDecoder(label).decode(bytes);
+  } catch {
+    text = new TextDecoder("utf-8").decode(bytes);
+  }
+  return text.charCodeAt(0) === 65279 ? text.slice(1) : text;
+}
+async function inflateRaw(data, limit) {
+  if (typeof DecompressionStream === "undefined") throw new Error("Compressed scores (.mxl) cannot be opened here: no DecompressionStream.");
+  const reader = new Blob([data.slice()]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > limit) {
+        await reader.cancel().catch(() => {
+        });
+        throw new Error("The score is too large to import (over 20 MB unpacked).");
+      }
+      chunks.push(value);
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("The score is too large")) throw err;
+    throw new Error("The compressed score (.mxl) is damaged and could not be unpacked.");
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out;
+}
+async function readMxl(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const damaged = () => new Error("This is not a compressed MusicXML file (.mxl): the zip archive is damaged.");
+  let eocd = -1;
+  for (let p2 = bytes.length - 22; p2 >= 0 && p2 >= bytes.length - 22 - 65535; p2--) {
+    if (view.getUint32(p2, true) === 101010256) {
+      eocd = p2;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error("This is not a compressed MusicXML file (.mxl): no zip directory.");
+  const count = Math.min(view.getUint16(eocd + 10, true), MAX_ZIP_ENTRIES);
+  const entries = [];
+  let p = view.getUint32(eocd + 16, true);
+  for (let k = 0; k < count; k++) {
+    if (p + 46 > bytes.length || view.getUint32(p, true) !== 33639248) break;
+    const nameLength = view.getUint16(p + 28, true);
+    entries.push({
+      name: decodeBytes(bytes.subarray(p + 46, p + 46 + nameLength)),
+      method: view.getUint16(p + 10, true),
+      packed: view.getUint32(p + 20, true),
+      size: view.getUint32(p + 24, true),
+      header: view.getUint32(p + 42, true)
+    });
+    p += 46 + nameLength + view.getUint16(p + 30, true) + view.getUint16(p + 32, true);
+  }
+  const read = async (name) => {
+    const e = entries.find((x) => x.name === name) ?? entries.find((x) => x.name.toLowerCase() === name.toLowerCase());
+    if (!e) return void 0;
+    if (e.size > MAX_BYTES || e.packed > MAX_BYTES) throw new Error("The score is too large to import (over 20 MB unpacked).");
+    if (e.header + 30 > bytes.length || view.getUint32(e.header, true) !== 67324752) throw damaged();
+    const from = e.header + 30 + view.getUint16(e.header + 26, true) + view.getUint16(e.header + 28, true);
+    if (from + e.packed > bytes.length) throw damaged();
+    const data = bytes.subarray(from, from + e.packed);
+    if (e.method === 0) return data;
+    if (e.method === 8) return inflateRaw(data, MAX_BYTES);
+    throw new Error("The compressed score (.mxl) uses a compression method that is not supported.");
+  };
+  let rootfile;
+  const container = await read("META-INF/container.xml");
+  if (container) {
+    const tagText = /<rootfile\b[^>]*>/.exec(decodeXmlBytes(container))?.[0] ?? "";
+    const m = /\bfull-path\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(tagText);
+    if (m) rootfile = decodeEntities(m[1] ?? m[2]).replace(/^\/+/, "");
+  }
+  let score2 = rootfile ? await read(rootfile) : void 0;
+  if (!score2) {
+    const first = entries.find((e) => /\.(musicxml|xml)$/i.test(e.name) && !/^META-INF\//i.test(e.name));
+    if (first) score2 = await read(first.name);
+  }
+  if (!score2) throw new Error("The compressed score (.mxl) has no MusicXML file inside.");
+  return decodeXmlBytes(score2);
+}
+async function importScoreFile(name, bytes, opts = {}) {
+  if (!(bytes instanceof Uint8Array)) throw new Error("Score import needs the file as bytes.");
+  if (bytes.length > MAX_BYTES) throw new Error("The file is too large to import (over 20 MB).");
+  const ext = /\.([A-Za-z0-9]+)$/.exec(name)?.[1].toLowerCase() ?? "";
+  const magic = String.fromCharCode(...bytes.subarray(0, 4));
+  const kind = magic === "MThd" ? "midi" : magic === "PK" ? "mxl" : ext === "mid" || ext === "midi" || ext === "kar" || magic === "RIFF" ? "midi" : ext === "mxl" ? "mxl" : ext === "musicxml" || ext === "xml" ? "xml" : bytes.length && (bytes[0] === 60 || bytes[0] === 239 || bytes[0] === 255 || bytes[0] === 254) ? "xml" : "";
+  if (kind === "midi") {
+    const track = opts.part !== void 0 && /^\d+$/.test(opts.part) ? Number(opts.part) : void 0;
+    if (opts.part !== void 0 && track === void 0) {
+      const out = importMidi(bytes);
+      out.warnings.unshift(`The file has no track "${opts.part}"; another was chosen.`);
+      return out;
+    }
+    return importMidi(bytes, { track });
+  }
+  if (kind === "mxl") return importMusicXml(await readMxl(bytes), opts);
+  if (kind === "xml") return importMusicXml(decodeXmlBytes(bytes), opts);
+  throw new Error(`"${name}" is not a score this can import: use MusicXML (.musicxml, .xml, .mxl) or MIDI (.mid).`);
 }
 
 // src/core/wav.ts
@@ -1776,6 +2910,13 @@ var output = args.get("output") || fail("--output is required");
 var project = newProject();
 if (args.has("project")) project = validateProject(JSON.parse(readFileSync(args.get("project"), "utf8")));
 if (args.has("text")) project = { ...project, mode: "speak", speech: { ...project.speech, text: args.get("text"), phonemes: args.get("phonemes") === "1" } };
+var scoreNotes = [];
+if (args.has("score")) {
+  const file = args.get("score");
+  const { song, messages } = songFromScore(await importScoreFile(file, new Uint8Array(readFileSync(file)), { part: args.get("part") || void 0 }));
+  scoreNotes.push(...messages);
+  project = validateProject({ ...project, mode: "sing", song: { ...project.song, ...song } });
+}
 if (args.has("voice")) {
   const preset = VOICE_PRESETS.find((p) => p.id === args.get("voice"));
   if (!preset) fail(`unknown voice preset ${args.get("voice")}`);
@@ -1829,6 +2970,6 @@ process.stdout.write(JSON.stringify({
   rms: Number(stats.rms.toFixed(4)),
   renderSeconds: Number(elapsed.toFixed(3)),
   resets: state[15],
-  warnings,
+  warnings: [...scoreNotes, ...warnings],
   name: project.name
 }) + "\n");
