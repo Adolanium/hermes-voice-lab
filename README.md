@@ -6,6 +6,8 @@ A vocal synthesizer for Hermes Desktop built on a physical model of the voice. A
 
 Everything is synthesized locally by a Rust engine compiled to WebAssembly: a glottal source drives a simulated vocal tract. There are no recordings, no neural or cloud TTS and no network calls. The default voice is an original adult feminine character voice, clear, warm and slightly breathy. It is a fictional voice for the character and not an official Nous voice.
 
+**Try it in your browser:** [adolanium.github.io/hermes-voice-lab](https://adolanium.github.io/hermes-voice-lab/). The same instrument and engine as a web page, with nothing to install: play, speak, sing, beat and the bestiary, with projects saved in the browser and WAV export. The agent tools and Jam with Hermes need the plugin.
+
 **Jam with Hermes:** [20 s clip](docs/media/voice-lab-jam.mp4). You play a phrase on the keys and pause. Hermes Agent (here DeepSeek V4.1 Flash) writes a sung answer, and she sings it. The agent's thinking time is sped up 6× and 4×, and the clip says so.
 
 ![Jam with Hermes: she sings the agent's answer](docs/media/voice-lab-jam.png)
@@ -65,11 +67,11 @@ In Hermes builds with Tool Search, these plugin tools are discovered through `to
 hermes plugins install Adolanium/hermes-voice-lab/plugin --enable
 ```
 
-1. Run the command above. Hermes clones only the [`plugin/`](plugin/) folder (about 3 MB) into your profile's plugins folder and enables the agent side. The repository is private, so the machine needs Git access to it (for example `gh auth login`, or a Git credential helper that already works for `git clone`).
+1. Run the command above. Hermes clones only the [`plugin/`](plugin/) folder (about 3 MB) into your profile's plugins folder and enables the agent side.
 2. Restart the gateway so the plugin's routes mount.
 3. In Hermes Desktop, open **Capabilities → Plugins**, enable **Voice Lab**, and open it from the sidebar or the command palette (**Open Voice Lab**).
 
-Hermes warns that this is a custom source, not from the Hermes catalog. Update with `hermes plugins update hermes-voice-lab` and restart the gateway (until it restarts, it keeps the old backend, which refuses projects saved by the new UI), remove with `hermes plugins remove hermes-voice-lab`. Without Git access, copy the `plugin/` folder to `$HERMES_HOME/plugins/hermes-voice-lab/` by hand (or unpack the archive from `npm run package`) and run `hermes plugins enable hermes-voice-lab`.
+Hermes warns that this is a custom source, not from the Hermes catalog. Update with `hermes plugins update hermes-voice-lab` and restart the gateway (until it restarts, it keeps the old backend, which refuses projects saved by the new UI), remove with `hermes plugins remove hermes-voice-lab`. Without Git, copy the `plugin/` folder to `$HERMES_HOME/plugins/hermes-voice-lab/` by hand (or unpack the archive from `npm run package`) and run `hermes plugins enable hermes-voice-lab`.
 
 You need neither Rust nor npm: `plugin/` ships the compiled WebAssembly engine, the desktop bundle and the Node renderer. Agent-side rendering uses Node 20+, which the Hermes runtime provides. Sound starts only after you press a play control.
 
@@ -85,7 +87,7 @@ npm run package                            # release/hermes-voice-lab-<ver>.tar.
 HERMES_HOME=/path/to/test-home node scripts/install-dev.mjs   # copy plugin/ into a test profile
 ```
 
-`node scripts/render-video.mjs --out show.mp4` renders a 1920×1080 performance video of the lounge set (`src/core/show.ts`) (needs ffmpeg and a Playwright Chromium; development tool, not shipped). `npm run dev` starts a standalone browser preview of the instrument. It is a development aid only and does not prove Hermes compatibility. `npm run calibrate` refits the vowel targets (see `docs/architecture.md`). Offline render example:
+`node scripts/render-video.mjs --out show.mp4` renders a 1920×1080 performance video of the lounge set (`src/core/show.ts`) (needs ffmpeg and a Playwright Chromium; development tool, not shipped). `npm run dev` starts the standalone web page locally, and `npm run build:web` builds it as a static site in `.preview/site` (what the **Web demo** workflow publishes). The web page does not prove Hermes compatibility. `npm run calibrate` refits the vowel targets (see `docs/architecture.md`). Offline render example:
 
 ```bash
 node plugin/runtime/render.mjs --text "Good morning." --voice warm --output /tmp/hello.wav

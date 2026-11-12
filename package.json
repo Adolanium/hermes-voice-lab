@@ -12,6 +12,7 @@
     "test:engine": "cargo test --release --manifest-path engine/Cargo.toml",
     "typecheck": "tsc --noEmit -p .",
     "dev": "node scripts/build.mjs --assets-only && vite",
+    "build:web": "node scripts/build.mjs --assets-only && vite build",
     "package": "node scripts/package.mjs",
     "calibrate": "cargo run --release --manifest-path engine/Cargo.toml --bin calibrate > src/core/vowels.generated.json"
   },
