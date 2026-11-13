@@ -98,7 +98,7 @@ export const PHONEMES: Record<string, Phoneme> = Object.fromEntries([
   P('RR', 'r', 'trill', true, 110, {tipPlace: 0.42, tipClose: 0.9, trill: 1, jaw: 0.35}, 'Spanish perro'),
   P('BR', 'ʙ', 'trill', true, 160, {lipOpen: 0.04, lipRound: 0.25, trill: 1}, 'brr'),
   P('RU', 'ʀ', 'trill', true, 110, {dorsumClose: 0.9, tongueX: 0.02, tongueY: 0.55, trill: 1}, 'French rouge'),
-  P('R', 'ɹ', 'approximant', true, 70, {rhotic: 1, lipRound: 0.7, tongueX: 0.15, tongueY: 0.85, lipOpen: 0.6}, 'red'),
+  P('R', 'ɹ', 'approximant', true, 70, {rhotic: 0.88, lipRound: 0.7, tongueX: 0.11, tongueY: 0.97, lipOpen: 0.5}, 'red'),
   P('W', 'w', 'approximant', true, 65, {lipOpen: 0.15, lipRound: 1, tongueX: 0, tongueY: 0.9}, 'we'),
   P('Y', 'j', 'approximant', true, 60, {tongueX: 1, tongueY: 1, jaw: 0.35}, 'yes'),
   P('HH', 'h', 'aspirate', false, 65, {voicing: 0}, 'hat'),

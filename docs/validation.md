@@ -19,7 +19,7 @@ What the tests establish:
 - **Live = offline**: rendering a score in 128-frame worklet-sized blocks is sample-identical to the 1024-frame offline renderer. Block size never changes the output (Rust test with 128 vs 1000).
 - **Timing**: score events land on their exact frame; a 0.25 s gate event starts at frame 12000 at 48 kHz.
 - **Pitch**: sustained /ɑ/, /i/ and /u/ at 196, 262 and 440 Hz measure within 10 cents (autocorrelation), so pitch is independent of vowel.
-- **Resonances**: a uniform tube resonates at odd quarter-wavelengths (within 3% for 15 cm). Calibrated vowels are within 10% (F1) and 13% (F2) of the Hillenbrand et al. (1995) adult-female means. Most are within 2–5%. Fitting with natural-looking articulations leaves F2 short for /ɑ/ (−12%), /æ/ (−9%) and /i/ (−7%). The nasal branch moves resonances. /i/ is high-front, /ɑ/ low-back and /u/ low-F2.
+- **Resonances**: a uniform tube resonates at odd quarter-wavelengths (within 3% for 15 cm). Calibrated vowels are within 10% (F1; /æ/ 10.1%) and 13% (F2) of their targets: the Hillenbrand et al. (1995) adult-female means, except /æ ɑ ʌ/ (see "Which sounds are misheard" below). Most are within 0–5%. The model cannot open a front vowel as far as /æ/'s target, which leaves it short in F1 (−10%) and F2 (−12%); /ɛ/ is short by 6–7% and /i/ by 5% in F2. The nasal branch moves resonances. /i/ is high-front, /ɑ/ low-back and /u/ low-F2.
 - **Aerodynamics**: a lip closure builds intraoral pressure and its release produces a burst. Gate release decays to silence.
 - **Planner**: events are ordered and in range. Voiceless fricatives devoice. Sung vowels start on note onsets (±20 ms) and melismas extend the vowel.
 - **Duet**: thirds above follow the key's scale, the octave-below part is the melody minus 12, the second singer gets their preset's body, a duet with the part off has no second score, invalid parts are refused (TypeScript and Python), and the renderer CLI mixes both singers within range.
@@ -33,7 +33,7 @@ What the tests establish:
 - **Palatalization against a real voice** (not automated): the macOS Russian voice (Milena) and ours on пат/пять, ток/тёк, тук/тюк, топ/топь, second formant through the vowel. Onset after a soft consonant: hers 2.15–2.4 kHz, ours 1.9–2.4 kHz (lowest after soft t, whose hiss covers the start), both down to the plain vowel by a quarter of its length. /a/ between two soft consonants: hers 2.1–2.3 kHz throughout, ours 2.1–2.4 kHz (1.5 kHz before the vowel-fronting rule). Rise into a final soft p: hers +390 Hz, ours +870 Hz, an overshoot kept because the earlier, weaker gesture (+310 Hz) left стал/сталь indistinguishable to the recognizer below.
 - **Palatalization heard by a recognizer** (`research/tools/judge/palatal_afc.py`, not automated): 12 Russian minimal pairs (мат/мать, лук/люк, стал/сталь …), each word spoken alone. Whisper small (multilingual) gives the probability of both words of the pair for each recording; a pair counts when the soft word is more likely on the soft recording than on the hard one. The macOS Russian voice: 12/12, mean margin 7.2 (log-probability). Ours: 12/12, mean margin 3.8; weakest мат/мать (+0.1) and вол/вёл (+1.8). Without the soft consonants the two recordings of a pair are the same sound (margin 0). Plain transcription of the same isolated words is too hard a test for either voice (hers 9/24 exact, ours 1/24).
 - **Trills**: the rolled r, lip trill and uvular r each modulate the output envelope at 27 ± 5 Hz, stay bounded, and "brrr" in text plans a lip trill.
-- **Bodies**: with the Tenor and Child presets' tract length and pharynx, the 12 calibrated vowels land within 6% mean F1/F2 error of the Hillenbrand et al. (1995) means for men and for children (measured: 3.9% and 4.3%).
+- **Bodies**: with the Tenor and Child presets' tract length and pharynx, the nine calibrated vowels that follow Hillenbrand et al. (1995) land within 6% mean F1/F2 error of that study's means for men and for children (measured: 4.7% and 4.7%).
 - **Voice qualities**: on a held /ɑ/ at 220 Hz, falsetto raises H1−H2 by more than 8 dB, fry and growl put a subharmonic within 15 and 20 dB of H1 (a modal voice has none), twang raises the 2.5–4 kHz harmonics by more than 6 dB, and every output stays bounded. The yodel style flips the register up on the high notes and back on the low ones.
 - **Sung consonants**: with notes nearly touching at 120 bpm, no sung consonant is shorter than 45 ms (the planner used to squeeze onsets into the gap between notes, down to 14 ms), vowels still land on the beat, segments stay ordered and cues keep onset ≤ vowel < release.
 - **Cartoon singing**: one lyric cue per sung syllable (holds extend the previous cue, punctuation kept for display), cues in order with onset ≤ vowel < release, scoops add pitch events, the jaw opens wider on average, invalid styles are rejected, and the silly song renders finite with peak ≤ 0.81 (an earlier version jumped f0 instantly at each scoop and produced a 0.95 click; the test now guards it).
@@ -168,6 +168,34 @@ What was changed, each step measured on its own:
 Tried and dropped: reaching the vowel within 35 ms (no better than 60), a longer breath after a final consonant (no change), no vibrato (no change). Singing on one note or an octave lower made no difference to the errors; an octave higher cost 12 points on sentences. The timing of the syllables matters most: sung on one pitch with speech timing, the same sentences score 36.6%.
 
 Still open: final stops (43% not found), final /z v/, /r/ at the end of a syllable, nasals at the start, and consonants on high notes. The song judge moves by about ±4 points between runs of near-identical builds, so steps smaller than that need the sentence judge. No listener has compared before and after yet.
+
+## Which sounds are misheard (2026-11-13)
+
+Three more judges (research tooling, `research/tools/judge/`):
+- **Confusions** (`confusions.py`): the words Whisper heard are lined up with the words said, and each misheard word's dictionary sounds with the sounds of what was heard. The result is a table of which sound, where in the word, was heard as what.
+- **English word pairs** (`contrast.sh english`, spoken and `--sung`): 101 pairs that differ in one sound (dee/bee, bat/bet, fry/fly), forced choice with Whisper `small`; the macOS voice Samantha is the control. Counted: how many of the 202 words are heard as themselves and not as their partner.
+- **Release and vowel measurements** (`onset.py`, `vowel_formants.py`, `held.ts`): the first 90 ms after a stop, and the resonances of held shapes as they sound.
+
+| | Before | After |
+|---|---|---|
+| Speech, 240 sentences, word errors | 29.4% | **26.3%** (−3.1 ± 1.3, paired) |
+| 240 sung sentences, word errors | 51.6% | **43.5%** (−8.1 ± 1.5, paired) |
+| Real songs, word errors (real singer 16.0%) | 32.5% | **27.7%** (−4.7 ± 2.6, paired over songs; runs of this build's steps ranged 23–28%) |
+| Speech, predicted naturalness (UTMOS, 30 sentences) | 3.32 | 3.29 |
+| Speech, phone table score | 0.166 | 0.174 |
+
+What the judges found, and what was changed:
+- **/æ/ sounded like /ɛ/.** The vowel targets come from Michigan speakers, who raise /æ/ above /ɛ/ and front /ɑ/. In speech /æ/ was the most misheard sound (48 of 123, mostly as /ɛ/); sung, 85 of 160, mostly as /ɪ/ ("fat" as "fit", "happy" as "hippie"). /æ/ now aims at 860/2050 Hz and lands at 773/1797; /ɑ/ at 900/1300 (877/1309) and /ʌ/ at 690/1400. /æ/ is misheard 26 times of 123 in speech. Held vowels sound within 30 Hz of the calibration's figures in F1 and F2.
+- **No slide out of /t d n s z/.** After a real /d/ the second formant starts near 1800–2000 Hz and takes 60–80 ms to reach a back vowel; ours was at the vowel 20 ms after the release, so "doe" was heard as "bow" or "go" (sung /d/ at the start of a word was heard as /b/ 17 times of 145). The tongue body now goes most of the way to a forward, raised shape for these consonants and slides to the vowel after the release. Measured on its own: sung sentences −3.2 ± 1.3, real songs −6.9 ± 2.6, speech +0.5 ± 0.9. Word pairs with /d/ against /b/: 9 → 14 of 16 words right spoken, 11 → 14 sung.
+- **/b d g/ after a pause had a silent closure.** They are now voiced quietly through it, as the control voice's are. In all ten pairs (bee/pea, die/tie, goat/coat, …) the voiced word moved toward itself, spoken and sung; the sentence judges did not move.
+- **/r/ after /p t k/ was over before the voice started** ("tree" had 20 ms of voiced /r/). It is 40 ms longer there. /r/ also reaches its shape in the first quarter of its length and holds it; at full strength the engine's /r/ lost its third resonance altogether and was heard as /l/ or /w/, so it now stops at 0.88. With the vowel and voicing changes: speech −2.3 ± 1.1, sung sentences −4.3 ± 1.3; /r/ inside a word is misheard 28 times of 199 in speech (was 36) and 50 of 246 sung (was 61).
+
+Tried and dropped: /ɛ/ moved up toward 640/2250 Hz (sung /ɛ/ was then misheard more, 38 of 195 against 29); voice starting 30 ms before the release of an initial /b d g/ (no change).
+
+Still open:
+- **/r/ is weak.** Its third resonance reaches about 2100–2200 Hz as sound; a real /r/'s is at 1700–2000. Sweeping the engine's two /r/ narrowings (depth, width, place) and a raised tongue tip did not bring it lower. A real /r/ gets there with the space under the tongue tip, which the airway does not have.
+- **Nasals in running speech are 3.4 dB quiet** against real speakers, and "night" is heard as "light" in two pairs of three. A held /m/ or /n/ is at the right level (−2.7 dB re a vowel), and the nose's port and nostril sizes do not change it, so the loss is in the timing.
+- Final /d/ and /t/ (sung: 30% and 25% misheard, mostly dropped), /f/ at the start of a word (heard as /p/), /æ/ against /ɛ/ and /ɑ/ against /ʌ/ in word pairs (the pairs are told apart in the right direction but with a third of the control's margin).
 
 ## Other languages' sounds (2026-11-12)
 

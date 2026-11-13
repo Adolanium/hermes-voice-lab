@@ -2,6 +2,13 @@
 //! published adult-female mean formants (Hillenbrand, Getty, Clark & Wheeler,
 //! 1995, J. Acoust. Soc. Am. 97(5), Table V). Prints JSON for the planner.
 //!
+//! Three targets are not Hillenbrand's. His Michigan speakers raise /ae/ above
+//! /eh/ (669/2349 Hz) and front /aa/ (936/1551 Hz); a listener of general
+//! American hears those as "bet" for "bat" and "cut" for "cot". /ae/ uses
+//! Peterson & Barney's (1952) female mean, 860/2050 Hz; /aa/ is set at
+//! 900/1300 Hz, near theirs (850/1220); and /ah/ sits a little higher in the
+//! mouth (690/1400 Hz) to stay clear of /aa/.
+//!
 //! cargo run --release --bin calibrate > ../src/core/vowels.generated.json
 
 use voice_lab_engine::analysis::tract_response;
@@ -21,13 +28,13 @@ const TARGETS: [Target; 12] = [
     Target { symbol: "IH", formants: [483.0, 2365.0, 3053.0], prior: [0.82, 0.78, 0.35, 0.55, 0.05, 0.7], retroflex: false },
     Target { symbol: "EY", formants: [536.0, 2530.0, 3047.0], prior: [0.85, 0.7, 0.4, 0.6, 0.0, 0.75], retroflex: false },
     Target { symbol: "EH", formants: [731.0, 2058.0, 2979.0], prior: [0.75, 0.45, 0.6, 0.65, 0.05, 0.55], retroflex: false },
-    Target { symbol: "AE", formants: [669.0, 2349.0, 2972.0], prior: [0.85, 0.2, 0.75, 0.7, 0.0, 0.4], retroflex: false },
-    Target { symbol: "AA", formants: [936.0, 1551.0, 2815.0], prior: [0.25, 0.1, 0.9, 0.8, 0.1, 0.15], retroflex: false },
+    Target { symbol: "AE", formants: [860.0, 2050.0, 2850.0], prior: [0.85, 0.2, 0.75, 0.7, 0.0, 0.4], retroflex: false },
+    Target { symbol: "AA", formants: [900.0, 1300.0, 2810.0], prior: [0.25, 0.1, 0.9, 0.8, 0.1, 0.15], retroflex: false },
     Target { symbol: "AO", formants: [781.0, 1136.0, 2824.0], prior: [0.15, 0.3, 0.7, 0.45, 0.6, 0.25], retroflex: false },
     Target { symbol: "OW", formants: [555.0, 1035.0, 2828.0], prior: [0.2, 0.6, 0.5, 0.35, 0.8, 0.45], retroflex: false },
     Target { symbol: "UH", formants: [519.0, 1225.0, 2827.0], prior: [0.35, 0.75, 0.35, 0.4, 0.55, 0.55], retroflex: false },
     Target { symbol: "UW", formants: [459.0, 1105.0, 2735.0], prior: [0.3, 0.9, 0.25, 0.25, 0.95, 0.65], retroflex: false },
-    Target { symbol: "AH", formants: [753.0, 1426.0, 2933.0], prior: [0.4, 0.35, 0.65, 0.65, 0.15, 0.35], retroflex: false },
+    Target { symbol: "AH", formants: [690.0, 1400.0, 2900.0], prior: [0.4, 0.35, 0.65, 0.65, 0.15, 0.35], retroflex: false },
     Target { symbol: "ER", formants: [523.0, 1588.0, 1929.0], prior: [0.5, 0.6, 0.4, 0.45, 0.4, 0.4], retroflex: true },
 ];
 

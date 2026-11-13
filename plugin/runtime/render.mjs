@@ -485,13 +485,13 @@ var vowels_generated_default = {
   IH: { params: { tongueX: 1, tongueY: 0.724, jaw: 0.371, lipOpen: 0.842, lipRound: 0, throat: 0.34 }, model: [478, 2341, 2916], target: [483, 2365, 3053] },
   EY: { params: { tongueX: 1, tongueY: 0.828, jaw: 0.481, lipOpen: 1, lipRound: 0, throat: 0.026 }, model: [519, 2415, 2860], target: [536, 2530, 3047] },
   EH: { params: { tongueX: 1, tongueY: 0.285, jaw: 0.715, lipOpen: 1, lipRound: 0, throat: 0 }, model: [689, 1921, 2948], target: [731, 2058, 2979] },
-  AE: { params: { tongueX: 1, tongueY: 0.584, jaw: 0.904, lipOpen: 1, lipRound: 0, throat: 0 }, model: [616, 2146, 2819], target: [669, 2349, 2972] },
-  AA: { params: { tongueX: 0.749, tongueY: 0, jaw: 1, lipOpen: 1, lipRound: 0, throat: 0 }, model: [813, 1571, 3221], target: [936, 1551, 2815] },
+  AE: { params: { tongueX: 1, tongueY: 0.084, jaw: 0.913, lipOpen: 0.999, lipRound: 0, throat: 0 }, model: [773, 1797, 3032], target: [860, 2050, 2850] },
+  AA: { params: { tongueX: 0.049, tongueY: 0, jaw: 0.967, lipOpen: 0.96, lipRound: 0, throat: 0 }, model: [877, 1309, 2745], target: [900, 1300, 2810] },
   AO: { params: { tongueX: 0, tongueY: 0.138, jaw: 0.785, lipOpen: 0.706, lipRound: 0.363, throat: 0 }, model: [759, 1153, 2761], target: [781, 1136, 2824] },
   OW: { params: { tongueX: 0.018, tongueY: 0.673, jaw: 0.52, lipOpen: 0.375, lipRound: 0.836, throat: 0 }, model: [553, 1041, 2834], target: [555, 1035, 2828] },
   UH: { params: { tongueX: 0.217, tongueY: 0.683, jaw: 0.417, lipOpen: 0.466, lipRound: 0.6, throat: 0.484 }, model: [519, 1241, 2827], target: [519, 1225, 2827] },
   UW: { params: { tongueX: 0.065, tongueY: 0.807, jaw: 0.355, lipOpen: 0.349, lipRound: 0.91, throat: 0.492 }, model: [459, 1105, 2716], target: [459, 1105, 2735] },
-  AH: { params: { tongueX: 0.783, tongueY: 0, jaw: 0.732, lipOpen: 0.66, lipRound: 0.255, throat: 0 }, model: [740, 1441, 3100], target: [753, 1426, 2933] },
+  AH: { params: { tongueX: 0.898, tongueY: 0, jaw: 0.659, lipOpen: 0.423, lipRound: 0.316, throat: 1e-3 }, model: [692, 1407, 2963], target: [690, 1400, 2900] },
   ER: { params: { tongueX: 0.109, tongueY: 0.972, jaw: 0.404, lipOpen: 0.535, lipRound: 0.36, throat: 0.011, rhotic: 0.827 }, model: [522, 1583, 1932], target: [523, 1588, 1929] }
 };
 
@@ -560,7 +560,7 @@ var PHONEMES = Object.fromEntries([
   P("RR", "r", "trill", true, 110, { tipPlace: 0.42, tipClose: 0.9, trill: 1, jaw: 0.35 }, "Spanish perro"),
   P("BR", "\u0299", "trill", true, 160, { lipOpen: 0.04, lipRound: 0.25, trill: 1 }, "brr"),
   P("RU", "\u0280", "trill", true, 110, { dorsumClose: 0.9, tongueX: 0.02, tongueY: 0.55, trill: 1 }, "French rouge"),
-  P("R", "\u0279", "approximant", true, 70, { rhotic: 1, lipRound: 0.7, tongueX: 0.15, tongueY: 0.85, lipOpen: 0.6 }, "red"),
+  P("R", "\u0279", "approximant", true, 70, { rhotic: 0.88, lipRound: 0.7, tongueX: 0.11, tongueY: 0.97, lipOpen: 0.5 }, "red"),
   P("W", "w", "approximant", true, 65, { lipOpen: 0.15, lipRound: 1, tongueX: 0, tongueY: 0.9 }, "we"),
   P("Y", "j", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35 }, "yes"),
   P("HH", "h", "aspirate", false, 65, { voicing: 0 }, "hat"),
@@ -1143,6 +1143,10 @@ var VOWEL_REACH = 0.06;
 var CORONAL_BURST = { T: { gap: 0.84, hold: 0.022 }, D: { gap: 0.84, hold: 0.012 } };
 var NASAL_VOWEL = 0.6;
 var BREATHY = 0.6;
+var CORONAL_SHAPE = { tongueX: 0.85, tongueY: 0.6, jaw: 0.4 };
+var CORONAL_BODY = { T: 0.7, D: 0.7, N: 0.7, S: 0.7, Z: 0.7 };
+var CORONAL_SLIDE = 22;
+var INITIAL_CLOSURE = 0.85;
 function voiceDefaults(voice) {
   const all = { ...defaultPatch(), ...voice };
   return all;
@@ -1209,16 +1213,24 @@ function articulate(segments, voice, withPreamble = true) {
       const next = segments[i + 1];
       const prevocalic = next && isVowel(next.symbol);
       anchors.push({ time: prevocalic ? s.start + 0.9 * dur : s.start - 0.03, target: { ...body, ...PALATAL }, tau: 18, lead: 4, seg: i });
+    } else if (CORONAL_BODY[s.symbol] !== void 0) {
+      const k = CORONAL_BODY[s.symbol];
+      const near = segments[i + 1] && isVowel(segments[i + 1].symbol) ? segments[i + 1] : segments[i - 1] && isVowel(segments[i - 1].symbol) ? segments[i - 1] : nextVowel(i) ?? prevVowel(i);
+      const v = near ? vowelTarget({ symbol: near.symbol, stress: near.stress }) : SCHWA;
+      const mix = (name) => (v[name] ?? 0.5) + k * (CORONAL_SHAPE[name] - (v[name] ?? 0.5));
+      const prevocalic = segments[i + 1] && isVowel(segments[i + 1].symbol);
+      anchors.push({ time: prevocalic ? s.end - 5e-3 : s.start + 0.4 * dur, target: { tongueX: mix("tongueX"), tongueY: mix("tongueY"), jaw: body.jaw ?? mix("jaw") }, tau: 18, lead: 4, seg: i, coronal: true });
     } else if (Object.keys(body).length) {
       if (s.symbol === "R") body.jaw = 0.55;
-      anchors.push({ time: s.start + 0.5 * dur, target: body, tau: 18, lead: 4, seg: i });
+      const r = s.symbol === "R";
+      anchors.push({ time: s.start + (r ? 0.25 : 0.5) * dur, target: body, tau: r ? 12 : 18, lead: 4, seg: i, hold: r ? s.start + 0.75 * dur : void 0 });
     }
   });
   anchors.sort((a, b) => a.time - b.time);
   anchors.forEach((a, k) => {
     const gap = k ? a.time - anchors[k - 1].time : 0.15;
-    const tau = a.tau ?? Math.min(24, Math.max(12, gap * 1e3 * 0.18));
-    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - (a.lead ?? 4) * tau / 1e3);
+    const tau = a.tau ?? Math.min(24, Math.max(k && anchors[k - 1].coronal ? CORONAL_SLIDE : 12, gap * 1e3 * 0.18));
+    const start = Math.max(k ? anchors[k - 1].hold ?? anchors[k - 1].time : 0, a.time - (a.lead ?? 4) * tau / 1e3);
     for (const [name, value] of Object.entries(a.target)) {
       if (["tongueX", "tongueY", "jaw", "throat", "rhotic", "lipOpen", "lipRound"].includes(name)) at(start, name, value, tau, a.seg);
     }
@@ -1323,7 +1335,7 @@ function articulate(segments, voice, withPreamble = true) {
       if (final) at(s.end + 0.09, "voicing", 1, 20, i);
       else if (!following) at(s.end + (ph.manner === "fricative" ? 5e-3 : ph.manner === "aspirate" ? -0.02 : vot - 0.012), "voicing", 1, 8, i);
     } else if (phraseInitial && (ph.manner === "stop" || ph.manner === "affricate")) {
-      at(onset, "voicing", 0.15, 10, i);
+      at(onset, "voicing", INITIAL_CLOSURE, 10, i);
       if (s.breathy) {
         at(s.end - 0.015, "voicing", BREATHY, 8, i);
         at(s.end + 0.1, "voicing", 1, 18, i);
@@ -1368,6 +1380,8 @@ function resolveGestures(tagged, holds, ev) {
   return ev;
 }
 var TEMPO = 1.25;
+var ASPIRATED_GLIDE = 0.04;
+var afterAspirated = (seg, prev) => !!prev && ["P", "T", "K"].includes(prev.symbol) && ["R", "L", "W", "Y"].includes(seg.symbol);
 function durationOf(seg, prev, next, final, rate2) {
   const ph = PHONEMES[seg.symbol];
   let d = ph.duration;
@@ -1380,6 +1394,7 @@ function durationOf(seg, prev, next, final, rate2) {
     const cluster = prev && !isVowel(prev.symbol) || next && !isVowel(next.symbol);
     if (cluster) d *= 0.8;
     if (final) d *= 1.15;
+    if (afterAspirated(seg, prev)) d += ASPIRATED_GLIDE * 1e3;
   }
   return TEMPO * d / 1e3 / rate2;
 }
@@ -1615,7 +1630,7 @@ function planSong(notes, lyrics, lexicon2, opts) {
     const onset = v > 0 ? phones.slice(0, v) : [];
     const nucleus = v >= 0 ? phones[v] : hum[0];
     const coda = v >= 0 ? phones.slice(v + 1) : [];
-    const onsetDur = onset.map((p) => sungConsonant(p, onset.length > 1));
+    const onsetDur = onset.map((p, i) => sungConsonant(p, onset.length > 1) + (afterAspirated(p, onset[i - 1]) ? ASPIRATED_GLIDE : 0));
     const onsetStart = start - onsetDur.reduce((a, b) => a + b, 0);
     cursor = yieldPreviousVowel(segments, cues, cursor, onsetStart);
     const before = segments[segments.length - 1];

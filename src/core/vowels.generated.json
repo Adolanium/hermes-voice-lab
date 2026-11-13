@@ -3,12 +3,12 @@
   "IH": {"params":{"tongueX":1.000,"tongueY":0.724,"jaw":0.371,"lipOpen":0.842,"lipRound":0.000,"throat":0.340},"model":[478,2341,2916],"target":[483,2365,3053]},
   "EY": {"params":{"tongueX":1.000,"tongueY":0.828,"jaw":0.481,"lipOpen":1.000,"lipRound":0.000,"throat":0.026},"model":[519,2415,2860],"target":[536,2530,3047]},
   "EH": {"params":{"tongueX":1.000,"tongueY":0.285,"jaw":0.715,"lipOpen":1.000,"lipRound":0.000,"throat":0.000},"model":[689,1921,2948],"target":[731,2058,2979]},
-  "AE": {"params":{"tongueX":1.000,"tongueY":0.584,"jaw":0.904,"lipOpen":1.000,"lipRound":0.000,"throat":0.000},"model":[616,2146,2819],"target":[669,2349,2972]},
-  "AA": {"params":{"tongueX":0.749,"tongueY":0.000,"jaw":1.000,"lipOpen":1.000,"lipRound":0.000,"throat":0.000},"model":[813,1571,3221],"target":[936,1551,2815]},
+  "AE": {"params":{"tongueX":1.000,"tongueY":0.084,"jaw":0.913,"lipOpen":0.999,"lipRound":0.000,"throat":0.000},"model":[773,1797,3032],"target":[860,2050,2850]},
+  "AA": {"params":{"tongueX":0.049,"tongueY":0.000,"jaw":0.967,"lipOpen":0.960,"lipRound":0.000,"throat":0.000},"model":[877,1309,2745],"target":[900,1300,2810]},
   "AO": {"params":{"tongueX":0.000,"tongueY":0.138,"jaw":0.785,"lipOpen":0.706,"lipRound":0.363,"throat":0.000},"model":[759,1153,2761],"target":[781,1136,2824]},
   "OW": {"params":{"tongueX":0.018,"tongueY":0.673,"jaw":0.520,"lipOpen":0.375,"lipRound":0.836,"throat":0.000},"model":[553,1041,2834],"target":[555,1035,2828]},
   "UH": {"params":{"tongueX":0.217,"tongueY":0.683,"jaw":0.417,"lipOpen":0.466,"lipRound":0.600,"throat":0.484},"model":[519,1241,2827],"target":[519,1225,2827]},
   "UW": {"params":{"tongueX":0.065,"tongueY":0.807,"jaw":0.355,"lipOpen":0.349,"lipRound":0.910,"throat":0.492},"model":[459,1105,2716],"target":[459,1105,2735]},
-  "AH": {"params":{"tongueX":0.783,"tongueY":0.000,"jaw":0.732,"lipOpen":0.660,"lipRound":0.255,"throat":0.000},"model":[740,1441,3100],"target":[753,1426,2933]},
+  "AH": {"params":{"tongueX":0.898,"tongueY":0.000,"jaw":0.659,"lipOpen":0.423,"lipRound":0.316,"throat":0.001},"model":[692,1407,2963],"target":[690,1400,2900]},
   "ER": {"params":{"tongueX":0.109,"tongueY":0.972,"jaw":0.404,"lipOpen":0.535,"lipRound":0.360,"throat":0.011,"rhotic":0.827},"model":[522,1583,1932],"target":[523,1588,1929]}
 }

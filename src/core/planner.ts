@@ -36,6 +36,17 @@ const CORONAL_BURST: Record<string, {gap: number; hold: number}> = {T: {gap: 0.8
 const NASAL_VOWEL = 0.6;
 /** Fold adduction for breathy voice: apart enough to leak air, close enough to keep vibrating. */
 const BREATHY = 0.6;
+/** Where the tongue body and jaw are for a consonant made with the blade at the ridge, and how far each goes there from the vowel beside it. */
+const CORONAL_SHAPE = {tongueX: 0.85, tongueY: 0.6, jaw: 0.4};
+const CORONAL_BODY: Record<string, number> = {T: 0.7, D: 0.7, N: 0.7, S: 0.7, Z: 0.7};
+/** Time constant (ms) of the body's move away from a blade consonant into the vowel. */
+const CORONAL_SLIDE = 22;
+/**
+ * Voicing through the closure of /b d g/ after a pause. The folds stay together and hum
+ * quietly behind the closure, as most singers' and many speakers' do; held apart (0.15, a
+ * silent closure) "bee" and "die" were heard as "pea" and "tie" more often.
+ */
+const INITIAL_CLOSURE = 0.85;
 const LEAD_SCALE = 2.4; // start a movement ~2.4 time constants before its target time
 
 function voiceDefaults(voice: Patch) {
@@ -82,7 +93,7 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
   });
 
   // Tongue-body anchors: vowels plus consonants that need the dorsum.
-  type Anchor = {time: number; target: Patch; tau?: number; lead?: number; seg: number};
+  type Anchor = {time: number; target: Patch; tau?: number; lead?: number; seg: number; coronal?: boolean; hold?: number};
   const anchors: Anchor[] = [];
   segments.forEach((s, i) => {
     if (s.symbol === 'SIL') return;
@@ -129,11 +140,26 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
       const next = segments[i + 1];
       const prevocalic = next && isVowel(next.symbol);
       anchors.push({time: prevocalic ? s.start + 0.9 * dur : s.start - 0.03, target: {...body, ...PALATAL}, tau: 18, lead: 4, seg: i});
+    } else if (CORONAL_BODY[s.symbol] !== undefined) {
+      // The tongue blade cannot reach the ridge without bringing the body forward and the jaw
+      // up, so the vowel next to /t d n s z/ starts (or ends) part of the way to that shape:
+      // the second formant moves from about 1800 Hz, which is how a listener tells "doe" from
+      // "bow" and "go". Without it the vowel's formants were in place 20 ms after the release.
+      const k = CORONAL_BODY[s.symbol];
+      const near = segments[i + 1] && isVowel(segments[i + 1].symbol) ? segments[i + 1] : segments[i - 1] && isVowel(segments[i - 1].symbol) ? segments[i - 1] : nextVowel(i) ?? prevVowel(i);
+      const v = near ? vowelTarget({symbol: near.symbol, stress: near.stress}) : SCHWA;
+      const mix = (name: 'tongueX' | 'tongueY' | 'jaw') => (v[name] ?? 0.5) + k * (CORONAL_SHAPE[name] - (v[name] ?? 0.5));
+      // Held to the release before a vowel, so the slide into the vowel is heard after it.
+      const prevocalic = segments[i + 1] && isVowel(segments[i + 1].symbol);
+      anchors.push({time: prevocalic ? s.end - 0.005 : s.start + 0.4 * dur, target: {tongueX: mix('tongueX'), tongueY: mix('tongueY'), jaw: body.jaw ?? mix('jaw')}, tau: 18, lead: 4, seg: i, coronal: true});
     } else if (Object.keys(body).length) {
       if (s.symbol === 'R') body.jaw = 0.55;
       // Consonantal tongue-body targets are extreme and brief: move early
       // enough (4 time constants) to get close to them.
-      anchors.push({time: s.start + 0.5 * dur, target: body, tau: 18, lead: 4, seg: i});
+      // /r/ is there early and stays: its sound is the third resonance held low, and that
+      // only comes down in the last part of the tongue's way there.
+      const r = s.symbol === 'R';
+      anchors.push({time: s.start + (r ? 0.25 : 0.5) * dur, target: body, tau: r ? 12 : 18, lead: 4, seg: i, hold: r ? s.start + 0.75 * dur : undefined});
     }
   });
   anchors.sort((a, b) => a.time - b.time);
@@ -141,8 +167,9 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
     const gap = k ? a.time - anchors[k - 1].time : 0.15;
     // Vowel targets are reached, not grazed: a quick move (12–24 ms) that
     // starts about four time constants ahead gets ~90% of the way there.
-    const tau = a.tau ?? Math.min(24, Math.max(12, gap * 1000 * 0.18));
-    const start = Math.max(k ? anchors[k - 1].time : 0, a.time - ((a.lead ?? 4) * tau) / 1000);
+    // Away from a blade consonant the body takes longer (the slide a listener hears as its place).
+    const tau = a.tau ?? Math.min(24, Math.max(k && anchors[k - 1].coronal ? CORONAL_SLIDE : 12, gap * 1000 * 0.18));
+    const start = Math.max(k ? anchors[k - 1].hold ?? anchors[k - 1].time : 0, a.time - ((a.lead ?? 4) * tau) / 1000);
     for (const [name, value] of Object.entries(a.target)) {
       if (['tongueX', 'tongueY', 'jaw', 'throat', 'rhotic', 'lipOpen', 'lipRound'].includes(name)) at(start, name as ParamName, value!, tau, a.seg);
     }
@@ -300,10 +327,9 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
       if (final) at(s.end + 0.09, 'voicing', 1, 20, i);
       else if (!following) at(s.end + (ph.manner === "fricative" ? 0.005 : ph.manner === "aspirate" ? -0.02 : vot - 0.012), "voicing", 1, 8, i);
     } else if (phraseInitial && (ph.manner === 'stop' || ph.manner === 'affricate')) {
-      // Utterance-initial /b d g/ in English are short-lag, not prevoiced:
-      // the folds are apart but not vibrating during the closure; voicing
-      // starts just after the release.
-      at(onset, 'voicing', 0.15, 10, i);
+      // Utterance-initial /b d g/: voiced quietly through the closure (INITIAL_CLOSURE),
+      // full voice from just before the release.
+      at(onset, 'voicing', INITIAL_CLOSURE, 10, i);
       if (s.breathy) {
         at(s.end - 0.015, 'voicing', BREATHY, 8, i);
         at(s.end + 0.1, 'voicing', 1, 18, i);
@@ -391,6 +417,14 @@ export interface Plan {
 // fit their spectra better but sounded choppy: predicted naturalness 2.18 vs 2.70 (UTMOS).
 const TEMPO = 1.25;
 
+/**
+ * /r l w j/ after /p t k/ start inside the stop's puff of air, so only what comes after the
+ * voice starts is heard as the glide: "tree" had 20 ms of voiced /r/ and was heard as "tea".
+ * It is given that much longer (a speaker's is, too).
+ */
+const ASPIRATED_GLIDE = 0.04;
+const afterAspirated = (seg: Phone, prev: Phone | undefined) => !!prev && ['P', 'T', 'K'].includes(prev.symbol) && ['R', 'L', 'W', 'Y'].includes(seg.symbol);
+
 function durationOf(seg: Phone, prev: Phone | undefined, next: Phone | undefined, final: boolean, rate: number): number {
   const ph = PHONEMES[seg.symbol];
   let d = ph.duration;
@@ -403,6 +437,7 @@ function durationOf(seg: Phone, prev: Phone | undefined, next: Phone | undefined
     const cluster = (prev && !isVowel(prev.symbol)) || (next && !isVowel(next.symbol));
     if (cluster) d *= 0.8;
     if (final) d *= 1.15;
+    if (afterAspirated(seg, prev)) d += ASPIRATED_GLIDE * 1000;
   }
   return (TEMPO * d) / 1000 / rate;
 }
@@ -738,7 +773,7 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
     // They keep close to their spoken length: a singer takes the time from the end
     // of the previous vowel, not from the consonant (squeezed consonants are what
     // makes sung words hard to follow).
-    const onsetDur = onset.map(p => sungConsonant(p, onset.length > 1));
+    const onsetDur = onset.map((p, i) => sungConsonant(p, onset.length > 1) + (afterAspirated(p, onset[i - 1]) ? ASPIRATED_GLIDE : 0));
     const onsetStart = start - onsetDur.reduce((a, b) => a + b, 0);
     cursor = yieldPreviousVowel(segments, cues, cursor, onsetStart);
     // After a rest (or at the very start) the onset begins inside the silence.
