@@ -306,4 +306,17 @@ export const CSS = `
   .hvl-now { position: static; width: auto; margin: 0 12px 8px; }
   .hvl-portrait-wrap { flex-direction: column; }
 }
+
+.hvl-clip {overflow:hidden;}
+.hvl-clip canvas {display:block;width:100%;height:auto;background:#141523;max-height:64vh;object-fit:contain;}
+.hvl-clip-tools,.hvl-clip-fields {display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.hvl-clip-tools {padding:14px 20px;border-bottom:1px solid var(--hvl-line);}
+.hvl-clip-edit {border:0;margin:12px 0 0;padding:0 20px 20px;display:grid;gap:14px;}
+.hvl-clip-edit legend {font-weight:650;padding:0 0 10px;}
+.hvl-clip-edit label {font-size:13px;display:flex;align-items:center;gap:6px;}
+.hvl-clip-edit input[type=number] {width:76px;}
+.hvl-singer-editor {display:grid;gap:8px;}
+.hvl-singer-editor>label {display:grid;gap:4px;}
+.hvl-singer-editor small {color:var(--hvl-fg2);}
+.hvl-singer-editor textarea {width:100%;min-height:54px;resize:vertical;}
 `;

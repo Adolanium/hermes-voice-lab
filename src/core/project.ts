@@ -11,7 +11,12 @@ import type {ImportedScore} from './score-import';
 import {beatSong, newBeat, validateBeat, type Beat} from './beat';
 import {duetNotes, duetVoice, newDuet, validateDuet, type Duet} from './duet';
 
-export type Mode = 'play' | 'speak' | 'sing' | 'beat';
+import {validateDirections, type WordDirection} from './direction';
+import {validateTakes, type JamTake} from './takes';
+import {validateEnsemble, type Ensemble} from './ensemble';
+import {planShow} from './show';
+
+export type Mode = 'play' | 'speak' | 'sing' | 'beat' | 'ensemble';
 
 export interface Project {
   version: 2;
@@ -20,7 +25,10 @@ export interface Project {
   voice: Patch;
   shape: Patch;
   speech: {text: string; phonemes: boolean; rate: number; expression: number};
-  song: {bpm: number; lyrics: string; notes: Note[]; loop: boolean; style: SongStyle; duet: Duet};
+  song: {bpm: number; lyrics: string; notes: Note[]; loop: boolean; style: SongStyle; duet: Duet; directions?: WordDirection[]};
+  ensemble?: Ensemble;
+  takes?: JamTake[];
+  activeTake?: string;
   /** Beatbox pattern (Beat mode). */
   beat: Beat;
   /** Seconds rendered for Play mode exports. */
@@ -88,13 +96,13 @@ export function validateProject(input: unknown): Project {
   if (!input || typeof input !== 'object') throw new TypeError('Project must be an object');
   const p = input as Record<string, any>;
   const base = newProject();
-  const allowed = new Set(['version', 'name', 'mode', 'voice', 'shape', 'speech', 'song', 'beat', 'sustain']);
+  const allowed = new Set(['version', 'name', 'mode', 'voice', 'shape', 'speech', 'song', 'beat', 'sustain', 'takes', 'activeTake', 'ensemble']);
   for (const k of Object.keys(p)) if (!allowed.has(k)) throw new TypeError(`Unknown project field "${k}"`);
   if (p.version !== undefined && p.version !== 2) throw new TypeError('Unsupported project version');
   const name = p.name ?? base.name;
   if (typeof name !== 'string' || name.length > LIMITS.name) throw new TypeError(`name must be text up to ${LIMITS.name} characters`);
   const mode = p.mode ?? base.mode;
-  if (!['play', 'speak', 'sing', 'beat'].includes(mode)) throw new TypeError('mode must be play, speak, sing or beat');
+  if (!['play', 'speak', 'sing', 'beat', 'ensemble'].includes(mode)) throw new TypeError('mode must be play, speak, sing, beat or ensemble');
   const speech = {...base.speech, ...(p.speech ?? {})};
   if (typeof speech.text !== 'string' || speech.text.length > LIMITS.text) throw new TypeError(`speech.text must be up to ${LIMITS.text} characters`);
   if (typeof speech.phonemes !== 'boolean') throw new TypeError('speech.phonemes must be true or false');
@@ -106,14 +114,19 @@ export function validateProject(input: unknown): Project {
   if (typeof song.loop !== 'boolean') throw new TypeError('song.loop must be true or false');
   if (!['natural', 'cartoon', 'yodel'].includes(song.style)) throw new TypeError('song.style must be natural, cartoon or yodel');
   if (!Array.isArray(song.notes) || song.notes.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
-  const checkNotes = (list: unknown): Note[] => {
+  const checkNotes = (list: unknown, maxStart = 1024): Note[] => {
     if (!Array.isArray(list) || list.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
     return list.map((n: any, i: number) => {
       if (!n || typeof n !== 'object') throw new TypeError(`note ${i} must be an object`);
-      return {start: num(n.start, 0, 1024, `note ${i} start`), length: num(n.length, 0.0625, 64, `note ${i} length`), midi: Math.round(num(n.midi, 36, 96, `note ${i} midi`))};
+      return {start: num(n.start, 0, maxStart, `note ${i} start`), length: num(n.length, 0.0625, 64, `note ${i} length`), midi: Math.round(num(n.midi, 36, 96, `note ${i} midi`))};
     });
   };
   const notes = checkNotes(song.notes);
+  const ensemble = p.ensemble === undefined ? undefined : validateEnsemble(p.ensemble, list => checkNotes(list, 1440));
+  if (mode === 'ensemble' && !ensemble) throw new Error('The clip needs an arrangement.');
+  const takes = validateTakes(p.takes, checkNotes);
+  if (p.activeTake !== undefined && !takes.some(t => t.id === p.activeTake)) throw new TypeError('Unknown active take');
+  const directions = validateDirections(song.directions);
   const duet = validateDuet(song.duet, checkNotes);
   const seconds = notes.reduce((m, n) => Math.max(m, ((n.start + n.length) * 60) / song.bpm), 0);
   if (seconds > LIMITS.seconds) throw new RangeError(`Song is longer than ${LIMITS.seconds} seconds`);
@@ -124,7 +137,9 @@ export function validateProject(input: unknown): Project {
     voice: {...SIGNATURE, ...validatePatch(p.voice ?? base.voice, 'voice')},
     shape: {...validatePatch(p.shape ?? base.shape, 'shape')},
     speech,
-    song: {bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes, duet},
+    song: {bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes, duet, ...(directions.length ? {directions} : {})},
+    ...(ensemble ? {ensemble} : {}),
+    ...(takes.length ? {takes} : {}), ...(p.activeTake ? {activeTake: p.activeTake} : {}),
     beat: validateBeat(p.beat),
     sustain: num(p.sustain ?? base.sustain, 0.2, 30, 'sustain'),
   };
@@ -135,7 +150,7 @@ export function validateProject(input: unknown): Project {
  * limits: the tempo is brought into range and a score that is too long is cut at the limit.
  * `messages` says in plain words what was changed.
  */
-export function songFromScore(score: ImportedScore): {song: Pick<Project['song'], 'bpm' | 'notes' | 'lyrics'>; messages: string[]} {
+export function songFromScore(score: ImportedScore, maxStart = 1024): {song: Pick<Project['song'], 'bpm' | 'notes' | 'lyrics'>; messages: string[]} {
   const messages = [...score.warnings];
   let bpm = score.bpm;
   let scale = 1;
@@ -145,7 +160,7 @@ export function songFromScore(score: ImportedScore): {song: Pick<Project['song']
   bpm = Math.round(bpm * scale * 1000) / 1000;
   const beats = (LIMITS.seconds * bpm) / 60;
   let notes = score.notes.map(n => ({start: n.start * scale, length: Math.min(64, Math.max(0.0625, n.length * scale)), midi: n.midi}));
-  const kept = notes.filter(n => n.start + n.length <= Math.min(beats, 1024 + 64) && n.start <= 1024).slice(0, LIMITS.notes);
+  const kept = notes.filter(n => n.start + n.length <= Math.min(beats, maxStart + 64) && n.start <= maxStart).slice(0, LIMITS.notes);
   if (kept.length < notes.length) messages.push(`The score is longer than a song can be (${LIMITS.seconds / 60} minutes, ${LIMITS.notes} notes): the first ${kept.length} of ${notes.length} notes were imported.`);
   notes = kept;
   // One lyric token can cover several notes ("hel-lo"), so cut the words by counting syllables loosely.
@@ -156,22 +171,26 @@ export function songFromScore(score: ImportedScore): {song: Pick<Project['song']
 
 /** The duet's second singer (Sing mode), or null when there is none. */
 export function duetScore(project: Project, lexicon: Lexicon): {score: Score; voice: Patch} | null {
+  if (project.activeTake) return null;
   const duet = project.song.duet;
   const notes = duetNotes(project.song.notes, duet);
   if (!notes.length) return null;
   const voice = {...SIGNATURE, ...duetVoice(duet)};
-  const plan = planSong(notes, duet.part === 'custom' && duet.lyrics ? duet.lyrics : project.song.lyrics, lexicon, {bpm: project.song.bpm, voice, style: project.song.style});
+  const plan = planSong(notes, duet.part === 'custom' && duet.lyrics ? duet.lyrics : project.song.lyrics, lexicon, {bpm: project.song.bpm, voice, style: project.song.style, directions: duet.part === 'custom' && duet.lyrics ? undefined : project.song.directions});
   return {score: plan.score, voice};
 }
 
 /** Build the engine score for the project's current mode. */
 export function projectScore(project: Project, lexicon: Lexicon, mode: Mode = project.mode): {score: Score; warnings: string[]} {
+  if (mode === 'ensemble') throw new Error('Use planEnsemble for a multi-singer arrangement.');
   if (mode === 'speak') {
     const plan = planSpeech(project.speech.text, lexicon, {voice: project.voice, rate: project.speech.rate, expression: project.speech.expression, phonemes: project.speech.phonemes});
     return {score: plan.score, warnings: plan.warnings};
   }
   if (mode === 'sing') {
-    const plan = planSong(project.song.notes, project.song.lyrics, lexicon, {bpm: project.song.bpm, voice: project.voice, style: project.song.style});
+    const take = project.takes?.find(t => t.id === project.activeTake);
+    if (take) return {score: planTake(take, lexicon).score, warnings: []};
+    const plan = planSong(project.song.notes, project.song.lyrics, lexicon, {bpm: project.song.bpm, voice: project.voice, style: project.song.style, directions: project.song.directions});
     return {score: plan.score, warnings: plan.warnings};
   }
   if (mode === 'beat') {
@@ -180,6 +199,10 @@ export function projectScore(project: Project, lexicon: Lexicon, mode: Mode = pr
     return {score: plan.score, warnings: plan.warnings};
   }
   return {score: planSustain(project.shape, project.voice, project.sustain), warnings: []};
+}
+
+export function planTake(take: JamTake, lexicon: Lexicon) {
+  return planShow([take.call, take.reply].map(part => ({...part, kind: 'sing' as const, pause: 0})), lexicon, {});
 }
 
 export function fullPatch(patch: Patch): Record<string, number> {

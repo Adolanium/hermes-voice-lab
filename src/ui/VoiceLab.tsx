@@ -7,7 +7,8 @@ import {lyricSyllables, planSong, planSpeech, type Plan, type SongPlan} from '..
 import {PerformanceController} from '../performance/controller';
 import {jamMessage, PHRASE_GAP, PhraseRecorder, type JamAnswer} from '../performance/jam';
 import {VOICE_PRESETS} from '../core/presets';
-import {duetScore, newProject, projectScore, validateProject, type Mode, type Project} from '../core/project';
+import {duetScore, newProject, planTake, projectScore, validateProject, type Mode, type Project} from '../core/project';
+import {MAX_TAKES, type JamTake, type PartName, type TakePart} from '../core/takes';
 import {planHit} from '../core/hits';
 import type {Lexicon} from '../core/text';
 import type {VoiceLabBridge} from '../bridge';
@@ -15,6 +16,8 @@ import {engineModule, loadLexicon} from './assets';
 import {ModelAnalysis} from './modelAnalysis';
 import {analysis, renderWav, VoiceAudio} from './audio';
 import {Icon, Mark, useAudioStatus, useOpaqueInk, useTelemetry} from './controls';
+import {ClipStudio} from './ClipStudio';
+import {nightWire} from '../core/ensemble';
 import {Keyboard} from './Keyboard';
 import {useMidi} from './midi';
 import {PlaySpeakSingTabs} from './tabs';
@@ -38,6 +41,11 @@ export default function VoiceLab({bridge}: Props) {
   const running = status === 'running';
 
   const [project, setProject] = useState<Project>(() => newProject());
+  const returnMode = useRef<Mode>('sing');
+  const [partName, setPartName] = useState<PartName>('reply');
+  const activeTake = project.takes?.find(t => t.id === project.activeTake);
+  const part = activeTake?.[partName];
+  const editorProject = useMemo(() => part && project.mode === 'sing' ? {...project, voice: part.voice, song: {...project.song, ...part, loop: false, directions: part.directions}} : project, [part, project]);
   const [loaded, setLoaded] = useState(false);
   const [lexicon, setLexicon] = useState<Lexicon | null>(null);
   const [cutaway, setCutaway] = useState(() => bridge.storage.get('cutaway', true));
@@ -56,6 +64,8 @@ export default function VoiceLab({bridge}: Props) {
   const liveCursor = useRef(0);
   const [liveIndex, setLiveIndex] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveChain = useRef(Promise.resolve());
+  const flush = useRef<(() => void) | null>(null);
   const projectRef = useRef(project);
   projectRef.current = project;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -71,32 +81,42 @@ export default function VoiceLab({bridge}: Props) {
       setLoaded(true);
     }, () => live && setLoaded(true));
     const off = bridge.subscribe((p, origin, changed) => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      flush.current = null;
+      projectRef.current = p;
       setProject(p);
       if (origin === 'agent') {
         const keys = new Set(changed ?? []);
         setAgentKeys(keys);
         setTimeout(() => live && setAgentKeys(new Set()), 5000);
         const what = changed?.length ? changed.slice(0, 5).join(', ') : 'the project';
-        setToast({text: `Hermes updated ${what}.`, action: p.mode !== 'play' ? {label: p.mode === 'sing' ? 'Sing it' : p.mode === 'beat' ? 'Play it' : 'Speak it', run: () => playMode(p.mode, p)} : undefined});
+        setToast({text: `Hermes updated ${what}.`, action: p.mode !== 'play' && p.mode !== 'ensemble' ? {label: p.mode === 'sing' ? 'Sing it' : p.mode === 'beat' ? 'Play it' : 'Speak it', run: () => playMode(p.mode, p)} : undefined});
       }
     });
     return () => {
       live = false;
       off();
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      flush.current?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bridge]);
 
-  const update = useCallback((fn: (p: Project) => Project) => {
-    setProject(prev => {
-      const next = fn(prev);
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => {
-        bridge.save(next).catch(e => setToast({text: `Could not save: ${(e as Error).message}`}));
-      }, 700);
-      return next;
-    });
+  const update = useCallback((fn: (p: Project) => Project, immediate = false) => {
+    const next = fn(projectRef.current);
+    if (next.takes !== projectRef.current.takes) {
+      try { validateProject(next); }
+      catch (e) { setToast({text: (e as Error).message}); return; }
+    }
+    projectRef.current = next;
+    setProject(next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    const save = () => {
+      flush.current = null;
+      saveChain.current = saveChain.current.then(() => bridge.save(next)).catch(e => setToast({text: `Could not save: ${(e as Error).message}`}));
+    };
+    flush.current = save;
+    if (immediate) save(); else saveTimer.current = setTimeout(save, 700);
   }, [bridge]);
 
   useEffect(() => {
@@ -126,20 +146,28 @@ export default function VoiceLab({bridge}: Props) {
   // ---- Jam with Hermes: a phrase on the keys goes to the chat; the agent sings an answer --------
   type JamState = 'off' | 'idle' | 'playing' | 'waiting' | 'answering';
   const [jam, setJam] = useState<{state: JamState; text?: string}>({state: 'off'});
-  const jamRef = useRef({on: false, recorder: new PhraseRecorder(), timer: null as ReturnType<typeof setTimeout> | null, wait: null as ReturnType<typeof setTimeout> | null, last: null as JamAnswer | null});
+  const jamRef = useRef({on: false, recorder: new PhraseRecorder(), timer: null as ReturnType<typeof setTimeout> | null, wait: null as ReturnType<typeof setTimeout> | null, waitingFor: null as string | null, last: null as JamAnswer | null});
+  const pendingCalls = useRef(new Map<string, TakePart>());
+  const firstKey = useRef<Pick<TakePart, 'bpm' | 'voice' | 'shape' | 'style'> | null>(null);
+  const [exchanges, setExchanges] = useState<JamTake[]>([]);
+  const [candidateId, setCandidateId] = useState('');
+  const candidate = exchanges.find(t => t.id === candidateId);
   const jamClock = () => performance.now() / 1000;
-  const syllables = useMemo(() => (lexicon ? lyricSyllables(project.song.lyrics, lexicon) : []), [lexicon, project.song.lyrics]);
-  const performanceOptions = useRef({ensureAudio, syllables, liveActive: false});
-  performanceOptions.current = {ensureAudio, syllables, liveActive: liveSing && project.mode === 'sing' && syllables.length > 0};
+  const syllables = useMemo(() => (lexicon ? lyricSyllables(editorProject.song.lyrics, lexicon) : []), [lexicon, editorProject.song.lyrics]);
+  const tokens = useMemo(() => editorProject.song.lyrics.trim().split(/\s+/), [editorProject.song.lyrics]);
+  const performanceOptions = useRef({ensureAudio, syllables, tokens, liveActive: false});
+  performanceOptions.current = {ensureAudio, syllables, tokens, liveActive: liveSing && project.mode === 'sing' && syllables.length > 0};
   const performanceController = useMemo(() => new PerformanceController(audio, {
     ensureAudio: () => performanceOptions.current.ensureAudio(),
     patch: () => ({...projectRef.current.voice, ...projectRef.current.shape}),
     nextSyllable: () => {
-      const {liveActive, syllables} = performanceOptions.current;
+      const {liveActive, syllables, tokens} = performanceOptions.current;
       if (!liveActive) return;
-      const syllable = syllables[liveCursor.current++ % syllables.length];
+      const index = liveCursor.current++ % syllables.length;
+      const syllable = syllables[index];
       setLiveIndex(liveCursor.current);
-      if (jamRef.current.on) jamRef.current.recorder.sang(syllable.text);
+      if (jamRef.current.on) jamRef.current.recorder.sang(syllable.text, {token: tokens[syllable.word], phones: syllable.phones,
+        first: syllables[index - 1]?.word !== syllable.word, last: syllables[index + 1]?.word !== syllable.word});
       return syllable;
     },
   }), [audio]);
@@ -157,12 +185,10 @@ export default function VoiceLab({bridge}: Props) {
     };
   }, [performanceController]);
   const onVoice = (p: Patch) => {
-    projectRef.current = {...projectRef.current, voice: {...projectRef.current.voice, ...p}};
     update(prev => ({...prev, voice: {...prev.voice, ...p}}));
     performanceController.patch(p, 30);
   };
   const onShape = (p: Patch) => {
-    projectRef.current = {...projectRef.current, shape: {...projectRef.current.shape, ...p}};
     update(prev => ({...prev, shape: {...prev.shape, ...p}, mode: 'play'}));
     performanceController.patch(p, 25);
   };
@@ -177,24 +203,36 @@ export default function VoiceLab({bridge}: Props) {
     const j = jamRef.current;
     clearJamTimer();
     if (!j.on || !bridge.jam) return;
-    const phrase = j.recorder.take(projectRef.current.song.bpm, jamClock());
+    const snapshot = firstKey.current;
+    firstKey.current = null;
+    if (!snapshot) return;
+    const phrase = j.recorder.take(snapshot.bpm, jamClock());
     if (!phrase) return;
+    const turnId = crypto.randomUUID();
+    j.waitingFor = turnId;
+    pendingCalls.current.set(turnId, {...snapshot, notes: phrase.notes, lyrics: phrase.lyrics ?? phrase.words.join(' ')});
+    if (pendingCalls.current.size > 32) pendingCalls.current.delete(pendingCalls.current.keys().next().value!);
     setJam({state: 'waiting'});
     if (j.wait) clearTimeout(j.wait);
     j.wait = setTimeout(() => {
       j.wait = null;
       setJam(s => (s.state === 'waiting' ? {state: 'idle', text: 'No answer yet. Play another phrase or check the chat.'} : s));
     }, 90000);
-    bridge.jam.send(jamMessage(phrase)).catch(e => {
+    bridge.jam.send(jamMessage(phrase, turnId)).catch(e => {
+      pendingCalls.current.delete(turnId);
+      if (j.waitingFor !== turnId) return;
       if (j.wait) clearTimeout(j.wait);
       j.wait = null;
       setJam({state: 'idle', text: (e as Error).message});
     });
   };
   const onNoteOn = (midi: number, source = `key:${midi}`) => {
+    if (projectRef.current.mode === 'ensemble') return;
     const j = jamRef.current;
     if (j.on) {
       clearJamTimer();
+      if (j.recorder.empty) firstKey.current = {voice: {...project.voice}, shape: {...project.shape}, style: project.song.style, bpm: project.song.bpm};
+      midi = Math.max(36, Math.min(96, midi));
       j.recorder.noteOn(source, midi, jamClock());
       setJam(s => (s.state === 'playing' ? s : {state: 'playing'}));
     }
@@ -213,10 +251,12 @@ export default function VoiceLab({bridge}: Props) {
   const toggleJam = () => {
     const j = jamRef.current;
     j.on = !j.on;
+    j.waitingFor = null;
     clearJamTimer();
     if (j.wait) clearTimeout(j.wait);
     j.wait = null;
     j.recorder.clear();
+    firstKey.current = null;
     setJam({state: j.on ? 'idle' : 'off'});
   };
   const midi = useMidi((m, _v, source) => onNoteOn(m, source), (m, source) => onNoteOff(m, source));
@@ -234,15 +274,23 @@ export default function VoiceLab({bridge}: Props) {
   const songPlan: SongPlan | null = useMemo(() => {
     if (!lexicon) return null;
     try {
-      return planSong(project.song.notes, project.song.lyrics, lexicon, {bpm: project.song.bpm, voice: project.voice, style: project.song.style});
+      const {song, voice} = editorProject;
+      return planSong(song.notes, song.lyrics, lexicon, {bpm: song.bpm, voice, style: song.style, directions: song.directions});
     } catch {
       return null;
     }
-  }, [lexicon, project.song, project.voice]);
+  }, [lexicon, editorProject.song, editorProject.voice]);
 
+  const activePlan = useMemo(() => activeTake && lexicon ? planTake(activeTake, lexicon) : null, [activeTake, lexicon]);
   const playMode = (mode: Mode, source = projectRef.current) => {
-    if (!lexicon) return;
+    if (!lexicon || mode === 'ensemble') return;
     setTrying(null);
+    const take = mode === 'sing' && source.takes?.find(t => t.id === source.activeTake);
+    if (take) {
+      const {score, cues} = planTake(take, lexicon);
+      performanceController.play({score, cues});
+      return;
+    }
     const {score} = projectScore(source, lexicon, mode);
     const cues = mode === 'sing' ? planSong(source.song.notes, source.song.lyrics, lexicon, {bpm: source.song.bpm, voice: source.voice, style: source.song.style}).cues : [];
     performanceController.play({
@@ -262,11 +310,23 @@ export default function VoiceLab({bridge}: Props) {
     if (!bridge.jam) return;
     const j = jamRef.current;
     const off = bridge.jam.subscribe(answer => {
+      if (answer.turnId) {
+        const call = pendingCalls.current.get(answer.turnId);
+        if (!call) return;
+        pendingCalls.current.delete(answer.turnId);
+        const current = projectRef.current;
+        const take = {id: answer.turnId, call, reply: {notes: answer.notes, lyrics: answer.lyrics, bpm: answer.bpm,
+          voice: {...current.voice}, style: current.song.style}};
+        setExchanges(previous => [...previous.slice(1 - MAX_TAKES), take]);
+        setCandidateId(take.id);
+        if (j.waitingFor !== answer.turnId) return;
+      }
+      j.waitingFor = null;
       if (j.wait) clearTimeout(j.wait);
       j.wait = null;
       j.last = answer;
       // A key already down for the next phrase keeps the floor.
-      if (j.recorder.holding) return;
+      if (projectRef.current.mode === 'ensemble' || j.recorder.holding || (answer.turnId && !j.on)) return;
       setJam({state: j.on ? 'answering' : 'off', text: answer.lyrics});
       singAnswerRef.current(answer);
     });
@@ -277,6 +337,37 @@ export default function VoiceLab({bridge}: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bridge]);
+  const openTake = (id: string) => {
+    performanceController.stop();
+    setBestiary(false);
+    setPartName('reply');
+    update(p => ({...p, mode: 'sing', activeTake: id || undefined}), true);
+  };
+  const keepTake = useCallback((take: JamTake) => {
+    const saved = projectRef.current.takes ?? [];
+    if (saved.some(t => t.id === take.id) || saved.length >= MAX_TAKES) return;
+    update(p => ({...p, takes: [...(p.takes ?? []), take], activeTake: take.id, mode: 'sing'}), true);
+    setBestiary(false);
+    setPartName('reply');
+  }, [update]);
+  useEffect(() => bridge.jam?.subscribeKeep?.(id => {
+    const take = exchanges.find(t => t.id === id);
+    if (take) keepTake(take);
+  }), [bridge, exchanges, keepTake]);
+  const removeTake = () => {
+    if (!activeTake) return;
+    performanceController.stop();
+    setPartName('reply');
+    update(p => ({...p, activeTake: undefined, takes: p.takes?.filter(t => t.id !== activeTake.id)}), true);
+    setToast({text: 'Removed take.', action: {label: 'Undo', run: () => {
+      update(p => p.takes?.some(t => t.id === activeTake.id) ? p : {...p, takes: [...(p.takes ?? []), activeTake]}, true);
+    }}});
+  };
+  const editSong = (change: Partial<Project['song']>) => update(p => {
+    if (!p.activeTake) return {...p, mode: 'sing', song: {...p.song, ...change}};
+    const {duet, loop, ...partChange} = change;
+    return {...p, mode: 'sing', takes: p.takes?.map(t => t.id === p.activeTake ? {...t, [partName]: {...t[partName], ...partChange}} : t)};
+  });
   const playPad = (id: string) => {
     if (!lexicon) return;
     performanceController.play({score: planHit(id, projectRef.current.voice, lexicon, projectRef.current.beat.bpm)});
@@ -290,6 +381,12 @@ export default function VoiceLab({bridge}: Props) {
     performanceController.play({score: planSpeech(`AA1 ${symbol} AA1`, lexicon, {voice: projectRef.current.voice, phonemes: true}).score});
   };
   const stop = performanceController.stop;
+  useEffect(() => {
+    if (project.mode === 'ensemble') {
+      stop();
+      if (jamRef.current.on) toggleJam();
+    }
+  }, [project.mode, stop]);
 
   // ---- Model analysis --------------------------------------------------------
   const params = useMemo(() => {
@@ -375,7 +472,7 @@ export default function VoiceLab({bridge}: Props) {
   const stage: StageState | undefined = stageOn ? {
     time: singing ? position : performance.now() / 1000,
     cues: singing ? performanceState.cues : [],
-    beat: 60 / project.song.bpm,
+    beat: activePlan?.sections.find(s => s.start <= position && position < s.end)?.beat || 60 / project.song.bpm,
     level,
     f0: singing && (params?.gate ?? 0) > 0.05 ? f0 : 0,
     singing,
@@ -421,6 +518,7 @@ export default function VoiceLab({bridge}: Props) {
   };
   const exportWav = async () => {
     const mode = project.mode;
+    if (mode === 'ensemble') return;
     setBusy('Rendering…');
     try {
       if (bridge.exportWav) {
@@ -445,15 +543,17 @@ export default function VoiceLab({bridge}: Props) {
   };
   const saveProjectFile = async () => {
     const text = JSON.stringify(project, null, 2);
+    const title = project.mode === 'ensemble' ? project.ensemble?.title : project.name;
+    const filename = (title?.trim().replace(/[^\p{L}\p{N}_.-]+/gu, '-') || 'voice') + '.voicelab.json';
     if (bridge.files) {
-      const where = await bridge.files.save(`${project.name.replace(/[^\w-]+/g, '-') || 'voice'}.voicelab.json`, text);
+      const where = await bridge.files.save(filename, text);
       if (where) setToast({text: `Saved ${where}`});
       return;
     }
     const url = URL.createObjectURL(new Blob([text], {type: 'application/json'}));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${project.name.replace(/[^\w-]+/g, '-') || 'voice'}.voicelab.json`;
+    a.download = filename;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
@@ -514,6 +614,12 @@ export default function VoiceLab({bridge}: Props) {
             </div>
           </div>
           <div className="hvl-actions">
+            <button className={'hvl-btn '+(project.mode==='ensemble'?'is-on':'')} onClick={()=>{
+              stop(); setBestiary(false);
+              if(project.mode==='ensemble') update(p=>({...p, mode:returnMode.current}));
+              else {returnMode.current=project.mode; update(p=>({...p,mode:'ensemble', ensemble:p.ensemble ?? nightWire()}));}
+            }} disabled={!loaded}>{project.mode==='ensemble'?'Back to instrument':'Clip studio'}</button>
+            {project.mode!=='ensemble' && <>
             <span className="hvl-status" title={audio.error || undefined}><span className={`hvl-dot is-${status}`} />{statusText}</span>
             <button className={`hvl-btn ${running ? 'is-on' : ''}`} onClick={toggleAudio} aria-pressed={running}>{Icon.power} {running ? 'Audio on' : 'Start audio'}</button>
             <label className="hvl-row" style={{gap: 4}} title="Monitor volume">
@@ -534,12 +640,17 @@ export default function VoiceLab({bridge}: Props) {
                 <button className="hvl-btn is-primary" type="submit">Save</button>
               </form>
             )}
+            </>}
             <button className="hvl-btn is-ghost" onClick={openProjectFile} title="Open a project file">{Icon.upload}</button>
             <button className="hvl-btn is-ghost" onClick={saveProjectFile} title="Save the project as a file">{Icon.save}</button>
-            <button className="hvl-btn is-primary" onClick={exportWav} disabled={!!busy || !loaded}>{Icon.download} {busy || 'Export WAV'}</button>
+            {project.mode!=='ensemble' && <button className="hvl-btn is-primary" onClick={exportWav} disabled={!!busy || !loaded}>{Icon.download} {busy || 'Export WAV'}</button>}
           </div>
         </header>
 
+        {project.mode==='ensemble' && project.ensemble ? <ClipStudio arrangement={project.ensemble} lexicon={lexicon} onChange={ensemble=>{
+          validateProject({...projectRef.current, ensemble});
+          update(p=>({...p,ensemble}));
+        }}/> : <>
         <main className="hvl-main">
           <section className="hvl-card hvl-stage" aria-label="Portrait">
             <div className="hvl-stage-head">
@@ -577,7 +688,7 @@ export default function VoiceLab({bridge}: Props) {
           </section>
 
           <PlaySpeakSingTabs
-            project={project}
+            project={editorProject}
             mode={bestiary ? 'bestiary' : project.mode}
             onMode={m => { if (m === 'bestiary') setBestiary(true); else { setBestiary(false); update(p => ({...p, mode: m})); } }}
             onCall={s => void callCreature(s)}
@@ -594,8 +705,10 @@ export default function VoiceLab({bridge}: Props) {
             running={running}
             speechPlan={speechPlan}
             songPlan={songPlan}
+            songPosition={activePlan ? position - activePlan.sections[partName === 'call' ? 0 : 1].start : position}
             onSpeech={s => update(p => ({...p, speech: {...p.speech, ...s}, mode: 'speak'}))}
-            onSong={s => update(p => ({...p, song: {...p.song, ...s}, mode: 'sing'}))}
+            onSong={editSong}
+            partName={partName} onPart={setPartName} onTake={openTake} onRemoveTake={removeTake}
             onPlay={m => void playMode(m)}
             onStop={stop}
             scorePlaying={scorePlaying}
@@ -617,6 +730,14 @@ export default function VoiceLab({bridge}: Props) {
         <Keyboard base={base} onBaseChange={b => { setBase(b); bridge.storage.set('keyboardBase', b); }} onNoteOn={onNoteOn} onNoteOff={onNoteOff} activeNotes={performanceState.notes} enabled={!typing}
           midi={midi}
           jam={bridge.jam ? {state: jam.state, text: jam.text, onToggle: toggleJam, onAgain: jamRef.current.last ? () => singAnswer(jamRef.current.last!) : undefined} : undefined} />
+        {candidate && <div className="hvl-row" style={{flexWrap: 'wrap'}}>
+          <label>Jam exchange <select aria-label="Jam exchange" className="hvl-input" value={candidateId} onChange={e => setCandidateId(e.target.value)}>
+            {exchanges.map(t => <option key={t.id} value={t.id}>{t.call.notes.slice(0, 3).map(n => noteName(n.midi)).join(' ')} · {t.reply.lyrics || t.reply.notes.slice(0, 3).map(n => noteName(n.midi)).join(' ')}</option>)}
+          </select></label>
+          <button className="hvl-btn" disabled={!loaded || !!project.takes?.some(t => t.id === candidate.id) || (project.takes?.length ?? 0) >= MAX_TAKES} onClick={() => keepTake(candidate)}>
+            {project.takes?.some(t => t.id === candidate.id) ? 'Take kept' : 'Keep this take'}
+          </button>
+        </div>}
         <details className="hvl-disclosure hvl-analysis" onToggle={e => setScopesOpen(e.currentTarget.open)}>
           <summary>Analysis scopes</summary>
           {scopesOpen && <section className="hvl-scopes" aria-label="Analysis">
@@ -626,6 +747,7 @@ export default function VoiceLab({bridge}: Props) {
           <Glottal shape={audio.glottal ?? null} rd={rd} f0={running ? f0 : 0} voicing={params?.voicing ?? 1} activity={airway.voicing} sounding={running && airway.gate > 0.05} />
           </section>}
         </details>
+        </>}
         <footer className="hvl-note" style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
           <span>Physical articulatory synthesis in WebAssembly — no samples, no network. {bridge.scopeLabel}</span>
           <span>Unofficial character voice inspired by Nous Girl.</span>

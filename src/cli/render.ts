@@ -11,6 +11,7 @@ import {gunzipSync} from 'node:zlib';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Engine, renderScore} from '../core/engine';
+import {clipSamples, planEnsemble, renderEnsemble} from '../core/ensemble';
 import {duetScore, newProject, projectScore, songFromScore, validateProject, type Mode} from '../core/project';
 import {importScoreFile} from '../core/score-import';
 import {decodeLexicon} from '../core/text';
@@ -56,31 +57,41 @@ if (args.has('speed')) {
   project = {...project, speech: {...project.speech, rate: speed}};
 }
 const mode = (args.get('mode') as Mode) || project.mode;
-if (!['play', 'speak', 'sing', 'beat'].includes(mode)) fail('mode must be play, speak, sing or beat');
+if (!['play', 'speak', 'sing', 'beat', 'ensemble'].includes(mode)) fail('mode must be play, speak, sing, beat or ensemble');
 const rate = Number(args.get('rate') || 48000);
 if (![8000, 16000, 22050, 24000, 32000, 44100, 48000, 96000].includes(rate)) fail('unsupported sample rate');
 
 const lexicon = decodeLexicon(gunzipSync(readFileSync(join(here, 'lexicon.txt.gz'))).toString('utf8'));
 const module = new WebAssembly.Module(readFileSync(join(here, 'voice_lab_engine.wasm')));
-const engine = new Engine(module, rate, Number(args.get('seed') || 1));
-const {score, warnings} = projectScore(project, lexicon, mode);
+const seed = Number(args.get('seed') || 1);
 const started = performance.now();
-let [left, right] = renderScore(engine, score);
-// A duet: the second singer from a second engine, mixed in (both slightly lower).
-const second = mode === 'sing' ? duetScore(project, lexicon) : null;
-if (second) {
-  const [l2, r2] = renderScore(new Engine(module, rate, Number(args.get('seed') || 1) + 1), second.score, second.voice);
-  const n = Math.max(left.length, l2.length);
-  const mix = (a: Float32Array, b: Float32Array) => { const out = new Float32Array(n); for (let i = 0; i < n; i++) out[i] = 0.72 * ((a[i] ?? 0) + (b[i] ?? 0)); return out; };
-  [left, right] = [mix(left, l2), mix(right, r2)];
+let left: Float32Array, right: Float32Array, resets: number, warnings: string[] = [];
+if (mode === 'ensemble') {
+  if (!project.ensemble) fail('The project has no ensemble arrangement');
+  const mix = renderEnsemble(module, planEnsemble(project.ensemble!, lexicon), rate, seed);
+  const range = clipSamples(mix, project.ensemble!.excerpt);
+  left = mix.left.subarray(range.start,range.end); right = mix.right.subarray(range.start,range.end); resets=mix.resets;
+} else {
+  const engine = new Engine(module, rate, seed);
+  const plan = projectScore(project, lexicon, mode);
+  warnings = plan.warnings;
+  [left, right] = renderScore(engine, plan.score);
+  resets = engine.state()[15];
+  // A duet: the second singer from a second engine, mixed in (both slightly lower).
+  const second = mode === 'sing' ? duetScore(project, lexicon) : null;
+  if (second) {
+    const [l2, r2] = renderScore(new Engine(module, rate, seed + 1), second.score, second.voice);
+    const n = Math.max(left.length, l2.length);
+    const mix = (a: Float32Array, b: Float32Array) => { const out = new Float32Array(n); for (let i = 0; i < n; i++) out[i] = 0.72 * ((a[i] ?? 0) + (b[i] ?? 0)); return out; };
+    [left, right] = [mix(left, l2), mix(right, r2)];
+  }
 }
 const elapsed = (performance.now() - started) / 1000;
 const mono = args.get('channels') === '1';
 writeFileSync(output, encodeWav(mono ? [left] : [left, right], rate));
 const stats = measure(left);
-const state = engine.state();
 process.stdout.write(JSON.stringify({
   ok: true, output, mode, sampleRate: rate, channels: mono ? 1 : 2, seconds: left.length / rate,
   peak: Number(stats.peak.toFixed(4)), rms: Number(stats.rms.toFixed(4)), renderSeconds: Number(elapsed.toFixed(3)),
-  resets: state[15], warnings: [...scoreNotes, ...warnings], name: project.name,
+  resets, warnings: [...scoreNotes, ...warnings], name: project.name,
 }) + '\n');

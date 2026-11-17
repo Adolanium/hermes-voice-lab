@@ -1538,6 +1538,793 @@
   "seconds": 360,
   "name": 120
  },
+ "avatarColors": [
+  "original",
+  "rose",
+  "jade",
+  "violet"
+ ],
+ "movements": [
+  "nod",
+  "sway",
+  "bounce",
+  "still"
+ ],
+ "expressions": [
+  "earnest",
+  "dreamy",
+  "wry"
+ ],
+ "defaultEnsemble": {
+  "title": "Night Wire",
+  "bpm": 116,
+  "singers": [
+   {
+    "name": "Lead",
+    "avatarColor": "original",
+    "movement": "nod",
+    "expression": "earnest",
+    "voice": "tenor",
+    "notes": [
+     {
+      "start": 8,
+      "length": 0.5,
+      "midi": 59
+     },
+     {
+      "start": 8.5,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 9.5,
+      "length": 0.5,
+      "midi": 67
+     },
+     {
+      "start": 10,
+      "length": 1,
+      "midi": 66
+     },
+     {
+      "start": 11,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 12.5,
+      "length": 0.5,
+      "midi": 62
+     },
+     {
+      "start": 13,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 14,
+      "length": 2,
+      "midi": 59
+     },
+     {
+      "start": 16,
+      "length": 0.5,
+      "midi": 59
+     },
+     {
+      "start": 16.5,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 17.5,
+      "length": 0.5,
+      "midi": 67
+     },
+     {
+      "start": 18,
+      "length": 1,
+      "midi": 66
+     },
+     {
+      "start": 19,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 20.5,
+      "length": 0.5,
+      "midi": 62
+     },
+     {
+      "start": 21,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 22,
+      "length": 2,
+      "midi": 59
+     },
+     {
+      "start": 24,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 25,
+      "length": 1,
+      "midi": 71
+     },
+     {
+      "start": 26,
+      "length": 0.5,
+      "midi": 69
+     },
+     {
+      "start": 26.5,
+      "length": 0.5,
+      "midi": 67
+     },
+     {
+      "start": 27,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 28,
+      "length": 1,
+      "midi": 62
+     },
+     {
+      "start": 29,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 30,
+      "length": 1,
+      "midi": 66
+     },
+     {
+      "start": 31,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 32,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 33,
+      "length": 1,
+      "midi": 71
+     },
+     {
+      "start": 34,
+      "length": 0.5,
+      "midi": 69
+     },
+     {
+      "start": 34.5,
+      "length": 0.5,
+      "midi": 67
+     },
+     {
+      "start": 35,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 36,
+      "length": 1,
+      "midi": 62
+     },
+     {
+      "start": 37,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 38,
+      "length": 1,
+      "midi": 66
+     },
+     {
+      "start": 39,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 48,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 49,
+      "length": 1,
+      "midi": 71
+     },
+     {
+      "start": 50,
+      "length": 0.5,
+      "midi": 69
+     },
+     {
+      "start": 50.5,
+      "length": 0.5,
+      "midi": 67
+     },
+     {
+      "start": 51,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 52,
+      "length": 1,
+      "midi": 62
+     },
+     {
+      "start": 53,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 54,
+      "length": 1,
+      "midi": 66
+     },
+     {
+      "start": 55,
+      "length": 1,
+      "midi": 64
+     },
+     {
+      "start": 56,
+      "length": 1,
+      "midi": 71
+     },
+     {
+      "start": 57,
+      "length": 1,
+      "midi": 69
+     },
+     {
+      "start": 58,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 59,
+      "length": 1,
+      "midi": 66
+     },
+     {
+      "start": 60,
+      "length": 4,
+      "midi": 64
+     }
+    ],
+    "lyrics": "Down by the tracks the rails hum low One red light blinks then lets us go Send my voice out through the dark night sky Свет го-ри́т и но́чь по-ёт для нас Send my voice out through the dark night sky Sing it back to me",
+    "level": 0.96,
+    "pan": 0,
+    "muted": false
+   },
+   {
+    "name": "Echo",
+    "avatarColor": "rose",
+    "movement": "sway",
+    "expression": "dreamy",
+    "voice": "bright",
+    "notes": [
+     {
+      "start": 2,
+      "length": 0.5,
+      "midi": 71
+     },
+     {
+      "start": 2.5,
+      "length": 0.5,
+      "midi": 69
+     },
+     {
+      "start": 3,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 5,
+      "length": 0.5,
+      "midi": 76
+     },
+     {
+      "start": 5.5,
+      "length": 0.5,
+      "midi": 74
+     },
+     {
+      "start": 6,
+      "length": 2,
+      "midi": 71
+     },
+     {
+      "start": 18,
+      "length": 0.5,
+      "midi": 71
+     },
+     {
+      "start": 18.5,
+      "length": 0.5,
+      "midi": 69
+     },
+     {
+      "start": 19,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 21,
+      "length": 0.5,
+      "midi": 76
+     },
+     {
+      "start": 21.5,
+      "length": 0.5,
+      "midi": 74
+     },
+     {
+      "start": 22,
+      "length": 2,
+      "midi": 71
+     },
+     {
+      "start": 26,
+      "length": 0.5,
+      "midi": 71
+     },
+     {
+      "start": 26.5,
+      "length": 0.5,
+      "midi": 69
+     },
+     {
+      "start": 27,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 29,
+      "length": 0.5,
+      "midi": 76
+     },
+     {
+      "start": 29.5,
+      "length": 0.5,
+      "midi": 74
+     },
+     {
+      "start": 30,
+      "length": 2,
+      "midi": 71
+     },
+     {
+      "start": 32,
+      "length": 2,
+      "midi": 74
+     },
+     {
+      "start": 34,
+      "length": 1,
+      "midi": 71
+     },
+     {
+      "start": 35,
+      "length": 1,
+      "midi": 69
+     },
+     {
+      "start": 36,
+      "length": 2,
+      "midi": 71
+     },
+     {
+      "start": 38,
+      "length": 2,
+      "midi": 67
+     },
+     {
+      "start": 42,
+      "length": 0.5,
+      "midi": 71
+     },
+     {
+      "start": 42.5,
+      "length": 0.5,
+      "midi": 69
+     },
+     {
+      "start": 43,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 45,
+      "length": 0.5,
+      "midi": 76
+     },
+     {
+      "start": 45.5,
+      "length": 0.5,
+      "midi": 74
+     },
+     {
+      "start": 46,
+      "length": 2,
+      "midi": 71
+     },
+     {
+      "start": 50,
+      "length": 0.5,
+      "midi": 71
+     },
+     {
+      "start": 50.5,
+      "length": 0.5,
+      "midi": 69
+     },
+     {
+      "start": 51,
+      "length": 1,
+      "midi": 67
+     },
+     {
+      "start": 53,
+      "length": 0.5,
+      "midi": 76
+     },
+     {
+      "start": 53.5,
+      "length": 0.5,
+      "midi": 74
+     },
+     {
+      "start": 54,
+      "length": 2,
+      "midi": 71
+     },
+     {
+      "start": 56,
+      "length": 2,
+      "midi": 74
+     },
+     {
+      "start": 58,
+      "length": 2,
+      "midi": 71
+     },
+     {
+      "start": 60,
+      "length": 4,
+      "midi": 67
+     }
+    ],
+    "lyrics": "la la la la la loo la la la la la loo la la la la la loo la la la la la loo la la la la la loo la la la la la loo la la",
+    "level": 0.52,
+    "pan": 0.58,
+    "muted": false
+   },
+   {
+    "name": "Bass",
+    "avatarColor": "jade",
+    "movement": "bounce",
+    "expression": "wry",
+    "voice": "baritone",
+    "notes": [
+     {
+      "start": 0,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 1.5,
+      "length": 0.5,
+      "midi": 47
+     },
+     {
+      "start": 2,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 3,
+      "length": 1,
+      "midi": 55
+     },
+     {
+      "start": 4,
+      "length": 1.5,
+      "midi": 48
+     },
+     {
+      "start": 5.5,
+      "length": 0.5,
+      "midi": 43
+     },
+     {
+      "start": 6,
+      "length": 1,
+      "midi": 50
+     },
+     {
+      "start": 7,
+      "length": 1,
+      "midi": 47
+     },
+     {
+      "start": 8,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 9.5,
+      "length": 0.5,
+      "midi": 47
+     },
+     {
+      "start": 10,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 11,
+      "length": 1,
+      "midi": 55
+     },
+     {
+      "start": 12,
+      "length": 1.5,
+      "midi": 48
+     },
+     {
+      "start": 13.5,
+      "length": 0.5,
+      "midi": 43
+     },
+     {
+      "start": 14,
+      "length": 1,
+      "midi": 50
+     },
+     {
+      "start": 15,
+      "length": 1,
+      "midi": 47
+     },
+     {
+      "start": 16,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 17.5,
+      "length": 0.5,
+      "midi": 47
+     },
+     {
+      "start": 18,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 19,
+      "length": 1,
+      "midi": 55
+     },
+     {
+      "start": 20,
+      "length": 1.5,
+      "midi": 48
+     },
+     {
+      "start": 21.5,
+      "length": 0.5,
+      "midi": 43
+     },
+     {
+      "start": 22,
+      "length": 1,
+      "midi": 50
+     },
+     {
+      "start": 23,
+      "length": 1,
+      "midi": 47
+     },
+     {
+      "start": 24,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 25.5,
+      "length": 0.5,
+      "midi": 47
+     },
+     {
+      "start": 26,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 27,
+      "length": 1,
+      "midi": 55
+     },
+     {
+      "start": 28,
+      "length": 1.5,
+      "midi": 48
+     },
+     {
+      "start": 29.5,
+      "length": 0.5,
+      "midi": 43
+     },
+     {
+      "start": 30,
+      "length": 1,
+      "midi": 50
+     },
+     {
+      "start": 31,
+      "length": 1,
+      "midi": 47
+     },
+     {
+      "start": 32,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 33.5,
+      "length": 0.5,
+      "midi": 47
+     },
+     {
+      "start": 34,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 35,
+      "length": 1,
+      "midi": 55
+     },
+     {
+      "start": 36,
+      "length": 1.5,
+      "midi": 48
+     },
+     {
+      "start": 37.5,
+      "length": 0.5,
+      "midi": 43
+     },
+     {
+      "start": 38,
+      "length": 1,
+      "midi": 50
+     },
+     {
+      "start": 39,
+      "length": 1,
+      "midi": 47
+     },
+     {
+      "start": 40,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 41.5,
+      "length": 0.5,
+      "midi": 47
+     },
+     {
+      "start": 42,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 43,
+      "length": 1,
+      "midi": 55
+     },
+     {
+      "start": 44,
+      "length": 1.5,
+      "midi": 48
+     },
+     {
+      "start": 45.5,
+      "length": 0.5,
+      "midi": 43
+     },
+     {
+      "start": 46,
+      "length": 1,
+      "midi": 50
+     },
+     {
+      "start": 47,
+      "length": 1,
+      "midi": 47
+     },
+     {
+      "start": 48,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 49.5,
+      "length": 0.5,
+      "midi": 47
+     },
+     {
+      "start": 50,
+      "length": 1,
+      "midi": 52
+     },
+     {
+      "start": 51,
+      "length": 1,
+      "midi": 55
+     },
+     {
+      "start": 52,
+      "length": 1.5,
+      "midi": 48
+     },
+     {
+      "start": 53.5,
+      "length": 0.5,
+      "midi": 43
+     },
+     {
+      "start": 54,
+      "length": 1,
+      "midi": 50
+     },
+     {
+      "start": 55,
+      "length": 1,
+      "midi": 47
+     },
+     {
+      "start": 56,
+      "length": 2,
+      "midi": 48
+     },
+     {
+      "start": 58,
+      "length": 2,
+      "midi": 50
+     },
+     {
+      "start": 60,
+      "length": 4,
+      "midi": 52
+     }
+    ],
+    "lyrics": "doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum oo doom mm dum",
+    "level": 0.7,
+    "pan": -0.35,
+    "muted": false
+   }
+  ]
+ },
  "defaultProject": {
   "version": 2,
   "name": "Voice study",

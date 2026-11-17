@@ -4,14 +4,15 @@
  * is planned on its own and placed after the previous one.
  */
 import {compileScore, type Score, type ScoreEvent} from './engine';
-import {PARAM_NAMES, type Patch} from './params';
+import {defaultPatch, midiToHz, PARAM_NAMES, type Patch} from './params';
 import {isVowel} from './phonemes';
 import {planSong, planSpeech, type LyricCue, type Note, type SongStyle} from './planner';
+import type {TakePart} from './takes';
 import type {Lexicon} from './text';
 
 export type ShowItem =
   | {kind: 'say'; text: string; rate?: number; expression?: number; voice?: Patch; pause?: number}
-  | {kind: 'sing'; bpm: number; lyrics: string; notes: Note[]; style?: SongStyle; voice?: Patch; pause?: number};
+  | {kind: 'sing'; bpm: number; lyrics: string; notes: Note[]; directions?: TakePart['directions']; shape?: Patch; style?: SongStyle; voice?: Patch; pause?: number};
 
 export interface ShowSection {
   kind: 'say' | 'sing';
@@ -56,8 +57,23 @@ export function planShow(items: ShowItem[], lexicon: Lexicon, voice: Patch): Sho
         const text = word.text + (word.boundary === 'question' ? '?' : word.boundary === 'exclaim' ? '!' : word.boundary === 'period' ? '.' : word.boundary === 'comma' ? ',' : '');
         return {text, start: w.start, vowel: Number.isFinite(w.vowel) ? w.vowel : w.start, end: w.end, midi: 0};
       });
+    } else if (item.shape && !item.lyrics.trim()) {
+      // A keyboard call holds the player's mouth shape between note events.
+      const keyEvents: ScoreEvent[] = [];
+      for (const [param, value] of Object.entries({...defaultPatch(), ...v, ...item.shape})) keyEvents.push([0, param as keyof Patch, value, 0]);
+      beat = 60 / item.bpm;
+      keyEvents.push([0, 'gate', 0, 0]);
+      let end = 0;
+      const notes = [...item.notes].sort((a, b) => a.start - b.start);
+      for (const [i, note] of notes.entries()) {
+        const start = note.start * beat;
+        end = Math.min((note.start + note.length) * beat, (notes[i + 1]?.start ?? Infinity) * beat);
+        keyEvents.push([start, 'pitch', midiToHz(note.midi), 20], [start, 'gate', 1, 12]);
+        if (!notes[i + 1] || end < notes[i + 1].start * beat) keyEvents.push([end, 'gate', 0, 40]);
+      }
+      score = compileScore(keyEvents, end + 0.18);
     } else {
-      const plan = planSong(item.notes, item.lyrics, lexicon, {bpm: item.bpm, voice: v, style: item.style ?? 'cartoon'});
+      const plan = planSong(item.notes, item.lyrics, lexicon, {bpm: item.bpm, voice: v, style: item.style ?? 'cartoon', directions: item.directions});
       score = plan.score;
       local = plan.cues;
       beat = 60 / item.bpm;

@@ -1,6 +1,8 @@
 /** Mode panels: Play (hold a shape), Speak (phrase), Sing (piano roll). */
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import type {Note, Plan, SongPlan} from '../core/planner';
+import {lyricWords, sameWord, type WordDirection} from '../core/direction';
+import type {PartName} from '../core/takes';
 import {simulateTracks} from '../core/planner';
 import {midiToHz, noteName, type ParamName, type Patch} from '../core/params';
 import {PHONEMES, isVowel} from '../core/phonemes';
@@ -455,6 +457,10 @@ function GestureTimeline({plan, position}: {plan: Plan; position: number}) {
 // ---- Sing -------------------------------------------------------------------
 
 interface SingProps {
+  partName: PartName;
+  onPart: (part: PartName) => void;
+  onTake: (id: string) => void;
+  onRemoveTake: () => void;
   project: Project;
   plan: SongPlan | null;
   onChange: (s: Partial<Project['song']>) => void;
@@ -475,9 +481,23 @@ const HIGH = 84;
 const ROW = 13;
 const BEAT = 46;
 
-export function SingPanel({project, plan, onChange, onSing, onStop, playing, position, ready, onPreviewNote, liveSing, onLiveSing, nextSyllable, onLiveRestart}: SingProps) {
+export function SingPanel({project, partName, onPart, onTake, onRemoveTake, plan, onChange, onSing, onStop, playing, position, ready, onPreviewNote, liveSing, onLiveSing, nextSyllable, onLiveRestart}: SingProps) {
   const song = project.song;
   const [selected, setSelected] = useState<number | null>(null);
+  const words = useMemo(() => lyricWords(song.lyrics), [song.lyrics]);
+  const [wordIndex, setWordIndex] = useState<number | null>(null);
+  const word = words.find(w => w.index === wordIndex) ?? words[0];
+  const direction = word && song.directions?.find(d => sameWord(d, word));
+  const [undo, setUndo] = useState<{before: WordDirection[]; after: WordDirection[]} | null>(null);
+  const direct = (change: Partial<WordDirection>) => {
+    if (!word) return;
+    const next = {...direction, word: word.word, occurrence: word.occurrence, ...change};
+    const before = song.directions ?? [];
+    const after = before.filter(d => !sameWord(d, word));
+    if (next.swell || next.slide || next.vibratoAt !== undefined) after.push(next);
+    setUndo({before, after});
+    onChange({directions: after});
+  };
   // Score import (MusicXML, .mxl or MIDI): the file is read here, in the page; nothing is uploaded.
   const scoreInput = useRef<HTMLInputElement>(null);
   const [importNote, setImportNote] = useState('');
@@ -487,7 +507,7 @@ export function SingPanel({project, plan, onChange, onSing, onStop, playing, pos
       const score = await importScoreFile(file.name, new Uint8Array(await file.arrayBuffer()));
       const {song: imported, messages} = songFromScore(score);
       if (!imported.notes.length) throw new Error('no notes found in it');
-      onChange(imported);
+      onChange({...imported, directions: []});
       setSelected(null);
       const part = score.parts.find(p => p.id === score.part)?.name;
       setImportNote([`Imported ${imported.notes.length} notes${part ? ` from “${part}”` : ''}${imported.lyrics ? '' : ', no lyrics (she hums)'}.`, ...messages].join(' '));
@@ -594,6 +614,7 @@ export function SingPanel({project, plan, onChange, onSing, onStop, playing, pos
       const nearEnd = h.beat > n.start + n.length - 0.25 && n.length >= 0.5;
       drag.current = {index: h.index, mode: nearEnd ? 'resize' : 'move', start: n.start, midi: n.midi, x0: h.x, y0: h.y};
       setSelected(h.index);
+      setWordIndex(plan?.assignments.find(a => a.note === h.index)?.wordIndex ?? null);
       onPreviewNote(n.midi);
     } else {
       const start = Math.max(0, Math.floor(h.beat * 2) / 2);
@@ -622,29 +643,39 @@ export function SingPanel({project, plan, onChange, onSing, onStop, playing, pos
   };
   return (
     <div className="hvl-panel">
+      {!!project.takes?.length && <div className="hvl-row">
+        <label>Score <select aria-label="Score" className="hvl-input" value={project.activeTake ?? ''} onChange={e => onTake(e.target.value)}>
+          <option value="">Main song</option>
+          {project.takes.map((t, i) => <option key={t.id} value={t.id}>Take {i + 1} · {t.reply.lyrics || t.reply.notes.slice(0, 3).map(n => noteName(n.midi)).join(' ')}</option>)}
+        </select></label>
+        {project.activeTake && <label>Edit part <select aria-label="Edit part" className="hvl-input" value={partName} onChange={e => onPart(e.target.value as PartName)}>
+          <option value="call">Your call</option><option value="reply">Hermes’s reply</option>
+        </select></label>}
+        {project.activeTake && <button className="hvl-btn is-ghost" onClick={onRemoveTake}>Remove take</button>}
+      </div>}
       <div className="hvl-row" style={{justifyContent: 'space-between'}}>
         <div className="hvl-row">
           {playing ? <button className="hvl-btn" onClick={onStop}>{Icon.stop} Stop</button>
-            : <button className="hvl-btn is-primary" onClick={onSing} disabled={!ready || !notes.length}>{Icon.play} Sing</button>}
-          <button className={`hvl-btn ${song.loop ? 'is-on' : ''}`} onClick={() => onChange({loop: !song.loop})} aria-pressed={song.loop}>{Icon.loop} Loop</button>
+            : <button className="hvl-btn is-primary" onClick={onSing} disabled={!ready || (!project.activeTake && !notes.length)}>{Icon.play} {project.activeTake ? 'Play take' : 'Sing'}</button>}
+          {!project.activeTake && <button className={`hvl-btn ${song.loop ? 'is-on' : ''}`} onClick={() => onChange({loop: !song.loop})} aria-pressed={song.loop}>{Icon.loop} Loop</button>}
           <button className={`hvl-btn ${song.style === 'cartoon' ? 'is-on' : ''}`} onClick={() => onChange({style: song.style === 'cartoon' ? 'natural' : 'cartoon'})} aria-pressed={song.style === 'cartoon'}
             title="Cartoon singing: scoops, slides, wobbly vibrato and an oversized mouth">Cartoon</button>
           <button className={`hvl-btn ${song.style === 'yodel' ? 'is-on' : ''}`} onClick={() => onChange({style: song.style === 'yodel' ? 'natural' : 'yodel'})} aria-pressed={song.style === 'yodel'}
             title="Yodel: high notes flip to falsetto, low notes stay in chest voice, and the leaps between them snap">Yodel</button>
           <button className={`hvl-btn ${liveSing ? 'is-on' : ''}`} onClick={() => onLiveSing(!liveSing)} aria-pressed={liveSing}
             title="Live: each key you press (keyboard, computer keys or MIDI) sings the next syllable of the lyrics, held until you let go">Live</button>
-          <label className="hvl-note" title="A second singer with their own body and voice">Duet{' '}
+          {!project.activeTake && <label className="hvl-note" title="A second singer with their own body and voice">Duet{' '}
             <select className="hvl-input" style={{height: 28}} value={song.duet.part} onChange={e => onChange({duet: {...song.duet, part: e.target.value as DuetPart}})}>
               {DUET_PARTS.filter(([id]) => id !== 'custom' || song.duet.part === 'custom').map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
-          </label>
-          {song.duet.part !== 'off' && (
+          </label>}
+          {!project.activeTake && song.duet.part !== 'off' && (
             <select className="hvl-input" style={{height: 28}} aria-label="Second singer's voice" value={song.duet.voice} onChange={e => onChange({duet: {...song.duet, voice: e.target.value}})}>
               {ALL_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           )}
           {liveSing && <span className="hvl-note" aria-live="polite">Next: <b>{nextSyllable}</b> <button className="hvl-btn is-ghost" onClick={onLiveRestart} title="Back to the first syllable">↺</button></span>}
-          <button className="hvl-btn is-ghost" onClick={() => { onChange({...SILLY_SONG, notes: SILLY_SONG.notes.map(n => ({...n}))}); setSelected(null); }}
+          <button className="hvl-btn is-ghost" onClick={() => { onChange({...SILLY_SONG, directions: [], notes: SILLY_SONG.notes.map(n => ({...n}))}); setSelected(null); }}
             title="Load the novelty demo song">Silly song</button>
           <button className="hvl-btn is-ghost" onClick={() => scoreInput.current?.click()} title="Import a melody and its lyrics from a MusicXML (.musicxml, .mxl) or MIDI file">Import score</button>
           <input ref={scoreInput} type="file" accept=".musicxml,.xml,.mxl,.mid,.midi,.kar" style={{display: 'none'}} aria-label="Score file"
@@ -657,8 +688,21 @@ export function SingPanel({project, plan, onChange, onSing, onStop, playing, pos
           <button className="hvl-btn is-ghost" onClick={() => { setNotes([]); setSelected(null); }} title="Clear all notes">{Icon.trash}</button>
         </div>
       </div>
-      <input className="hvl-input" value={song.lyrics} maxLength={LIMITS.lyrics} aria-label="Lyrics" placeholder="Lyrics — use hy-phens to split syllables, a lone - to hold a vowel; English or 한국어"
+      <input className="hvl-input" value={song.lyrics} maxLength={LIMITS.lyrics} aria-label="Lyrics" placeholder="Lyrics — use hy-phens to split syllables, a lone - to hold a vowel; English, русский or 한국어"
         onChange={e => onChange({lyrics: e.target.value})} />
+      {word && <div className="hvl-row" style={{flexWrap: 'wrap'}}>
+        <label>Direct word <select aria-label="Direct word" className="hvl-input" value={word.index} onChange={e => setWordIndex(Number(e.target.value))}>
+          {words.map(w => <option key={w.index} value={w.index}>{w.label}{w.occurrence > 1 ? ` (${w.occurrence})` : ''}</option>)}
+        </select></label>
+        <button className={`hvl-btn ${direction?.swell ? 'is-on' : ''}`} aria-pressed={!!direction?.swell} onClick={() => direct({swell: !direction?.swell})}>Swell</button>
+        <button className={`hvl-btn ${direction?.slide ? 'is-on' : ''}`} aria-pressed={!!direction?.slide} onClick={() => direct({slide: !direction?.slide})}>Slide in</button>
+        <label>Vibrato <select aria-label="Vibrato" className="hvl-input" value={direction?.vibratoAt ?? ''} onChange={e => direct({vibratoAt: e.target.value === '' ? undefined : Number(e.target.value)})}>
+          <option value="">As sung</option>
+          {[...new Set([0, 0.25, 0.5, 0.75, 1, ...(direction?.vibratoAt === undefined ? [] : [direction.vibratoAt])])].sort((a, b) => a - b).map(v =>
+            <option key={v} value={v}>{v === 0 ? 'At onset' : v === 1 ? 'Straight' : `After ${Math.round(v * 100)}%`}</option>)}
+        </select></label>
+        {undo && undo.after === song.directions && <button className="hvl-btn is-ghost" onClick={() => {onChange({directions: undo.before}); setUndo(null);}}>Undo direction</button>}
+      </div>}
       {importNote && <div className="hvl-note" role="status">{importNote}</div>}
       <div className="hvl-roll" onContextMenu={e => e.preventDefault()}
         onKeyDown={e => { if ((e.key === 'Delete' || e.key === 'Backspace') && selected !== null) { setNotes(notes.filter((_, i) => i !== selected)); setSelected(null); } }} tabIndex={0}

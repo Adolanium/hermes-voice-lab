@@ -8,6 +8,8 @@
  * targets into smooth movements, identically in live and offline playback.
  */
 import {compileScore, type Score, type ScoreEvent} from './engine';
+import {lyricWords, sameWord, type WordDirection} from './direction';
+import {isRussian, russianPhones} from './russian';
 import {isHangul, koreanSyllables} from './korean';
 import {clampParam, defaultPatch, PARAM_ID, type ParamName, type Patch, VOICE_PARAMS, midiToHz} from './params';
 import {AFFRICATE_RELEASE, isVowel, marksOf, PALATAL, parsePhone, PHONEMES, SCHWA, vowelTarget, type Marks, type Phone} from './phonemes';
@@ -24,6 +26,8 @@ export interface Segment extends Marks {
   label?: string;
   /** A live, open-ended vowel: reach the nucleus promptly and hold it (the glide comes on release). */
   held?: boolean;
+  /** Keep airflow through a released sung /d/ before silence. */
+  sungFinalD?: boolean;
 }
 
 /** Notes shorter than this (s) keep an unstressed syllable weak. */
@@ -83,7 +87,10 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
   let inPhrase = false;
   segments.forEach((s, i) => {
     if (s.symbol === 'SIL') {
-      if (inPhrase) at(s.start, 'gate', 0, 20);
+      // Keep breath behind a sung /d/ while the tongue releases. Devoice the burst
+      // below so the extra airflow does not start another vowel.
+      const tail = segments[i - 1]?.sungFinalD ? Math.min(s.end - s.start, 0.022) : 0;
+      if (inPhrase) at(s.start + tail, 'gate', 0, 20);
       inPhrase = false;
     } else if (!inPhrase) {
       at(s.start - 0.03, 'gate', 1, 10);
@@ -348,7 +355,7 @@ export function articulate(segments: Segment[], voice: Patch, withPreamble = tru
         // fricative loses it halfway through and ends as a hiss, and a stop is released into
         // breath, not into a vowel as loud as the note before it.
         if (ph.manner === 'fricative') at(s.start + 0.5 * dur, 'voicing', 0.15, 12, i);
-        else at(s.end - 0.004, 'voicing', 0.55, 6, i);
+        else at(s.end - 0.004, 'voicing', s.sungFinalD ? 0.22 : 0.55, 6, i);
         at(s.end + 0.09, 'voicing', 1, 20, i);
       } else at(s.end, 'voicing', 1, 10, i);
     }
@@ -460,7 +467,7 @@ export function planWords(words: Word[], opts: SpeechOptions = {}): Plan {
       const next = !crossWord ? w.phones[pi + 1] : w.boundary === 'word' ? words[wi + 1]?.phones[0] : undefined;
       // American English flapping: T/D between a vowel and an unstressed vowel
       // ("city", "ladder"), or at a word end before a vowel ("put it").
-      if (w.source !== 'korean' && p.aspirated === undefined && (p.symbol === 'T' || p.symbol === 'D') && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
+      if (w.source !== 'korean' && w.source !== 'russian' && p.aspirated === undefined && (p.symbol === 'T' || p.symbol === 'D') && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
         p = {symbol: 'DX', stress: 0};
       }
       const d = durationOf(p, w.phones[pi - 1], w.phones[pi + 1], final, rate);
@@ -583,6 +590,7 @@ export interface SongOptions {
    * and the pitch snaps across the break. 'natural' (default) is plain.
    */
   style?: SongStyle;
+  directions?: WordDirection[];
 }
 
 export type SongStyle = 'natural' | 'cartoon' | 'yodel';
@@ -611,6 +619,13 @@ export function lyricSyllables(lyrics: string, lexicon: Lexicon): SungSyllable[]
     if (bracket) {
       const phones = bracket[1].split('+').map(t => parsePhone(t.toUpperCase())).filter((p): p is Phone => !!p);
       if (phones.length) out.push({phones, text: phones.map(p => PHONEMES[p.symbol].ipa).join(''), word: wi});
+      return;
+    }
+    if (isRussian(part)) {
+      const letters = part.replace(/[^а-яёА-ЯЁ\u0301-]/g, '').split('-').filter(Boolean);
+      const units = syllabify(russianPhones(letters.join('')));
+      const trail = part.match(/[!?.,]+$/)?.[0] ?? '';
+      units.forEach((phones,i) => out.push({phones, word:wi, text:(letters.length === units.length ? letters[i] : i === 0 ? letters.join('') : '·') + (i === units.length-1 ? trail : '')}));
       return;
     }
     if (isHangul(part)) {
@@ -644,7 +659,7 @@ export interface LyricCue {
 }
 
 export interface SongPlan extends Plan {
-  assignments: Array<{note: number; syllable: number; text: string}>;
+  assignments: Array<{note: number; syllable: number; text: string; wordIndex?: number}>;
   cues: LyricCue[];
 }
 
@@ -694,13 +709,61 @@ function yieldPreviousVowel(segments: Segment[], cues: LyricCue[], cursor: numbe
   return end;
 }
 
+/** Overlay directions after coarticulation and held syllables have settled on their final times. */
+function directWords(events: ScoreEvent[], directions: WordDirection[], lyrics: string, syllables: SungSyllable[],
+  assignments: SongPlan['assignments'], notes: Note[], segments: Segment[], voice: Patch, cartoon: boolean) {
+  const words = lyricWords(lyrics);
+  for (const direction of directions) {
+    const word = words.find(w => sameWord(w, direction));
+    if (!word) continue;
+    const vowels = segments.filter(s => isVowel(s.symbol) && syllables[assignments[s.word]?.syllable]?.word === word.index);
+    if (!vowels.length) continue;
+    // Give the word one musical accent, even when it has several syllables.
+    const held = vowels.reduce((a, b) => b.end - b.start > a.end - a.start ? b : a);
+    // The next syllable may already be preparing its pitch or level before this vowel ends.
+    const limit = (s: Segment) => Math.min(s.end, (segments.find(v => v.word > s.word && isVowel(v.symbol))?.start ?? Infinity) - 0.065);
+    if (direction.slide) {
+      const first = vowels[0], start = first.start;
+      const end = Math.min(limit(first), start + 0.14);
+      const hz = midiToHz(notes[assignments[first.word].note].midi);
+      if (end - start > 0.025) events.push([start, 'pitch', hz * 2 ** (-2 / 12), 8], [start + 0.2 * (end - start), 'pitch', hz, (end - start) * 160]);
+    }
+    const start = held.start, end = limit(held), duration = end - start;
+    if (duration < 0.035) continue;
+    // Remove automatic targets inside this vowel only, then restore the target the
+    // undirected score would have held at release. Later notes keep their own attacks.
+    const override = (param: 'loudness' | 'vibratoDepth', value: number, enter: number, target: number, tau: number) => {
+      let restore = voice[param]!, latest = -Infinity;
+      for (let i = events.length - 1; i >= 0; i--) {
+        const [time, name, v] = events[i];
+        if (name !== param || time >= end) continue;
+        if (time > latest) { latest = time; restore = v; }
+        if (time >= start) events.splice(i, 1);
+      }
+      events.push([start, param, value, 8]);
+      if (enter < end) events.push([enter, param, target, tau]);
+      events.push([end - 0.00001, param, restore, 12]);
+    };
+    if (direction.swell) {
+      const level = voice.loudness!;
+      override('loudness', clampParam('loudness', level - 0.26), start + duration * 0.12, clampParam('loudness', level + 0.14), duration * 160);
+    }
+    if (direction.vibratoAt !== undefined) {
+      const depth = cartoon ? 0.62 : voice.vibratoDepth!;
+      override('vibratoDepth', 0, start + duration * direction.vibratoAt, depth, Math.min(65, duration * 90));
+    }
+  }
+}
+
+export const SONG_LEAD = 0.25;
+
 export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: SongOptions): SongPlan {
   const bpm = Math.min(240, Math.max(30, opts.bpm));
   const beat = 60 / bpm;
   const voice = singingVoice({...defaultPatch(), ...(opts.voice ?? {})});
   const syllables = lyricSyllables(lyrics, lexicon);
   const sorted = notes.map((n, i) => ({...n, index: i})).sort((a, b) => a.start - b.start || a.midi - b.midi);
-  const lead = 0.25;
+  const lead = SONG_LEAD;
   const segments: Segment[] = [{symbol: 'SIL', stress: 0, start: 0, end: lead, word: -1}];
   const pitchEvents: ScoreEvent[] = [];
   const assignments: SongPlan['assignments'] = [];
@@ -810,7 +873,8 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
     let c = vowelEnd;
     coda.forEach((p, i) => {
       const d = codaTotal * (codaDur[i] / Math.max(1e-3, codaDur.reduce((a, b) => a + b, 0)));
-      segments.push({symbol: p.symbol, stress: 0, start: c, end: c + d, word: k, ...marksOf(p)});
+      segments.push({symbol: p.symbol, stress: 0, start: c, end: c + d, word: k, ...marksOf(p),
+        ...(p.symbol === 'D' && !p.unreleased && i === coda.length - 1 ? {sungFinalD: true} : {})});
       c += d;
     });
     cursor = c;
@@ -859,8 +923,15 @@ export function planSong(notes: Note[], lyrics: string, lexicon: Lexicon, opts: 
     }
   }
   if (sorted.length) events.push([0, 'pitch', midiToHz(sorted[0].midi), 0]);
+  if (opts.directions?.length) directWords(pitchEvents, opts.directions, lyrics, syllables, assignments, notes, segments, voice, cartoon);
   events.push(...pitchEvents);
   events.sort((a, b) => a[0] - b[0]);
+  let wordIndex: number | undefined;
+  for (const a of assignments) {
+    const syllable = syllables[a.syllable];
+    if (syllable?.phones.length) wordIndex = syllable.word;
+    a.wordIndex = syllable ? wordIndex : undefined;
+  }
   return {score: compileScore(events, cursor + 0.4), segments, words: [], warnings: [], assignments, cues};
 }
 
@@ -909,9 +980,10 @@ export function planLiveOff(phones: Phone[], voicePatch: Patch): Score {
     segments.push({symbol: phones[v].symbol, stress: 1, start: 0, end: 0.09, word: 0, ...marksOf(phones[v])});
     t = 0.09;
   }
-  for (const p of coda) {
+  for (const [i, p] of coda.entries()) {
     const d = sungConsonant(p, coda.length > 1);
-    segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: 0, ...marksOf(p)});
+    segments.push({symbol: p.symbol, stress: 0, start: t, end: t + d, word: 0, ...marksOf(p),
+      sungFinalD: p.symbol === 'D' && !p.unreleased && i === coda.length - 1});
     t += d;
   }
   segments.push({symbol: 'SIL', stress: 0, start: t, end: t + 0.3, word: -1, boundary: 'period'});

@@ -3,7 +3,7 @@
  * torn down completely on dispose. Only one window sounds at a time: starting
  * playback broadcasts a claim that silences the others.
  */
-import {Engine, renderScore, type Score} from '../core/engine';
+import {Engine, renderInto, renderScore, type Score} from '../core/engine';
 import {PARAM_NAMES, type ParamName, type Patch} from '../core/params';
 import {encodeWav, measure} from '../core/wav';
 import {engineBytes, engineModule, workletSource} from './assets';
@@ -250,20 +250,18 @@ export function analysis(): Engine {
 export async function renderWav(score: Score, patch: Patch, sampleRate = 48000, onProgress?: (f: number) => void, second?: {score: Score; voice: Patch}) {
   const engine = new Engine(engineModule(), sampleRate, 1);
   // renderScore is synchronous; render in chunks by splitting the work.
-  const total = Math.ceil((score.length + 0.6) * sampleRate);
+  const leadFrames = Math.ceil((score.length + 0.6) * sampleRate);
+  const total = Math.max(leadFrames, second ? Math.ceil((second.score.length + 0.6) * sampleRate) : 0);
   engine.jumpAll(patch);
   engine.loadScore(score);
   engine.play(false);
   const left = new Float32Array(total);
   const right = new Float32Array(total);
-  for (let at = 0; at < total;) {
-    const sliceEnd = Math.min(total, at + sampleRate);
-    for (; at < sliceEnd; at += 1024) {
-      const [l, r] = engine.render(Math.min(1024, sliceEnd - at));
-      left.set(l, at);
-      right.set(r, at);
-    }
-    onProgress?.(at / total);
+  for (let at = 0; at < leadFrames;) {
+    const sliceEnd = Math.min(leadFrames, at + sampleRate);
+    renderInto(engine, left, right, at, sliceEnd);
+    at = sliceEnd;
+    onProgress?.(at / leadFrames);
     await new Promise(r => setTimeout(r, 0));
   }
   if (second) {

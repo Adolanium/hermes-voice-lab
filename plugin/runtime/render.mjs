@@ -139,7 +139,7 @@ var PARAMS = PARAM_NAMES.map((name, id) => {
   const [label, unit, group, help] = META[name];
   return { name, id, min, max, default: def, label, unit, group, help };
 });
-var PARAM_ID = Object.fromEntries(PARAM_NAMES.map((n, i) => [n, i]));
+var PARAM_ID = Object.fromEntries(PARAM_NAMES.map((n2, i) => [n2, i]));
 function isParamName(name) {
   return PARAM_NAMES.includes(name);
 }
@@ -192,6 +192,31 @@ var midiToHz = (m) => 440 * 2 ** ((m - 69) / 12);
 // src/core/engine.ts
 var N_SECTIONS = 44;
 var RESPONSE_BINS = 256;
+var STATE = {
+  internalRate: 0,
+  length: 1,
+  minArea: 2,
+  minIndex: 3,
+  nasalArea: 4,
+  oralPressure: 5,
+  frication: 6,
+  voicing: 7,
+  f0: 8,
+  rms: 9,
+  peak: 10,
+  rd: 11,
+  flow: 12,
+  playing: 13,
+  position: 14,
+  resets: 15,
+  aspiration: 16,
+  burst: 17,
+  scoreLength: 18,
+  noiseIndex: 19,
+  airflow: 20,
+  nasalShare: 21,
+  closed: 22
+};
 var STATE_LEN = 23;
 var NASAL_SECTIONS = 30;
 var ENERGY_LEN = N_SECTIONS + NASAL_SECTIONS;
@@ -210,11 +235,11 @@ function compileScore(events, length) {
 var Engine = class {
   sampleRate;
   e;
-  constructor(module2, sampleRate, seed = 1) {
+  constructor(module2, sampleRate, seed2 = 1) {
     if (!Number.isFinite(sampleRate) || sampleRate < 8e3 || sampleRate > 192e3) throw new RangeError("Sample rate must be 8000\u2013192000 Hz");
     this.e = new WebAssembly.Instance(module2, {}).exports;
     this.sampleRate = sampleRate;
-    this.e.engine_init(sampleRate, seed >>> 0 || 1);
+    this.e.engine_init(sampleRate, seed2 >>> 0 || 1);
     if (this.e.engine_param_count() !== PARAM_NAMES.length) throw new Error("Engine parameter table mismatch");
   }
   /** Engine-reported [min, max, default] for each parameter. */
@@ -235,8 +260,8 @@ var Engine = class {
   }
   /** Render up to 4096 frames; returns views into WASM memory (copy before next call). */
   render(frames) {
-    const n = this.e.engine_render(Math.max(0, Math.min(4096, frames | 0)));
-    return [this.f32(this.e.engine_out_left(), n), this.f32(this.e.engine_out_right(), n)];
+    const n2 = this.e.engine_render(Math.max(0, Math.min(4096, frames | 0)));
+    return [this.f32(this.e.engine_out_left(), n2), this.f32(this.e.engine_out_right(), n2)];
   }
   params() {
     return this.f32(this.e.engine_params(), PARAM_NAMES.length).slice();
@@ -254,11 +279,14 @@ var Engine = class {
   glottalShape(points = 96) {
     return this.f32(this.e.engine_glottal_shape(points), points).slice();
   }
-  loadScore(score2) {
-    const capacity = this.e.score_capacity();
-    const count = Math.min(capacity, score2.events.length / 4);
-    this.f32(this.e.score_staging(), count * 4).set(score2.events.subarray(0, count * 4));
-    return this.e.score_load(count, score2.length);
+  get scoreCapacity() {
+    return this.e.score_capacity();
+  }
+  loadScore(score) {
+    const capacity = this.scoreCapacity;
+    const count = Math.min(capacity, score.events.length / 4);
+    this.f32(this.e.score_staging(), count * 4).set(score.events.subarray(0, count * 4));
+    return this.e.score_load(count, score.length);
   }
   play(loop = false) {
     this.e.score_play(loop ? 1 : 0);
@@ -288,19 +316,279 @@ var Engine = class {
     return new Float32Array(this.e.memory.buffer, ptr, len);
   }
 };
-function renderScore(engine2, score2, patch = {}, tail = 0.6) {
-  engine2.jumpAll(patch);
-  engine2.loadScore(score2);
-  engine2.play(false);
-  const total = Math.ceil((score2.length + tail) * engine2.sampleRate);
-  const left2 = new Float32Array(total);
-  const right2 = new Float32Array(total);
-  for (let at = 0; at < total; at += 1024) {
-    const [l, r] = engine2.render(Math.min(1024, total - at));
+function renderInto(engine, left2, right2, start, end) {
+  for (let at = start; at < end; ) {
+    const [l, r] = engine.render(Math.min(1024, end - at));
     left2.set(l, at);
     right2.set(r, at);
+    at += l.length;
   }
+}
+function renderScore(engine, score, patch = {}, tail = 0.6) {
+  engine.jumpAll(patch);
+  engine.loadScore(score);
+  engine.play(false);
+  const total = Math.ceil((score.length + tail) * engine.sampleRate);
+  const left2 = new Float32Array(total);
+  const right2 = new Float32Array(total);
+  renderInto(engine, left2, right2, 0, total);
   return [left2, right2];
+}
+
+// src/core/direction.ts
+function wordKey(text) {
+  return text.normalize("NFC").toLowerCase().replace(/^\[|\]$/g, "").replace(/[-.,!?:;“”"]/g, "");
+}
+function lyricWords(lyrics) {
+  const counts = /* @__PURE__ */ new Map();
+  return lyrics.trim().split(/\s+/).flatMap((label, index) => {
+    const word = wordKey(label);
+    if (!word || word === "_") return [];
+    const occurrence = (counts.get(word) ?? 0) + 1;
+    counts.set(word, occurrence);
+    return [{ word, occurrence, label, index }];
+  });
+}
+function sameWord(a, b) {
+  return a.word === b.word && a.occurrence === b.occurrence;
+}
+function validateDirections(raw) {
+  if (raw === void 0) return [];
+  if (!Array.isArray(raw) || raw.length > 256) throw new TypeError("Expected up to 256 word directions");
+  const out = [];
+  for (const d of raw) {
+    const occurrence = d?.occurrence === void 0 ? 1 : d.occurrence;
+    if (!d || typeof d.word !== "string" || !wordKey(d.word) || d.word.length > 120 || /\s/.test(d.word) || !Number.isInteger(occurrence) || occurrence < 1 || occurrence > 2048 || Object.keys(d).some((k) => !["word", "occurrence", "slide", "swell", "vibratoAt"].includes(k))) throw new TypeError("Invalid word direction");
+    const dir = { word: wordKey(d.word), occurrence };
+    for (const k of ["slide", "swell"]) {
+      if (d[k] !== void 0 && typeof d[k] !== "boolean") throw new TypeError(k + " must be boolean");
+      if (d[k]) dir[k] = true;
+    }
+    if (d.vibratoAt !== void 0) {
+      if (!Number.isFinite(d.vibratoAt) || d.vibratoAt < 0 || d.vibratoAt > 1) throw new RangeError("vibratoAt must be 0\u20131");
+      dir.vibratoAt = d.vibratoAt;
+    }
+    if (out.some((x) => sameWord(x, dir))) throw new TypeError("Duplicate word direction");
+    out.push(dir);
+  }
+  return out;
+}
+
+// src/core/vowels.generated.json
+var vowels_generated_default = {
+  IY: { params: { tongueX: 1, tongueY: 0.907, jaw: 0.246, lipOpen: 0.983, lipRound: 0, throat: 0.411 }, model: [424, 2617, 3020], target: [437, 2761, 3372] },
+  IH: { params: { tongueX: 1, tongueY: 0.724, jaw: 0.371, lipOpen: 0.842, lipRound: 0, throat: 0.34 }, model: [478, 2341, 2916], target: [483, 2365, 3053] },
+  EY: { params: { tongueX: 1, tongueY: 0.828, jaw: 0.481, lipOpen: 1, lipRound: 0, throat: 0.026 }, model: [519, 2415, 2860], target: [536, 2530, 3047] },
+  EH: { params: { tongueX: 1, tongueY: 0.285, jaw: 0.715, lipOpen: 1, lipRound: 0, throat: 0 }, model: [689, 1921, 2948], target: [731, 2058, 2979] },
+  AE: { params: { tongueX: 1, tongueY: 0.084, jaw: 0.913, lipOpen: 0.999, lipRound: 0, throat: 0 }, model: [773, 1797, 3032], target: [860, 2050, 2850] },
+  AA: { params: { tongueX: 0.049, tongueY: 0, jaw: 0.967, lipOpen: 0.96, lipRound: 0, throat: 0 }, model: [877, 1309, 2745], target: [900, 1300, 2810] },
+  AO: { params: { tongueX: 0, tongueY: 0.138, jaw: 0.785, lipOpen: 0.706, lipRound: 0.363, throat: 0 }, model: [759, 1153, 2761], target: [781, 1136, 2824] },
+  OW: { params: { tongueX: 0.018, tongueY: 0.673, jaw: 0.52, lipOpen: 0.375, lipRound: 0.836, throat: 0 }, model: [553, 1041, 2834], target: [555, 1035, 2828] },
+  UH: { params: { tongueX: 0.217, tongueY: 0.683, jaw: 0.417, lipOpen: 0.466, lipRound: 0.6, throat: 0.484 }, model: [519, 1241, 2827], target: [519, 1225, 2827] },
+  UW: { params: { tongueX: 0.065, tongueY: 0.807, jaw: 0.355, lipOpen: 0.349, lipRound: 0.91, throat: 0.492 }, model: [459, 1105, 2716], target: [459, 1105, 2735] },
+  AH: { params: { tongueX: 0.898, tongueY: 0, jaw: 0.659, lipOpen: 0.423, lipRound: 0.316, throat: 1e-3 }, model: [692, 1407, 2963], target: [690, 1400, 2900] },
+  ER: { params: { tongueX: 0.109, tongueY: 0.972, jaw: 0.404, lipOpen: 0.535, lipRound: 0.36, throat: 0.011, rhotic: 0.827 }, model: [522, 1583, 1932], target: [523, 1588, 1929] }
+};
+
+// src/core/phonemes.ts
+var V = vowels_generated_default;
+var vowel = (s) => ({ ...V[s].params, rhotic: V[s].params.rhotic ?? 0 });
+var SCHWA = { tongueX: 0.5, tongueY: 0.32, jaw: 0.5, lipOpen: 0.62, lipRound: 0.12, throat: 0.4, rhotic: 0 };
+var PALATAL_BODY = { tongueX: 1, tongueY: 0.95 };
+var P = (symbol, ipa, manner, voiced, duration, target, example, offglide) => ({ symbol, ipa, manner, voiced, duration, target, example, offglide });
+var PHONEMES = Object.fromEntries([
+  P("AA", "\u0251", "vowel", true, 150, vowel("AA"), "father"),
+  P("AE", "\xE6", "vowel", true, 172, vowel("AE"), "cat"),
+  P("AH", "\u028C", "vowel", true, 106, vowel("AH"), "cup"),
+  P("AO", "\u0254", "vowel", true, 150, vowel("AO"), "thought"),
+  P("EH", "\u025B", "vowel", true, 121, vowel("EH"), "bed"),
+  P("ER", "\u025D", "vowel", true, 158, vowel("ER"), "bird"),
+  P("IH", "\u026A", "vowel", true, 90, vowel("IH"), "sit"),
+  P("IY", "i", "vowel", true, 130, vowel("IY"), "see"),
+  P("UH", "\u028A", "vowel", true, 95, vowel("UH"), "book"),
+  P("UW", "u", "vowel", true, 118, vowel("UW"), "blue"),
+  // Plain vowels English lacks. [e] is the nucleus of EY without its glide. The back vowels
+  // are further back and rounder than English's (shapes chosen with engine/src/bin/areas.rs,
+  // modeled F1/F2 in Hz): [o] 421/915, [u] 394/981, Korean 어 644/1078. The close back vowel
+  // with spread lips (Korean 으) comes out at 493/1446 only with the lips half rounded.
+  P("E", "e", "vowel", true, 125, vowel("EY"), "Spanish mesa"),
+  P("O", "o", "vowel", true, 125, { tongueX: 0, tongueY: 0.6, jaw: 0.5, lipOpen: 0.22, lipRound: 1, throat: 0.2, rhotic: 0 }, "Spanish como"),
+  P("U", "u", "vowel", true, 115, { tongueX: 0.07, tongueY: 0.81, jaw: 0.35, lipOpen: 0.2, lipRound: 1, throat: 0.49, rhotic: 0 }, "Korean \uC6B0"),
+  P("EO", "\u028C\u0339", "vowel", true, 125, { tongueX: 0, tongueY: 0.5, jaw: 0.6, lipOpen: 0.45, lipRound: 0.6, throat: 0, rhotic: 0 }, "Korean \uC5B4"),
+  P("UU", "\u026F", "vowel", true, 110, { tongueX: 0.1, tongueY: 0.95, jaw: 0.28, lipOpen: 0.3, lipRound: 0.35, throat: 0.6, rhotic: 0 }, "Korean \uC73C"),
+  P("EY", "e\u026A", "diphthong", true, 160, vowel("EY"), "day", vowel("IY")),
+  P("OW", "o\u028A", "diphthong", true, 148, vowel("OW"), "go", vowel("UH")),
+  P("AY", "a\u026A", "diphthong", true, 190, vowel("AA"), "my", vowel("IH")),
+  P("AW", "a\u028A", "diphthong", true, 210, vowel("AA"), "now", vowel("UH")),
+  P("OY", "\u0254\u026A", "diphthong", true, 200, vowel("AO"), "boy", vowel("IY")),
+  P("P", "p", "stop", false, 70, { lipOpen: 0 }, "pen"),
+  P("B", "b", "stop", true, 70, { lipOpen: 0 }, "bed"),
+  P("T", "t", "stop", false, 60, { tipPlace: 0.38, tipClose: 1 }, "top"),
+  P("D", "d", "stop", true, 60, { tipPlace: 0.38, tipClose: 1 }, "day"),
+  P("DX", "\u027E", "stop", true, 31, { tipPlace: 0.38, tipClose: 1 }, "butter"),
+  P("K", "k", "stop", false, 73, { dorsumClose: 1 }, "cat"),
+  P("G", "g", "stop", true, 70, { dorsumClose: 1 }, "go"),
+  P("M", "m", "nasal", true, 75, { lipOpen: 0, velum: 1 }, "me"),
+  P("N", "n", "nasal", true, 65, { tipPlace: 0.38, tipClose: 1, velum: 1 }, "no"),
+  P("NG", "\u014B", "nasal", true, 62, { dorsumClose: 1, velum: 1 }, "sing"),
+  P("F", "f", "fricative", false, 100, { lipOpen: 0.098, lipRound: 0 }, "fine"),
+  P("V", "v", "fricative", true, 58, { lipOpen: 0.107, lipRound: 0 }, "very"),
+  P("TH", "\u03B8", "fricative", false, 100, { tipPlace: 0, tipClose: 0.8 }, "think"),
+  P("DH", "\xF0", "fricative", true, 50, { tipPlace: 0, tipClose: 0.794 }, "this"),
+  P("S", "s", "fricative", false, 110, { tipPlace: 0.18, tipClose: 0.834, jaw: 0.3 }, "see"),
+  P("Z", "z", "fricative", true, 92, { tipPlace: 0.18, tipClose: 0.828, jaw: 0.3 }, "zoo"),
+  P("SH", "\u0283", "fricative", false, 115, { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55, jaw: 0.3 }, "she"),
+  P("ZH", "\u0292", "fricative", true, 90, { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55, jaw: 0.3 }, "vision"),
+  P("CH", "t\u0283", "affricate", false, 115, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "chair"),
+  P("JH", "d\u0292", "affricate", true, 112, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "joy"),
+  P("L", "l", "approximant", true, 70, { tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3, tongueY: 0.5 }, "love"),
+  // Non-English sounds (not in ARPABET): a glottal stop, ejectives (the larynx is the
+  // piston) and clicks (the tongue body pulls a vacuum between two seals).
+  P("Q", "\u0294", "stop", true, 60, { glottal: 1 }, "uh-oh"),
+  P("PE", "p\u02BC", "stop", false, 95, { lipOpen: 0, glottal: 1, larynx: 1 }, "ejective p"),
+  P("TE", "t\u02BC", "stop", false, 95, { tipPlace: 0.38, tipClose: 1, glottal: 1, larynx: 1 }, "ejective t"),
+  P("KE", "k\u02BC", "stop", false, 95, { dorsumClose: 1, glottal: 1, larynx: 1 }, "ejective k"),
+  P("CB", "\u0298", "click", false, 85, { lipOpen: 0, dorsumClose: 1, suction: 1 }, "kiss click"),
+  P("CD", "\u01C0", "click", false, 85, { tipPlace: 0.05, tipClose: 1, dorsumClose: 1, suction: 1 }, "tsk"),
+  P("CA", "\u01C3", "click", false, 85, { tipPlace: 0.42, tipClose: 1, dorsumClose: 1, suction: 1 }, "cork pop"),
+  // Trills (not in ARPABET): a rolled tongue-tip r, a lip trill and a uvular r.
+  P("RR", "r", "trill", true, 110, { tipPlace: 0.42, tipClose: 0.9, trill: 1, jaw: 0.35 }, "Spanish perro"),
+  P("BR", "\u0299", "trill", true, 160, { lipOpen: 0.04, lipRound: 0.25, trill: 1 }, "brr"),
+  P("RU", "\u0280", "trill", true, 110, { dorsumClose: 0.9, tongueX: 0.02, tongueY: 0.55, trill: 1 }, "French rouge"),
+  P("R", "\u0279", "approximant", true, 70, { rhotic: 0.88, lipRound: 0.7, tongueX: 0.11, tongueY: 0.97, lipOpen: 0.5 }, "red"),
+  P("W", "w", "approximant", true, 65, { lipOpen: 0.15, lipRound: 1, tongueX: 0, tongueY: 0.9 }, "we"),
+  P("Y", "j", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35 }, "yes"),
+  P("HH", "h", "aspirate", false, 65, { voicing: 0 }, "hat"),
+  // Sibilants made behind the alveolar ridge in two more ways (Korean, Mandarin, Polish,
+  // Russian): alveolo-palatal, with the tongue body up at the hard palate and the lips spread,
+  // and retroflex, further back with a larger space under the tongue. Each has its affricates.
+  P("SC", "\u0255", "fricative", false, 115, { tipPlace: 0.6, tipClose: 0.82, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Mandarin \u897F"),
+  P("ZC", "\u0291", "fricative", true, 90, { tipPlace: 0.6, tipClose: 0.815, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Polish ziemia"),
+  P("CC", "t\u0255", "affricate", false, 110, { tipPlace: 0.55, tipClose: 1, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Korean \uC790"),
+  P("JC", "d\u0291", "affricate", true, 105, { tipPlace: 0.55, tipClose: 1, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Japanese \u3058"),
+  P("SR", "\u0282", "fricative", false, 115, { tipPlace: 1, tipClose: 0.815, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Mandarin \u662F"),
+  P("ZR", "\u0290", "fricative", true, 90, { tipPlace: 1, tipClose: 0.815, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Polish \u017Cona"),
+  P("CR", "t\u0282", "affricate", false, 115, { tipPlace: 0.95, tipClose: 1, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Mandarin \u77E5"),
+  P("JR", "d\u0290", "affricate", true, 110, { tipPlace: 0.95, tipClose: 1, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Polish d\u017Cem"),
+  // The glide of French huit and Mandarin 月: the tongue of [j] with the lips of [w].
+  P("YW", "\u0265", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35, lipOpen: 0.15, lipRound: 1 }, "French huit")
+].map((p) => [p.symbol, p]));
+var PALATAL = PALATAL_BODY;
+var SOFT_EXAMPLES = {
+  P: "Russian \u043F\u044F\u0442\u044C",
+  B: "Russian \u0431\u0438\u0442\u044C",
+  T: "Russian \u0442\u0451\u0442\u044F",
+  D: "Russian \u0434\u044F\u0434\u044F",
+  K: "Russian \u043A\u0438\u0442",
+  G: "Russian \u0433\u0438\u0434",
+  M: "Russian \u043C\u044F\u0442\u044C",
+  N: "Russian \u043D\u0435\u0442",
+  F: "Russian \u043A\u043E\u0444\u0435",
+  V: "Russian \u0432\u0435\u0441",
+  S: "Russian \u0441\u044F\u0434\u044C",
+  Z: "Russian \u0437\u0438\u043C\u0430",
+  L: "Russian \u043B\u0435\u0441",
+  RR: "Russian \u0440\u0435\u043A\u0430"
+};
+for (const [base, example] of Object.entries(SOFT_EXAMPLES)) {
+  const p = PHONEMES[base];
+  const { tongueX: _x, tongueY: _y, ...target } = p.target;
+  const duration = base === "T" || base === "D" ? p.duration + 35 : p.duration;
+  PHONEMES[`${base}J`] = { ...p, symbol: `${base}J`, ipa: `${p.ipa}\u02B2`, target, duration, example, palatalized: true };
+}
+var PALATALIZABLE = Object.keys(SOFT_EXAMPLES);
+var AFFRICATE_RELEASE = {
+  TJ: { tipPlace: 0.5, tipClose: 0.83 },
+  DJ: { tipPlace: 0.5, tipClose: 0.83 },
+  CH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 },
+  JH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 },
+  CC: { tipPlace: 0.6, tipClose: 0.82 },
+  JC: { tipPlace: 0.6, tipClose: 0.815 },
+  CR: { tipPlace: 1, tipClose: 0.815 },
+  JR: { tipPlace: 1, tipClose: 0.815 }
+};
+var VOWEL_SYMBOLS = Object.values(PHONEMES).filter((p) => p.manner === "vowel" || p.manner === "diphthong").map((p) => p.symbol);
+var CONSONANT_SYMBOLS = Object.values(PHONEMES).filter((p) => !VOWEL_SYMBOLS.includes(p.symbol)).map((p) => p.symbol);
+var isVowel = (symbol) => VOWEL_SYMBOLS.includes(symbol);
+var MARK_KEYS = ["aspirated", "vot", "nasalized", "breathy", "unreleased"];
+function marksOf(p) {
+  const out = {};
+  for (const k of MARK_KEYS) if (p[k] !== void 0) out[k] = p[k];
+  return out;
+}
+function parsePhone(token) {
+  const m = /^([A-Z]{1,3})([012])?([~^=%-]*)$/.exec(token.trim().toUpperCase());
+  if (!m || !PHONEMES[m[1]]) return null;
+  const phone = { symbol: m[1], stress: isVowel(m[1]) ? Number(m[2] ?? 1) : 0 };
+  for (const c of m[3]) {
+    if (c === "^") phone.aspirated = true;
+    else if (c === "=") phone.aspirated = false;
+    else if (c === "~") phone.nasalized = true;
+    else if (c === "%") phone.breathy = true;
+    else if (c === "-") phone.unreleased = true;
+  }
+  return phone;
+}
+function vowelTarget(phone) {
+  if (phone.symbol === "AH" && phone.stress === 0) return SCHWA;
+  if (phone.symbol === "ER" && phone.stress === 0) return { ...PHONEMES.ER.target, rhotic: 0.7 };
+  return PHONEMES[phone.symbol].target;
+}
+var VOWEL_CALIBRATION = Object.entries(V).map(([symbol, row]) => ({ symbol, model: row.model, target: row.target }));
+
+// src/core/russian.ts
+var vowels = { \u0430: "AA", \u044F: "AA", \u043E: "O", \u0451: "O", \u0443: "U", \u044E: "U", \u044D: "EH", \u0435: "EH", \u0438: "IY", \u044B: "IH" };
+var consonants = {
+  \u0431: "B",
+  \u0432: "V",
+  \u0433: "G",
+  \u0434: "D",
+  \u0436: "ZR",
+  \u0437: "Z",
+  \u0439: "Y",
+  \u043A: "K",
+  \u043B: "L",
+  \u043C: "M",
+  \u043D: "N",
+  \u043F: "P",
+  \u0440: "RR",
+  \u0441: "S",
+  \u0442: "T",
+  \u0444: "F",
+  \u0445: "HH",
+  \u0446: "T S",
+  \u0447: "CC",
+  \u0448: "SR",
+  \u0449: "SC"
+};
+var final = { B: "P", V: "F", G: "K", D: "T", ZR: "SR", Z: "S" };
+var isRussian = (word) => /[а-яё]/i.test(word);
+function russianPhones(word) {
+  const chars = [
+    ...word.toLowerCase().normalize("NFC").replace(/[^а-яё\u0301]/g, "")
+  ];
+  const phones2 = [];
+  const stressed = chars.some((c) => c === "\u0451" || c === "\u0301");
+  const letters = chars.filter((c) => c !== "\u0301");
+  let index = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i];
+    if (c === "\u0301") continue;
+    const prev = letters[index - 1], next = letters[++index];
+    if (vowels[c]) {
+      if ("\u0435\u0451\u044E\u044F".includes(c) && (!prev || vowels[prev] || /[ъь]/.test(prev))) phones2.push({ symbol: "Y", stress: 0 });
+      const strong = c === "\u0451" || chars[i + 1] === "\u0301";
+      const symbol = stressed && !strong && c === "\u043E" ? "AH" : vowels[c];
+      phones2.push({ symbol, stress: strong || !stressed ? 1 : 0 });
+    } else if (consonants[c]) {
+      for (let symbol of consonants[c].split(" ")) {
+        if (!next || index + 1 === letters.length && next === "\u044C") symbol = final[symbol] ?? symbol;
+        if (next && "\u0435\u0451\u0438\u044E\u044F\u044C".includes(next) && PALATALIZABLE.includes(symbol)) symbol += "J";
+        phones2.push({ symbol, stress: 0 });
+      }
+    }
+  }
+  return phones2;
 }
 
 // src/core/korean.ts
@@ -471,175 +759,13 @@ function koreanSyllables(word) {
     const beforeCoda = before?.final[0];
     const voicedBefore = !!before && (!beforeCoda || "\u3134\u3141\u3147\u3139".includes(beforeCoda));
     const vowel2 = VOWELS[b.vowel].map((symbol, i, all) => ({ symbol, stress: i === all.length - 1 ? k === 0 ? 1 : 2 : 0 }));
-    const phones = [...initialPhones(b.initial, b.vowel, voicedBefore, beforeCoda === "\u3139"), ...vowel2, ...b.final.map((f) => ({ ...FINAL_PHONE[f] }))];
-    return { text: b.text, phones };
+    const phones2 = [...initialPhones(b.initial, b.vowel, voicedBefore, beforeCoda === "\u3139"), ...vowel2, ...b.final.map((f) => ({ ...FINAL_PHONE[f] }))];
+    return { text: b.text, phones: phones2 };
   });
 }
 function koreanPhones(word) {
   return koreanSyllables(word).flatMap((s) => s.phones);
 }
-
-// src/core/vowels.generated.json
-var vowels_generated_default = {
-  IY: { params: { tongueX: 1, tongueY: 0.907, jaw: 0.246, lipOpen: 0.983, lipRound: 0, throat: 0.411 }, model: [424, 2617, 3020], target: [437, 2761, 3372] },
-  IH: { params: { tongueX: 1, tongueY: 0.724, jaw: 0.371, lipOpen: 0.842, lipRound: 0, throat: 0.34 }, model: [478, 2341, 2916], target: [483, 2365, 3053] },
-  EY: { params: { tongueX: 1, tongueY: 0.828, jaw: 0.481, lipOpen: 1, lipRound: 0, throat: 0.026 }, model: [519, 2415, 2860], target: [536, 2530, 3047] },
-  EH: { params: { tongueX: 1, tongueY: 0.285, jaw: 0.715, lipOpen: 1, lipRound: 0, throat: 0 }, model: [689, 1921, 2948], target: [731, 2058, 2979] },
-  AE: { params: { tongueX: 1, tongueY: 0.084, jaw: 0.913, lipOpen: 0.999, lipRound: 0, throat: 0 }, model: [773, 1797, 3032], target: [860, 2050, 2850] },
-  AA: { params: { tongueX: 0.049, tongueY: 0, jaw: 0.967, lipOpen: 0.96, lipRound: 0, throat: 0 }, model: [877, 1309, 2745], target: [900, 1300, 2810] },
-  AO: { params: { tongueX: 0, tongueY: 0.138, jaw: 0.785, lipOpen: 0.706, lipRound: 0.363, throat: 0 }, model: [759, 1153, 2761], target: [781, 1136, 2824] },
-  OW: { params: { tongueX: 0.018, tongueY: 0.673, jaw: 0.52, lipOpen: 0.375, lipRound: 0.836, throat: 0 }, model: [553, 1041, 2834], target: [555, 1035, 2828] },
-  UH: { params: { tongueX: 0.217, tongueY: 0.683, jaw: 0.417, lipOpen: 0.466, lipRound: 0.6, throat: 0.484 }, model: [519, 1241, 2827], target: [519, 1225, 2827] },
-  UW: { params: { tongueX: 0.065, tongueY: 0.807, jaw: 0.355, lipOpen: 0.349, lipRound: 0.91, throat: 0.492 }, model: [459, 1105, 2716], target: [459, 1105, 2735] },
-  AH: { params: { tongueX: 0.898, tongueY: 0, jaw: 0.659, lipOpen: 0.423, lipRound: 0.316, throat: 1e-3 }, model: [692, 1407, 2963], target: [690, 1400, 2900] },
-  ER: { params: { tongueX: 0.109, tongueY: 0.972, jaw: 0.404, lipOpen: 0.535, lipRound: 0.36, throat: 0.011, rhotic: 0.827 }, model: [522, 1583, 1932], target: [523, 1588, 1929] }
-};
-
-// src/core/phonemes.ts
-var V = vowels_generated_default;
-var vowel = (s) => ({ ...V[s].params, rhotic: V[s].params.rhotic ?? 0 });
-var SCHWA = { tongueX: 0.5, tongueY: 0.32, jaw: 0.5, lipOpen: 0.62, lipRound: 0.12, throat: 0.4, rhotic: 0 };
-var PALATAL_BODY = { tongueX: 1, tongueY: 0.95 };
-var P = (symbol, ipa, manner, voiced, duration, target, example, offglide) => ({ symbol, ipa, manner, voiced, duration, target, example, offglide });
-var PHONEMES = Object.fromEntries([
-  P("AA", "\u0251", "vowel", true, 150, vowel("AA"), "father"),
-  P("AE", "\xE6", "vowel", true, 172, vowel("AE"), "cat"),
-  P("AH", "\u028C", "vowel", true, 106, vowel("AH"), "cup"),
-  P("AO", "\u0254", "vowel", true, 150, vowel("AO"), "thought"),
-  P("EH", "\u025B", "vowel", true, 121, vowel("EH"), "bed"),
-  P("ER", "\u025D", "vowel", true, 158, vowel("ER"), "bird"),
-  P("IH", "\u026A", "vowel", true, 90, vowel("IH"), "sit"),
-  P("IY", "i", "vowel", true, 130, vowel("IY"), "see"),
-  P("UH", "\u028A", "vowel", true, 95, vowel("UH"), "book"),
-  P("UW", "u", "vowel", true, 118, vowel("UW"), "blue"),
-  // Plain vowels English lacks. [e] is the nucleus of EY without its glide. The back vowels
-  // are further back and rounder than English's (shapes chosen with engine/src/bin/areas.rs,
-  // modeled F1/F2 in Hz): [o] 421/915, [u] 394/981, Korean 어 644/1078. The close back vowel
-  // with spread lips (Korean 으) comes out at 493/1446 only with the lips half rounded.
-  P("E", "e", "vowel", true, 125, vowel("EY"), "Spanish mesa"),
-  P("O", "o", "vowel", true, 125, { tongueX: 0, tongueY: 0.6, jaw: 0.5, lipOpen: 0.22, lipRound: 1, throat: 0.2, rhotic: 0 }, "Spanish como"),
-  P("U", "u", "vowel", true, 115, { tongueX: 0.07, tongueY: 0.81, jaw: 0.35, lipOpen: 0.2, lipRound: 1, throat: 0.49, rhotic: 0 }, "Korean \uC6B0"),
-  P("EO", "\u028C\u0339", "vowel", true, 125, { tongueX: 0, tongueY: 0.5, jaw: 0.6, lipOpen: 0.45, lipRound: 0.6, throat: 0, rhotic: 0 }, "Korean \uC5B4"),
-  P("UU", "\u026F", "vowel", true, 110, { tongueX: 0.1, tongueY: 0.95, jaw: 0.28, lipOpen: 0.3, lipRound: 0.35, throat: 0.6, rhotic: 0 }, "Korean \uC73C"),
-  P("EY", "e\u026A", "diphthong", true, 160, vowel("EY"), "day", vowel("IY")),
-  P("OW", "o\u028A", "diphthong", true, 148, vowel("OW"), "go", vowel("UH")),
-  P("AY", "a\u026A", "diphthong", true, 190, vowel("AA"), "my", vowel("IH")),
-  P("AW", "a\u028A", "diphthong", true, 210, vowel("AA"), "now", vowel("UH")),
-  P("OY", "\u0254\u026A", "diphthong", true, 200, vowel("AO"), "boy", vowel("IY")),
-  P("P", "p", "stop", false, 70, { lipOpen: 0 }, "pen"),
-  P("B", "b", "stop", true, 70, { lipOpen: 0 }, "bed"),
-  P("T", "t", "stop", false, 60, { tipPlace: 0.38, tipClose: 1 }, "top"),
-  P("D", "d", "stop", true, 60, { tipPlace: 0.38, tipClose: 1 }, "day"),
-  P("DX", "\u027E", "stop", true, 31, { tipPlace: 0.38, tipClose: 1 }, "butter"),
-  P("K", "k", "stop", false, 73, { dorsumClose: 1 }, "cat"),
-  P("G", "g", "stop", true, 70, { dorsumClose: 1 }, "go"),
-  P("M", "m", "nasal", true, 75, { lipOpen: 0, velum: 1 }, "me"),
-  P("N", "n", "nasal", true, 65, { tipPlace: 0.38, tipClose: 1, velum: 1 }, "no"),
-  P("NG", "\u014B", "nasal", true, 62, { dorsumClose: 1, velum: 1 }, "sing"),
-  P("F", "f", "fricative", false, 100, { lipOpen: 0.098, lipRound: 0 }, "fine"),
-  P("V", "v", "fricative", true, 58, { lipOpen: 0.107, lipRound: 0 }, "very"),
-  P("TH", "\u03B8", "fricative", false, 100, { tipPlace: 0, tipClose: 0.8 }, "think"),
-  P("DH", "\xF0", "fricative", true, 50, { tipPlace: 0, tipClose: 0.794 }, "this"),
-  P("S", "s", "fricative", false, 110, { tipPlace: 0.18, tipClose: 0.834, jaw: 0.3 }, "see"),
-  P("Z", "z", "fricative", true, 92, { tipPlace: 0.18, tipClose: 0.828, jaw: 0.3 }, "zoo"),
-  P("SH", "\u0283", "fricative", false, 115, { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55, jaw: 0.3 }, "she"),
-  P("ZH", "\u0292", "fricative", true, 90, { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55, jaw: 0.3 }, "vision"),
-  P("CH", "t\u0283", "affricate", false, 115, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "chair"),
-  P("JH", "d\u0292", "affricate", true, 112, { tipPlace: 0.7, tipClose: 1, lipRound: 0.5, jaw: 0.3 }, "joy"),
-  P("L", "l", "approximant", true, 70, { tipPlace: 0.38, tipClose: 1, lateral: 1, tongueX: 0.3, tongueY: 0.5 }, "love"),
-  // Non-English sounds (not in ARPABET): a glottal stop, ejectives (the larynx is the
-  // piston) and clicks (the tongue body pulls a vacuum between two seals).
-  P("Q", "\u0294", "stop", true, 60, { glottal: 1 }, "uh-oh"),
-  P("PE", "p\u02BC", "stop", false, 95, { lipOpen: 0, glottal: 1, larynx: 1 }, "ejective p"),
-  P("TE", "t\u02BC", "stop", false, 95, { tipPlace: 0.38, tipClose: 1, glottal: 1, larynx: 1 }, "ejective t"),
-  P("KE", "k\u02BC", "stop", false, 95, { dorsumClose: 1, glottal: 1, larynx: 1 }, "ejective k"),
-  P("CB", "\u0298", "click", false, 85, { lipOpen: 0, dorsumClose: 1, suction: 1 }, "kiss click"),
-  P("CD", "\u01C0", "click", false, 85, { tipPlace: 0.05, tipClose: 1, dorsumClose: 1, suction: 1 }, "tsk"),
-  P("CA", "\u01C3", "click", false, 85, { tipPlace: 0.42, tipClose: 1, dorsumClose: 1, suction: 1 }, "cork pop"),
-  // Trills (not in ARPABET): a rolled tongue-tip r, a lip trill and a uvular r.
-  P("RR", "r", "trill", true, 110, { tipPlace: 0.42, tipClose: 0.9, trill: 1, jaw: 0.35 }, "Spanish perro"),
-  P("BR", "\u0299", "trill", true, 160, { lipOpen: 0.04, lipRound: 0.25, trill: 1 }, "brr"),
-  P("RU", "\u0280", "trill", true, 110, { dorsumClose: 0.9, tongueX: 0.02, tongueY: 0.55, trill: 1 }, "French rouge"),
-  P("R", "\u0279", "approximant", true, 70, { rhotic: 0.88, lipRound: 0.7, tongueX: 0.11, tongueY: 0.97, lipOpen: 0.5 }, "red"),
-  P("W", "w", "approximant", true, 65, { lipOpen: 0.15, lipRound: 1, tongueX: 0, tongueY: 0.9 }, "we"),
-  P("Y", "j", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35 }, "yes"),
-  P("HH", "h", "aspirate", false, 65, { voicing: 0 }, "hat"),
-  // Sibilants made behind the alveolar ridge in two more ways (Korean, Mandarin, Polish,
-  // Russian): alveolo-palatal, with the tongue body up at the hard palate and the lips spread,
-  // and retroflex, further back with a larger space under the tongue. Each has its affricates.
-  P("SC", "\u0255", "fricative", false, 115, { tipPlace: 0.6, tipClose: 0.82, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Mandarin \u897F"),
-  P("ZC", "\u0291", "fricative", true, 90, { tipPlace: 0.6, tipClose: 0.815, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Polish ziemia"),
-  P("CC", "t\u0255", "affricate", false, 110, { tipPlace: 0.55, tipClose: 1, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Korean \uC790"),
-  P("JC", "d\u0291", "affricate", true, 105, { tipPlace: 0.55, tipClose: 1, lipRound: 0, jaw: 0.3, ...PALATAL_BODY }, "Japanese \u3058"),
-  P("SR", "\u0282", "fricative", false, 115, { tipPlace: 1, tipClose: 0.815, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Mandarin \u662F"),
-  P("ZR", "\u0290", "fricative", true, 90, { tipPlace: 1, tipClose: 0.815, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Polish \u017Cona"),
-  P("CR", "t\u0282", "affricate", false, 115, { tipPlace: 0.95, tipClose: 1, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Mandarin \u77E5"),
-  P("JR", "d\u0290", "affricate", true, 110, { tipPlace: 0.95, tipClose: 1, lipRound: 0.3, jaw: 0.32, tongueX: 0.3, tongueY: 0.45 }, "Polish d\u017Cem"),
-  // The glide of French huit and Mandarin 月: the tongue of [j] with the lips of [w].
-  P("YW", "\u0265", "approximant", true, 60, { tongueX: 1, tongueY: 1, jaw: 0.35, lipOpen: 0.15, lipRound: 1 }, "French huit")
-].map((p) => [p.symbol, p]));
-var PALATAL = PALATAL_BODY;
-var SOFT_EXAMPLES = {
-  P: "Russian \u043F\u044F\u0442\u044C",
-  B: "Russian \u0431\u0438\u0442\u044C",
-  T: "Russian \u0442\u0451\u0442\u044F",
-  D: "Russian \u0434\u044F\u0434\u044F",
-  K: "Russian \u043A\u0438\u0442",
-  G: "Russian \u0433\u0438\u0434",
-  M: "Russian \u043C\u044F\u0442\u044C",
-  N: "Russian \u043D\u0435\u0442",
-  F: "Russian \u043A\u043E\u0444\u0435",
-  V: "Russian \u0432\u0435\u0441",
-  S: "Russian \u0441\u044F\u0434\u044C",
-  Z: "Russian \u0437\u0438\u043C\u0430",
-  L: "Russian \u043B\u0435\u0441",
-  RR: "Russian \u0440\u0435\u043A\u0430"
-};
-for (const [base, example] of Object.entries(SOFT_EXAMPLES)) {
-  const p = PHONEMES[base];
-  const { tongueX: _x, tongueY: _y, ...target } = p.target;
-  const duration = base === "T" || base === "D" ? p.duration + 35 : p.duration;
-  PHONEMES[`${base}J`] = { ...p, symbol: `${base}J`, ipa: `${p.ipa}\u02B2`, target, duration, example, palatalized: true };
-}
-var PALATALIZABLE = Object.keys(SOFT_EXAMPLES);
-var AFFRICATE_RELEASE = {
-  TJ: { tipPlace: 0.5, tipClose: 0.83 },
-  DJ: { tipPlace: 0.5, tipClose: 0.83 },
-  CH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 },
-  JH: { tipPlace: 0.85, tipClose: 0.815, lipRound: 0.55 },
-  CC: { tipPlace: 0.6, tipClose: 0.82 },
-  JC: { tipPlace: 0.6, tipClose: 0.815 },
-  CR: { tipPlace: 1, tipClose: 0.815 },
-  JR: { tipPlace: 1, tipClose: 0.815 }
-};
-var VOWEL_SYMBOLS = Object.values(PHONEMES).filter((p) => p.manner === "vowel" || p.manner === "diphthong").map((p) => p.symbol);
-var CONSONANT_SYMBOLS = Object.values(PHONEMES).filter((p) => !VOWEL_SYMBOLS.includes(p.symbol)).map((p) => p.symbol);
-var isVowel = (symbol) => VOWEL_SYMBOLS.includes(symbol);
-var MARK_KEYS = ["aspirated", "vot", "nasalized", "breathy", "unreleased"];
-function marksOf(p) {
-  const out = {};
-  for (const k of MARK_KEYS) if (p[k] !== void 0) out[k] = p[k];
-  return out;
-}
-function parsePhone(token) {
-  const m = /^([A-Z]{1,3})([012])?([~^=%-]*)$/.exec(token.trim().toUpperCase());
-  if (!m || !PHONEMES[m[1]]) return null;
-  const phone = { symbol: m[1], stress: isVowel(m[1]) ? Number(m[2] ?? 1) : 0 };
-  for (const c of m[3]) {
-    if (c === "^") phone.aspirated = true;
-    else if (c === "=") phone.aspirated = false;
-    else if (c === "~") phone.nasalized = true;
-    else if (c === "%") phone.breathy = true;
-    else if (c === "-") phone.unreleased = true;
-  }
-  return phone;
-}
-function vowelTarget(phone) {
-  if (phone.symbol === "AH" && phone.stress === 0) return SCHWA;
-  if (phone.symbol === "ER" && phone.stress === 0) return { ...PHONEMES.ER.target, rhotic: 0.7 };
-  return PHONEMES[phone.symbol].target;
-}
-var VOWEL_CALIBRATION = Object.entries(V).map(([symbol, row]) => ({ symbol, model: row.model, target: row.target }));
 
 // src/core/lexicon-codes.mjs
 var VOWELS2 = ["AA", "AE", "AH", "AO", "AW", "AY", "EH", "ER", "EY", "IH", "IY", "OW", "OY", "UH", "UW"];
@@ -689,15 +815,15 @@ var ONES = [
   "nineteen"
 ];
 var TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
-function numberToWords(n) {
-  if (!Number.isFinite(n)) return "";
-  if (n < 0) return `minus ${numberToWords(-n)}`;
-  n = Math.floor(n);
-  if (n < 20) return ONES[n];
-  if (n < 100) return TENS[Math.floor(n / 10)] + (n % 10 ? ` ${ONES[n % 10]}` : "");
-  if (n < 1e3) return `${ONES[Math.floor(n / 100)]} hundred${n % 100 ? ` ${numberToWords(n % 100)}` : ""}`;
-  if (n < 1e6) return `${numberToWords(Math.floor(n / 1e3))} thousand${n % 1e3 ? ` ${numberToWords(n % 1e3)}` : ""}`;
-  return n.toString().split("").map((d) => ONES[Number(d)]).join(" ");
+function numberToWords(n2) {
+  if (!Number.isFinite(n2)) return "";
+  if (n2 < 0) return `minus ${numberToWords(-n2)}`;
+  n2 = Math.floor(n2);
+  if (n2 < 20) return ONES[n2];
+  if (n2 < 100) return TENS[Math.floor(n2 / 10)] + (n2 % 10 ? ` ${ONES[n2 % 10]}` : "");
+  if (n2 < 1e3) return `${ONES[Math.floor(n2 / 100)]} hundred${n2 % 100 ? ` ${numberToWords(n2 % 100)}` : ""}`;
+  if (n2 < 1e6) return `${numberToWords(Math.floor(n2 / 1e3))} thousand${n2 % 1e3 ? ` ${numberToWords(n2 % 1e3)}` : ""}`;
+  return n2.toString().split("").map((d) => ONES[Number(d)]).join(" ");
 }
 function tokenize(input) {
   const text = input.replace(/[’‘]/g, "'").replace(/[“”]/g, '"').replace(/&/g, " and ").replace(/%/g, " percent ").replace(/\d+(\.\d+)?/g, (m2) => {
@@ -705,7 +831,7 @@ function tokenize(input) {
     return ` ${numberToWords(Number(whole))}${frac ? ` point ${frac.split("").map((d) => ONES[Number(d)]).join(" ")}` : ""} `;
   });
   const tokens = [];
-  const re = /([A-Za-z]+(?:'[A-Za-z]+)*|[\uAC00-\uD7A3]+)|([,;:—–-]+)|([.]+)|([?]+)|([!]+)/g;
+  const re = /([A-Za-z]+(?:'[A-Za-z]+)*|[А-Яа-яЁё][А-Яа-яЁё\u0301]*|[\uAC00-\uD7A3]+)|([,;:—–-]+)|([.]+)|([?]+)|([!]+)/g;
   let m;
   while (m = re.exec(text)) {
     if (m[1]) tokens.push({ text: m[1].toLowerCase(), boundary: "word" });
@@ -807,7 +933,7 @@ var RULES = [
   ["z", "Z"],
   ["'", ""]
 ];
-var COMPILED = RULES.map(([p, phones]) => [new RegExp(`^(?:${p.replace("$", "(?![a-z])")})`), phones]);
+var COMPILED = RULES.map(([p, phones2]) => [new RegExp(`^(?:${p.replace("$", "(?![a-z])")})`), phones2]);
 var LONG = { a: "EY1", e: "IY1", i: "AY1", o: "OW1", u: "UW1" };
 function letterToSound(word) {
   const w = word.toLowerCase().replace(/[^a-z']/g, "");
@@ -829,9 +955,9 @@ function letterToSound(word) {
     if (rule[1]) out.push(...rule[1].split(" "));
     i += matched;
   }
-  let phones = out.map((t) => parsePhone(t)).filter((p) => !!p);
+  let phones2 = out.map((t) => parsePhone(t)).filter((p) => !!p);
   let seen = false;
-  phones = phones.map((p) => {
+  phones2 = phones2.map((p) => {
     if (!isVowel(p.symbol)) return p;
     if (p.stress === 1 && !seen) {
       seen = true;
@@ -839,7 +965,7 @@ function letterToSound(word) {
     }
     return { ...p, stress: p.stress === 1 ? 0 : p.stress };
   });
-  return phones;
+  return phones2;
 }
 function trillWord(word) {
   if (/^br{2,}$/.test(word)) return [{ symbol: "BR", stress: 0 }];
@@ -849,6 +975,7 @@ function trillWord(word) {
 }
 function phonemize(text, lexicon2) {
   return tokenize(text).map((t) => {
+    if (isRussian(t.text)) return { text: t.text, phones: russianPhones(t.text), source: "russian", boundary: t.boundary };
     if (isHangul(t.text)) return { text: t.text, phones: koreanPhones(t.text), source: "korean", boundary: t.boundary };
     const trill = trillWord(t.text);
     if (trill) return { text: t.text, phones: trill, source: "rules", boundary: t.boundary };
@@ -996,7 +1123,7 @@ function parseIpaInput(text) {
   for (const token of clean.split(/\s+/).filter(Boolean)) {
     const trail = token.match(/[,?!.]+$/)?.[0] ?? "";
     const body = token.slice(0, token.length - trail.length).replace(/[.ː‿\u0361\u035c]/g, "");
-    const phones = [];
+    const phones2 = [];
     const marked = /[ˈˌ]/.test(body);
     let stress = null;
     let firstFull = true;
@@ -1033,11 +1160,11 @@ function parseIpaInput(text) {
         else if (c === "\u02B2" && PHONEMES[`${phone.symbol}J`]) phone.symbol = `${phone.symbol}J`;
         else break;
       }
-      phones.push(phone);
+      phones2.push(phone);
     }
-    if (!phones.length) continue;
+    if (!phones2.length) continue;
     const boundary = trail.includes("?") ? "question" : trail.includes("!") ? "exclaim" : trail.includes(".") ? "period" : trail.includes(",") ? "comma" : "word";
-    words.push({ text: body, phones, source: "phonemes", boundary });
+    words.push({ text: body, phones: phones2, source: "phonemes", boundary });
   }
   if (words.length && words[words.length - 1].boundary === "word") words[words.length - 1].boundary = "period";
   return { words, errors };
@@ -1067,9 +1194,9 @@ function parsePhonemeInput(text) {
   flush("period");
   return { words, errors };
 }
-function syllabify(phones) {
-  const nuclei = phones.map((p, i) => isVowel(p.symbol) ? i : -1).filter((i) => i >= 0);
-  if (nuclei.length <= 1) return [phones];
+function syllabify(phones2) {
+  const nuclei = phones2.map((p, i) => isVowel(p.symbol) ? i : -1).filter((i) => i >= 0);
+  if (nuclei.length <= 1) return [phones2];
   const ONSETS = /* @__PURE__ */ new Set([
     "P R",
     "P L",
@@ -1112,16 +1239,16 @@ function syllabify(phones) {
   for (let k = 0; k < nuclei.length - 1; k++) {
     const a = nuclei[k];
     const b = nuclei[k + 1];
-    const cluster = phones.slice(a + 1, b).map((p) => p.symbol);
+    const cluster = phones2.slice(a + 1, b).map((p) => p.symbol);
     let onset = 0;
-    for (let n = cluster.length; n >= 1; n--) {
-      const tail = cluster.slice(cluster.length - n).join(" ");
-      if (n === 1 && tail !== "NG") {
+    for (let n2 = cluster.length; n2 >= 1; n2--) {
+      const tail = cluster.slice(cluster.length - n2).join(" ");
+      if (n2 === 1 && tail !== "NG") {
         onset = 1;
         break;
       }
       if (ONSETS.has(tail)) {
-        onset = n;
+        onset = n2;
         break;
       }
     }
@@ -1130,10 +1257,10 @@ function syllabify(phones) {
   const out = [];
   let start = 0;
   for (const c of cuts) {
-    out.push(phones.slice(start, c));
+    out.push(phones2.slice(start, c));
     start = c;
   }
-  out.push(phones.slice(start));
+  out.push(phones2.slice(start));
   return out;
 }
 
@@ -1169,7 +1296,8 @@ function articulate(segments, voice, withPreamble = true) {
   let inPhrase = false;
   segments.forEach((s, i) => {
     if (s.symbol === "SIL") {
-      if (inPhrase) at(s.start, "gate", 0, 20);
+      const tail = segments[i - 1]?.sungFinalD ? Math.min(s.end - s.start, 0.022) : 0;
+      if (inPhrase) at(s.start + tail, "gate", 0, 20);
       inPhrase = false;
     } else if (!inPhrase) {
       at(s.start - 0.03, "gate", 1, 10);
@@ -1184,7 +1312,7 @@ function articulate(segments, voice, withPreamble = true) {
     const dur = s.end - s.start;
     if (isVowel(s.symbol)) {
       let target = vowelTarget({ symbol: s.symbol, stress: s.stress });
-      const soft = [segments[i - 1], segments[i + 1]].filter((n) => n && PHONEMES[n.symbol]?.palatalized).length;
+      const soft = [segments[i - 1], segments[i + 1]].filter((n2) => n2 && PHONEMES[n2.symbol]?.palatalized).length;
       if (soft) {
         const k = soft === 2 ? 0.6 : 0.15;
         const toward = (name) => (target[name] ?? 0.5) + k * (PALATAL[name] - (target[name] ?? 0.5));
@@ -1331,8 +1459,8 @@ function articulate(segments, voice, withPreamble = true) {
       const aspirated = closure && s.aspirated !== void 0 ? s.aspirated : byRule;
       const vot = closure && s.vot !== void 0 ? s.vot : ph.manner === "stop" ? aspirated ? 0.055 : 0.015 : ph.manner === "affricate" ? s.aspirated ? 0.06 : 0.02 : 0;
       const following = next && next.symbol !== "SIL" && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced;
-      const final = !next || next.symbol === "SIL";
-      if (final) at(s.end + 0.09, "voicing", 1, 20, i);
+      const final2 = !next || next.symbol === "SIL";
+      if (final2) at(s.end + 0.09, "voicing", 1, 20, i);
       else if (!following) at(s.end + (ph.manner === "fricative" ? 5e-3 : ph.manner === "aspirate" ? -0.02 : vot - 0.012), "voicing", 1, 8, i);
     } else if (phraseInitial && (ph.manner === "stop" || ph.manner === "affricate")) {
       at(onset, "voicing", INITIAL_CLOSURE, 10, i);
@@ -1347,7 +1475,7 @@ function articulate(segments, voice, withPreamble = true) {
         at(s.end + 0.1, "voicing", 1, 18, i);
       } else if (!next || next.symbol === "SIL") {
         if (ph.manner === "fricative") at(s.start + 0.5 * dur, "voicing", 0.15, 12, i);
-        else at(s.end - 4e-3, "voicing", 0.55, 6, i);
+        else at(s.end - 4e-3, "voicing", s.sungFinalD ? 0.22 : 0.55, 6, i);
         at(s.end + 0.09, "voicing", 1, 20, i);
       } else at(s.end, "voicing", 1, 10, i);
     }
@@ -1382,18 +1510,18 @@ function resolveGestures(tagged, holds, ev) {
 var TEMPO = 1.25;
 var ASPIRATED_GLIDE = 0.04;
 var afterAspirated = (seg, prev) => !!prev && ["P", "T", "K"].includes(prev.symbol) && ["R", "L", "W", "Y"].includes(seg.symbol);
-function durationOf(seg, prev, next, final, rate2) {
+function durationOf(seg, prev, next, final2, rate2) {
   const ph = PHONEMES[seg.symbol];
   let d = ph.duration;
   if (isVowel(seg.symbol)) {
     d *= seg.stress === 1 ? 1 : seg.stress === 2 ? 0.85 : 0.6;
     if (seg.symbol === "AH" && seg.stress === 0) d = 55;
-    if (final) d *= 1.4;
-    if (next && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced && !final) d *= 0.85;
+    if (final2) d *= 1.4;
+    if (next && !isVowel(next.symbol) && !PHONEMES[next.symbol].voiced && !final2) d *= 0.85;
   } else {
     const cluster = prev && !isVowel(prev.symbol) || next && !isVowel(next.symbol);
     if (cluster) d *= 0.8;
-    if (final) d *= 1.15;
+    if (final2) d *= 1.15;
     if (afterAspirated(seg, prev)) d += ASPIRATED_GLIDE * 1e3;
   }
   return TEMPO * d / 1e3 / rate2;
@@ -1409,14 +1537,14 @@ function planWords(words, opts = {}) {
     const syll = syllabify(w.phones);
     const lastSyll = syll[syll.length - 1];
     w.phones.forEach((p, pi) => {
-      const final = w.boundary !== "word" && lastSyll.includes(p);
+      const final2 = w.boundary !== "word" && lastSyll.includes(p);
       const prev = pi > 0 ? w.phones[pi - 1] : wi > 0 && words[wi - 1].boundary === "word" ? words[wi - 1].phones.at(-1) : void 0;
       const crossWord = pi === w.phones.length - 1;
       const next = !crossWord ? w.phones[pi + 1] : w.boundary === "word" ? words[wi + 1]?.phones[0] : void 0;
-      if (w.source !== "korean" && p.aspirated === void 0 && (p.symbol === "T" || p.symbol === "D") && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
+      if (w.source !== "korean" && w.source !== "russian" && p.aspirated === void 0 && (p.symbol === "T" || p.symbol === "D") && pi > 0 && prev && isVowel(prev.symbol) && next && isVowel(next.symbol) && (crossWord || next.stress === 0)) {
         p = { symbol: "DX", stress: 0 };
       }
-      const d = durationOf(p, w.phones[pi - 1], w.phones[pi + 1], final, rate2);
+      const d = durationOf(p, w.phones[pi - 1], w.phones[pi + 1], final2, rate2);
       segments.push({ symbol: p.symbol, stress: p.stress, start: t, end: t + d, word: wi, ...marksOf(p) });
       t += d;
     });
@@ -1443,27 +1571,27 @@ function intonation(segments, base, expressionSetting) {
   const ev = [];
   const st = (semitones) => base * 2 ** (semitones / 12);
   let phraseStart = 0;
-  const phrases = [];
+  const phrases2 = [];
   segments.forEach((s, i) => {
     if (s.symbol === "SIL") {
-      if (i > phraseStart) phrases.push([phraseStart, i]);
+      if (i > phraseStart) phrases2.push([phraseStart, i]);
       phraseStart = i + 1;
     }
   });
-  for (const [a, b] of phrases) {
+  for (const [a, b] of phrases2) {
     const seg = segments.slice(a, b);
-    const vowels = seg.filter((s) => isVowel(s.symbol));
-    if (!vowels.length) continue;
+    const vowels2 = seg.filter((s) => isVowel(s.symbol));
+    if (!vowels2.length) continue;
     const t0 = seg[0].start;
     const t1 = seg[seg.length - 1].end;
     const end = seg[seg.length - 1].boundary ?? "period";
-    const accents = vowels.filter((v) => v.stress === 1);
+    const accents = vowels2.filter((v) => v.stress === 1);
     const firstAccent = accents[0];
     ev.push([t0 - 0.05, "pitch", st(1 * expression), 0]);
-    vowels.forEach((v, k) => {
+    vowels2.forEach((v, k) => {
       const pos = (v.start - t0) / Math.max(0.2, t1 - t0);
       const declination = 1.2 * expression - 3.5 * expression * pos;
-      const isLast = k === vowels.length - 1;
+      const isLast = k === vowels2.length - 1;
       let semis = declination;
       if (v.stress === 1) semis += (v === firstAccent ? 3.2 : 2) * expression;
       if (v.stress === 0) semis -= 0.8 * expression;
@@ -1511,8 +1639,15 @@ function lyricSyllables(lyrics, lexicon2) {
     }
     const bracket = /^\[([A-Za-z0-9+~^=%-]+)\]([!?.,]*)$/.exec(part);
     if (bracket) {
-      const phones = bracket[1].split("+").map((t) => parsePhone(t.toUpperCase())).filter((p) => !!p);
-      if (phones.length) out.push({ phones, text: phones.map((p) => PHONEMES[p.symbol].ipa).join(""), word: wi });
+      const phones2 = bracket[1].split("+").map((t) => parsePhone(t.toUpperCase())).filter((p) => !!p);
+      if (phones2.length) out.push({ phones: phones2, text: phones2.map((p) => PHONEMES[p.symbol].ipa).join(""), word: wi });
+      return;
+    }
+    if (isRussian(part)) {
+      const letters = part.replace(/[^а-яёА-ЯЁ\u0301-]/g, "").split("-").filter(Boolean);
+      const units = syllabify(russianPhones(letters.join("")));
+      const trail2 = part.match(/[!?.,]+$/)?.[0] ?? "";
+      units.forEach((phones2, i) => out.push({ phones: phones2, word: wi, text: (letters.length === units.length ? letters[i] : i === 0 ? letters.join("") : "\xB7") + (i === units.length - 1 ? trail2 : "") }));
       return;
     }
     if (isHangul(part)) {
@@ -1526,9 +1661,9 @@ function lyricSyllables(lyrics, lexicon2) {
     if (!word) return;
     const syl = syllabify(word.phones);
     const trail = part.match(/[!?.,]+$/)?.[0] ?? "";
-    syl.forEach((phones, k) => {
+    syl.forEach((phones2, k) => {
       const text = spelled.length === syl.length ? spelled[k] : k === 0 ? spelled.join("") : "\xB7";
-      out.push({ phones, text: k === syl.length - 1 && text !== "\xB7" ? text + trail : text, word: wi });
+      out.push({ phones: phones2, text: k === syl.length - 1 && text !== "\xB7" ? text + trail : text, word: wi });
     });
   });
   return out;
@@ -1562,13 +1697,56 @@ function yieldPreviousVowel(segments, cues, cursor, onsetStart) {
   if (cue && Math.abs(cue.end - cursor) < 0.02) cue.end = end;
   return end;
 }
+function directWords(events, directions, lyrics, syllables, assignments, notes, segments, voice, cartoon) {
+  const words = lyricWords(lyrics);
+  for (const direction of directions) {
+    const word = words.find((w) => sameWord(w, direction));
+    if (!word) continue;
+    const vowels2 = segments.filter((s) => isVowel(s.symbol) && syllables[assignments[s.word]?.syllable]?.word === word.index);
+    if (!vowels2.length) continue;
+    const held = vowels2.reduce((a, b) => b.end - b.start > a.end - a.start ? b : a);
+    const limit = (s) => Math.min(s.end, (segments.find((v) => v.word > s.word && isVowel(v.symbol))?.start ?? Infinity) - 0.065);
+    if (direction.slide) {
+      const first = vowels2[0], start2 = first.start;
+      const end2 = Math.min(limit(first), start2 + 0.14);
+      const hz = midiToHz(notes[assignments[first.word].note].midi);
+      if (end2 - start2 > 0.025) events.push([start2, "pitch", hz * 2 ** (-2 / 12), 8], [start2 + 0.2 * (end2 - start2), "pitch", hz, (end2 - start2) * 160]);
+    }
+    const start = held.start, end = limit(held), duration = end - start;
+    if (duration < 0.035) continue;
+    const override = (param, value, enter, target, tau) => {
+      let restore = voice[param], latest = -Infinity;
+      for (let i = events.length - 1; i >= 0; i--) {
+        const [time, name, v] = events[i];
+        if (name !== param || time >= end) continue;
+        if (time > latest) {
+          latest = time;
+          restore = v;
+        }
+        if (time >= start) events.splice(i, 1);
+      }
+      events.push([start, param, value, 8]);
+      if (enter < end) events.push([enter, param, target, tau]);
+      events.push([end - 1e-5, param, restore, 12]);
+    };
+    if (direction.swell) {
+      const level = voice.loudness;
+      override("loudness", clampParam("loudness", level - 0.26), start + duration * 0.12, clampParam("loudness", level + 0.14), duration * 160);
+    }
+    if (direction.vibratoAt !== void 0) {
+      const depth = cartoon ? 0.62 : voice.vibratoDepth;
+      override("vibratoDepth", 0, start + duration * direction.vibratoAt, depth, Math.min(65, duration * 90));
+    }
+  }
+}
+var SONG_LEAD = 0.25;
 function planSong(notes, lyrics, lexicon2, opts) {
   const bpm = Math.min(240, Math.max(30, opts.bpm));
   const beat = 60 / bpm;
   const voice = singingVoice({ ...defaultPatch(), ...opts.voice ?? {} });
   const syllables = lyricSyllables(lyrics, lexicon2);
-  const sorted = notes.map((n, i) => ({ ...n, index: i })).sort((a, b) => a.start - b.start || a.midi - b.midi);
-  const lead = 0.25;
+  const sorted = notes.map((n2, i) => ({ ...n2, index: i })).sort((a, b) => a.start - b.start || a.midi - b.midi);
+  const lead = SONG_LEAD;
   const segments = [{ symbol: "SIL", stress: 0, start: 0, end: lead, word: -1 }];
   const pitchEvents = [];
   const assignments = [];
@@ -1576,13 +1754,13 @@ function planSong(notes, lyrics, lexicon2, opts) {
   const hum = [{ symbol: opts.hum ?? "AA", stress: 1 }];
   const cartoon = opts.style === "cartoon";
   const yodel = opts.style === "yodel";
-  const breakMidi = sorted.length ? (Math.min(...sorted.map((n) => n.midi)) + Math.max(...sorted.map((n) => n.midi))) / 2 : 0;
+  const breakMidi = sorted.length ? (Math.min(...sorted.map((n2) => n2.midi)) + Math.max(...sorted.map((n2) => n2.midi))) / 2 : 0;
   let register = voice.register;
   let syl = 0;
   let cursor = lead;
-  sorted.forEach((n, k) => {
-    const start = lead + n.start * beat;
-    const end = lead + (n.start + n.length) * beat;
+  sorted.forEach((n2, k) => {
+    const start = lead + n2.start * beat;
+    const end = lead + (n2.start + n2.length) * beat;
     const nextStart = k + 1 < sorted.length ? lead + sorted[k + 1].start * beat : Infinity;
     const legato = k > 0 && start - (lead + (sorted[k - 1].start + sorted[k - 1].length) * beat) < 0.02;
     let unit = syllables[syl];
@@ -1601,12 +1779,12 @@ function planSong(notes, lyrics, lexicon2, opts) {
         cursor = Math.max(cursor, lastVowel.end);
         if (cues.length) cues[cues.length - 1].end = lastVowel.end;
       }
-      pitchEvents.push([start - 0.01, "pitch", midiToHz(n.midi), cartoon ? 110 : 40]);
-      assignments.push({ note: n.index, syllable: syl - 1, text: "\u2013" });
+      pitchEvents.push([start - 0.01, "pitch", midiToHz(n2.midi), cartoon ? 110 : 40]);
+      assignments.push({ note: n2.index, syllable: syl - 1, text: "\u2013" });
       return;
     }
-    const phones = unit && unit.phones.length ? unit.phones : hum;
-    assignments.push({ note: n.index, syllable: unit ? syl - 1 : -1, text: unit?.text ?? "ah" });
+    const phones2 = unit && unit.phones.length ? unit.phones : hum;
+    assignments.push({ note: n2.index, syllable: unit ? syl - 1 : -1, text: unit?.text ?? "ah" });
     if (unit && unit.phones.length && !unit.phones.some((p) => isVowel(p.symbol))) {
       const stop2 = (p) => ["stop", "affricate"].includes(PHONEMES[p.symbol].manner);
       const length = Math.max(0.05, Math.min(end, nextStart - 0.01) - start);
@@ -1617,19 +1795,19 @@ function planSong(notes, lyrics, lexicon2, opts) {
       let t2 = Math.max(floor, start - lead2);
       if (t2 - cursor > 0.06) segments.push({ symbol: "SIL", stress: 0, start: cursor, end: t2, word: -1 });
       else if (segments.length) segments[segments.length - 1].end = t2;
-      cues.push({ text: unit.text, start: t2, vowel: start, end: t2 + durs.reduce((a, b) => a + b, 0), midi: n.midi });
+      cues.push({ text: unit.text, start: t2, vowel: start, end: t2 + durs.reduce((a, b) => a + b, 0), midi: n2.midi });
       unit.phones.forEach((p, i) => {
         segments.push({ symbol: p.symbol, stress: 0, start: t2, end: t2 + durs[i], word: k, ...marksOf(p) });
         t2 += durs[i];
       });
       cursor = t2;
-      pitchEvents.push([start - 0.04, "pitch", midiToHz(n.midi), 20]);
+      pitchEvents.push([start - 0.04, "pitch", midiToHz(n2.midi), 20]);
       return;
     }
-    const v = phones.findIndex((p) => isVowel(p.symbol));
-    const onset = v > 0 ? phones.slice(0, v) : [];
-    const nucleus = v >= 0 ? phones[v] : hum[0];
-    const coda = v >= 0 ? phones.slice(v + 1) : [];
+    const v = phones2.findIndex((p) => isVowel(p.symbol));
+    const onset = v > 0 ? phones2.slice(0, v) : [];
+    const nucleus = v >= 0 ? phones2[v] : hum[0];
+    const coda = v >= 0 ? phones2.slice(v + 1) : [];
     const onsetDur = onset.map((p, i) => sungConsonant(p, onset.length > 1) + (afterAspirated(p, onset[i - 1]) ? ASPIRATED_GLIDE : 0));
     const onsetStart = start - onsetDur.reduce((a, b) => a + b, 0);
     cursor = yieldPreviousVowel(segments, cues, cursor, onsetStart);
@@ -1657,17 +1835,25 @@ function planSong(notes, lyrics, lexicon2, opts) {
     const codaDur = coda.map((p) => sungConsonant(p, coda.length > 1));
     const codaTotal = Math.min(codaDur.reduce((a, b) => a + b, 0), (stop - start) * 0.45);
     const vowelEnd = stop - codaTotal;
-    if (unit) cues.push({ text: unit.text, start: onset.length ? segments[segments.length - onset.length].start : t, vowel: t, end: stop, midi: n.midi });
+    if (unit) cues.push({ text: unit.text, start: onset.length ? segments[segments.length - onset.length].start : t, vowel: t, end: stop, midi: n2.midi });
     const weak = nucleus.stress === 0 && noteSeconds < WEAK_NOTE;
     segments.push({ symbol: nucleus.symbol, stress: weak ? 0 : Math.max(1, nucleus.stress), start: t, end: vowelEnd, word: k, label: unit?.text, ...marksOf(nucleus) });
     let c = vowelEnd;
     coda.forEach((p, i) => {
       const d = codaTotal * (codaDur[i] / Math.max(1e-3, codaDur.reduce((a, b) => a + b, 0)));
-      segments.push({ symbol: p.symbol, stress: 0, start: c, end: c + d, word: k, ...marksOf(p) });
+      segments.push({
+        symbol: p.symbol,
+        stress: 0,
+        start: c,
+        end: c + d,
+        word: k,
+        ...marksOf(p),
+        ...p.symbol === "D" && !p.unreleased && i === coda.length - 1 ? { sungFinalD: true } : {}
+      });
       c += d;
     });
     cursor = c;
-    const hz = midiToHz(n.midi);
+    const hz = midiToHz(n2.midi);
     const onsetAt = onset.length ? segments[segments.length - coda.length - 1 - onset.length].start : start - 0.05;
     const noteLength = Math.min(end, nextStart) - start;
     if (cartoon) {
@@ -1680,7 +1866,7 @@ function planSong(notes, lyrics, lexicon2, opts) {
       pitchEvents.push([Math.min(onsetAt, start - 0.03), "pitch", hz, yodel ? 6 : glide]);
     }
     if (yodel) {
-      const r = n.midi > breakMidi ? 1 : 0;
+      const r = n2.midi > breakMidi ? 1 : 0;
       if (r !== register) pitchEvents.push([start - 0.02, "register", r, 8]);
       register = r;
     }
@@ -1703,15 +1889,180 @@ function planSong(notes, lyrics, lexicon2, opts) {
     }
   }
   if (sorted.length) events.push([0, "pitch", midiToHz(sorted[0].midi), 0]);
+  if (opts.directions?.length) directWords(pitchEvents, opts.directions, lyrics, syllables, assignments, notes, segments, voice, cartoon);
   events.push(...pitchEvents);
   events.sort((a, b) => a[0] - b[0]);
+  let wordIndex;
+  for (const a of assignments) {
+    const syllable = syllables[a.syllable];
+    if (syllable?.phones.length) wordIndex = syllable.word;
+    a.wordIndex = syllable ? wordIndex : void 0;
+  }
   return { score: compileScore(events, cursor + 0.4), segments, words: [], warnings: [], assignments, cues };
 }
-function planSustain(shape, voice, seconds) {
+function planSustain(shape2, voice, seconds) {
   const ev = preamble(voice);
-  for (const [k, v] of Object.entries(shape)) ev.push([0, k, v, 0]);
+  for (const [k, v] of Object.entries(shape2)) ev.push([0, k, v, 0]);
   ev.push([0.02, "gate", 1, 15], [Math.max(0.1, seconds), "gate", 0, 60]);
   return compileScore(ev, seconds + 0.5);
+}
+
+// src/core/face-expression.ts
+var EXPRESSIONS = ["earnest", "dreamy", "wry"];
+var defaultExpression = (index) => EXPRESSIONS[index % EXPRESSIONS.length];
+function planFaceNotes(notes, segments, bpm) {
+  if (!notes.length) return [];
+  const sorted = [...notes].sort((a, b) => a.start - b.start);
+  const pitches = sorted.map((n2) => n2.midi);
+  const low = Math.min(...pitches), high = Math.max(...pitches);
+  const beat = 60 / bpm;
+  const onsets = /* @__PURE__ */ new Map(), vowels2 = /* @__PURE__ */ new Map();
+  for (const s of segments) {
+    if (s.word < 0 || s.end <= s.start) continue;
+    if (!onsets.has(s.word)) onsets.set(s.word, s);
+    if (isVowel(s.symbol) && !vowels2.has(s.word)) vowels2.set(s.word, s);
+  }
+  return sorted.map((n2, i) => {
+    const at = SONG_LEAD + n2.start * beat;
+    const onset = onsets.get(i), vowel2 = vowels2.get(i);
+    const previous = sorted[i - 1];
+    const entrance = !previous || (n2.start - previous.start - previous.length) * beat > 0.2;
+    const leap = previous && !entrance ? Math.min(1, Math.abs(n2.midi - previous.midi) / 7) : 0;
+    return {
+      start: Math.max(previous ? SONG_LEAD + previous.start * beat : 0, Math.min(at, onset?.start ?? at) - 0.05),
+      attack: Math.max(at, vowel2?.start ?? at),
+      end: SONG_LEAD + (n2.start + n2.length) * beat,
+      pitch: 0.5 + (n2.midi - (high + low) / 2) / Math.max(8, high - low),
+      accent: Math.min(1, 0.2 + (vowel2?.stress ? 0.38 : 0) + 0.25 * Number(entrance) + 0.3 * leap)
+    };
+  });
+}
+
+// src/core/ensemble-gaze.ts
+function phrases(part, bpm) {
+  const spans = [];
+  if (part.muted || part.level <= 0) return spans;
+  const breath = Math.min(0.38, 0.6 * 60 / bpm);
+  for (const n2 of part.faceNotes) {
+    const last = spans[spans.length - 1];
+    if (last && n2.start - last.end <= breath) last.end = Math.max(last.end, n2.end);
+    else spans.push({ start: n2.start, end: n2.end });
+  }
+  return spans;
+}
+function planGlances(parts, bpm) {
+  const spans = parts.map((p) => phrases(p, bpm));
+  return spans.map((own, index) => {
+    const result = [];
+    if (!own.length) return result;
+    const events = spans.flatMap(
+      (phrases2, singer) => phrases2.flatMap((p, i) => {
+        const entrance = !i || p.start - phrases2[i - 1].end >= 0.72;
+        return [
+          { time: p.start + (singer === index ? 0 : 0.1), singer, on: true, entrance, end: p.end },
+          { time: p.end + (singer === index ? 0.1 : 0.16), singer, on: false, entrance: false, end: p.end }
+        ];
+      })
+    ).sort((a, b) => a.time - b.time);
+    const active = parts.map(() => false);
+    let target = -1, since = 0, ownIndex = -1, lastAcknowledgment = -Infinity;
+    for (let i = 0; i < events.length; ) {
+      const time = events[i].time;
+      let entering;
+      do {
+        const event = events[i++];
+        active[event.singer] = event.on;
+        if (event.singer === index && event.on) ownIndex++;
+        if (event.entrance && event.singer < index && (!entering || event.singer < entering.singer)) entering = event;
+      } while (i < events.length && events[i].time === time);
+      const singing = active[index];
+      const current = own[ownIndex];
+      if (entering && singing && time - current.start > 1.15 && time - lastAcknowledgment > 2.4) {
+        const end = Math.min(time + 0.86, entering.end + 0.08, current.end - 0.08);
+        if (end - time >= 0.48) {
+          result.push({ start: time, end, target: entering.singer });
+          lastAcknowledgment = time;
+        }
+      }
+      const next = singing ? -1 : active.findIndex((on, singer) => on && singer !== index);
+      if (next === target) continue;
+      if (target >= 0 && time - since >= 0.34) {
+        const answer = singing ? current : own[ownIndex + 1];
+        const answerAt = answer && answer.start - time <= 0.65 && next < 0 ? answer.start : void 0;
+        result.push({ start: since, end: time, target, answerAt });
+      }
+      since = time;
+      target = next;
+    }
+    return result.sort((a, b) => a.start - b.start);
+  });
+}
+
+// src/core/visemes.ts
+function shape(open, spread, round, teeth = 0, bite = 0, tip = 0) {
+  return { open, spread, round, teeth, bite, tip };
+}
+var shapes = {
+  rest: shape(0, 0.34, 0),
+  seal: shape(0, 0.23, 0.08),
+  aa: shape(0.97, 0.65, 0.05, 0.3),
+  ae: shape(0.79, 0.93, 0, 0.48),
+  ee: shape(0.3, 1, 0, 0.86),
+  eh: shape(0.53, 0.82, 0.04, 0.55),
+  mid: shape(0.52, 0.53, 0.15, 0.3),
+  oh: shape(0.78, 0.28, 0.84, 0.12),
+  oo: shape(0.41, 0.08, 1, 0.06),
+  rhotic: shape(0.37, 0.4, 0.55, 0.29),
+  bite: shape(0.3, 0.68, 0.01, 1, 1),
+  dental: shape(0.42, 0.69, 0, 0.61, 0, 1),
+  ridge: shape(0.38, 0.66, 0.04, 0.58, 0, 0.73),
+  hiss: shape(0.17, 0.85, 0.01, 1),
+  hush: shape(0.31, 0.33, 0.7, 0.76),
+  back: shape(0.47, 0.56, 0.08, 0.33)
+};
+var phones = {};
+function assign(symbols, pose) {
+  for (const symbol of symbols.split(" ")) phones[symbol] = pose;
+}
+assign("P B M PE CB BR", "seal");
+assign("F V", "bite");
+assign("TH DH", "dental");
+assign("L N D T RR DX TE CD CA", "ridge");
+assign("S Z SC ZC CC JC", "hiss");
+assign("SH ZH CH JH SR ZR CR JR", "hush");
+assign("K G NG KE RU Q", "back");
+assign("IY IH Y UU", "ee");
+assign("E EH EY", "eh");
+assign("AA AY AW", "aa");
+assign("AE", "ae");
+assign("AO O OW OY", "oh");
+assign("U UW UH W YW", "oo");
+assign("R ER", "rhotic");
+var glides = { EY: "ee", AY: "ee", OY: "ee", AW: "oo", OW: "oo" };
+function symbolPose(symbol) {
+  const base = PHONEMES[symbol]?.palatalized ? symbol.slice(0, -1) : symbol;
+  return symbol === "SIL" ? "rest" : phones[base] ?? "mid";
+}
+function planVisemes(segments) {
+  const keys = [{ time: 0, pose: "rest" }];
+  for (const [i, s] of segments.entries()) {
+    const duration = s.end - s.start;
+    if (duration <= 0) continue;
+    while (keys.length && keys[keys.length - 1].time > s.start) keys.pop();
+    const next = segments[i + 1];
+    const pose = symbolPose(s.symbol === "HH" && next ? next.symbol : s.symbol);
+    const attack = Math.min(duration * 0.25, pose === "seal" ? 0.012 : 0.034);
+    const release = Math.min(duration * 0.25, next && symbolPose(next.symbol) === "seal" ? 0.044 : 0.03);
+    keys.push({ time: s.start + attack, pose });
+    const glide = glides[s.symbol];
+    if (glide) {
+      const end = duration > 0.4 ? s.end - 0.1 : s.start + duration * 0.8;
+      keys.push({ time: Math.max(s.start + attack, end - Math.min(0.13, duration * 0.55)), pose });
+      keys.push({ time: end, pose: glide });
+    }
+    keys.push({ time: Math.max(keys[keys.length - 1].time, s.end - release), pose: glide ?? pose });
+  }
+  return keys;
 }
 
 // src/core/presets.ts
@@ -1767,6 +2118,127 @@ var VOWEL_PRESETS = [
   { id: "schwa", label: "AX", ipa: "\u0259", example: "about", shape: { ...closed, ...SCHWA } },
   { id: "hum", label: "M", ipa: "m", example: "hum", shape: { ...closed, ...SCHWA, lipOpen: 0, velum: 1 } }
 ];
+
+// src/core/ensemble.ts
+var AVATAR_COLORS = ["original", "rose", "jade", "violet"];
+var defaultAvatarColor = (index) => AVATAR_COLORS[index % AVATAR_COLORS.length];
+var MOVEMENTS = ["nod", "sway", "bounce", "still"];
+var defaultMovement = (index) => MOVEMENTS[index % 3];
+function validateEnsemble(input, checkNotes) {
+  const e = input;
+  if (!e || typeof e.title !== "string" || !e.title.trim() || e.title.length > 120)
+    throw new Error("Give the arrangement a title of 1\u2013120 characters.");
+  if (!Number.isFinite(e.bpm) || e.bpm < 30 || e.bpm > 240) throw new Error("Tempo must be 30\u2013240 BPM.");
+  if (!Array.isArray(e.singers) || e.singers.length < 1 || e.singers.length > 3) throw new Error("Choose one to three singers.");
+  const singers = e.singers.map((s, i) => {
+    if (!s || typeof s.name !== "string" || !s.name.trim() || s.name.length > 40 || !VOICE_PRESETS.some((v) => v.id === s.voice))
+      throw new Error("Each singer needs a name and a voice preset.");
+    if (typeof s.lyrics !== "string" || s.lyrics.length > 8e3 || typeof s.muted !== "boolean")
+      throw new Error("Invalid lyrics or mute setting.");
+    if (!Number.isFinite(s.level) || s.level < 0 || s.level > 1 || !Number.isFinite(s.pan) || Math.abs(s.pan) > 1)
+      throw new Error("Invalid singer mix.");
+    const notes = checkNotes(s.notes).sort((a, b) => a.start - b.start);
+    if (notes.some(
+      (n2, i2) => n2.start + n2.length > e.bpm * 6 || i2 > 0 && n2.start < notes[i2 - 1].start + notes[i2 - 1].length - 1e-6
+    ))
+      throw new Error("Each part must fit six minutes and play one note at a time.");
+    const avatarColor = s.avatarColor === void 0 ? defaultAvatarColor(i) : s.avatarColor;
+    if (!AVATAR_COLORS.includes(avatarColor)) throw new Error("Unknown Nous Girl avatar color.");
+    const movement = s.movement === void 0 ? defaultMovement(i) : s.movement;
+    if (!MOVEMENTS.includes(movement)) throw new Error("Unknown singer movement.");
+    const expression = s.expression === void 0 ? defaultExpression(i) : s.expression;
+    if (!EXPRESSIONS.includes(expression)) throw new Error("Unknown singer expression.");
+    return { name: s.name, voice: s.voice, avatarColor, movement, expression, lyrics: s.lyrics, level: s.level, pan: s.pan, muted: s.muted, notes };
+  });
+  let excerpt;
+  if (e.excerpt !== void 0) {
+    const { start, end } = e.excerpt ?? {};
+    const lastBeat = Math.max(0, ...singers.flatMap((s) => s.notes.map((n2) => n2.start + n2.length)));
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start || end > 362 || start >= lastBeat * 60 / e.bpm + 0.65)
+      throw new Error("Choose an excerpt that starts inside the arrangement and ends after it starts.");
+    excerpt = { start, end };
+  }
+  return { title: e.title, bpm: e.bpm, singers, ...excerpt ? { excerpt } : {} };
+}
+var STAGE_FPS = 25;
+function planEnsemble(e, lexicon2) {
+  const parts = e.singers.map((s) => {
+    const voice = VOICE_PRESETS.find((v) => v.id === s.voice).voice;
+    const text = s.lyrics.trim() || "[UW]";
+    const vamp = !/\s/.test(text) && lyricSyllables(text, lexicon2).length === 1;
+    const lyrics = vamp ? s.notes.map(() => text).join(" ") : text;
+    const { score, cues, segments } = planSong(s.notes, lyrics, lexicon2, { bpm: e.bpm, voice });
+    return { score, cues, visemes: planVisemes(segments), faceNotes: planFaceNotes(s.notes, segments, e.bpm), level: s.level, pan: s.pan, muted: s.muted || !s.notes.length };
+  });
+  const glances = planGlances(parts, e.bpm);
+  return parts.map((part, index) => ({ ...part, glances: glances[index] }));
+}
+var POSE_SIZE = 5;
+function renderEnsemble(module2, parts, rate2, seed2 = 1) {
+  const frames = Math.ceil((Math.max(...parts.map((p) => p.score.length)) + 0.6) * rate2);
+  const left2 = new Float32Array(frames), right2 = new Float32Array(frames);
+  const poses = [];
+  let resets2 = 0;
+  for (const [i, part] of parts.entries()) {
+    const pose = new Float32Array(Math.ceil(frames / rate2 * STAGE_FPS) * POSE_SIZE);
+    poses.push(pose);
+    if (part.muted || part.level === 0) continue;
+    const engine = new Engine(module2, rate2, seed2 + i);
+    const score = part.score;
+    const paged = score.events.length / 4 > engine.scoreCapacity;
+    let event = 0;
+    if (!paged) {
+      engine.loadScore(score);
+      engine.play();
+    }
+    const pan = (part.pan + 1) * Math.PI / 4;
+    const l = part.level * Math.cos(pan), r = part.level * Math.sin(pan);
+    const end = Math.ceil((part.score.length + 0.6) * rate2);
+    let at = 0;
+    for (let f = 0; at < end; f++) {
+      if (paged && f % STAGE_FPS === 0) {
+        const second = f / STAGE_FPS, start2 = event;
+        while (event < score.events.length && Math.round(score.events[event] * rate2) < (second + 1) * rate2) event += 4;
+        const events = score.events.slice(start2, event);
+        for (let j = 0; j < events.length; j += 4) events[j] = Math.max(0, Math.round(events[j] * rate2) / rate2 - second);
+        if (events.length / 4 > engine.scoreCapacity) throw new Error("Too many simultaneous vocal gestures.");
+        engine.loadScore({ events, length: Math.max(1e-3, score.length - second) });
+        engine.play();
+      }
+      const next = Math.min(end, Math.round((f + 1) * rate2 / STAGE_FPS));
+      let power = 0;
+      const start = at;
+      while (at < next) {
+        const [a, b] = engine.render(Math.min(4096, next - at));
+        for (let j = 0; j < a.length; j++) {
+          left2[at + j] += a[j] * l;
+          right2[at + j] += b[j] * r;
+          power += a[j] * a[j];
+        }
+        at += a.length;
+      }
+      const p = engine.params(), state = engine.state();
+      pose.set(
+        [p[PARAM_ID.jaw], p[PARAM_ID.lipOpen], p[PARAM_ID.lipRound], Math.sqrt(power / (at - start)), state[STATE.f0]],
+        f * POSE_SIZE
+      );
+    }
+    resets2 += engine.state()[STATE.resets];
+  }
+  let peak = 0;
+  for (let i = 0; i < frames; i++) peak = Math.max(peak, Math.abs(left2[i]), Math.abs(right2[i]));
+  if (peak > 0.94)
+    for (let i = 0; i < frames; i++) {
+      left2[i] *= 0.94 / peak;
+      right2[i] *= 0.94 / peak;
+    }
+  return { left: left2, right: right2, poses, rate: rate2, resets: resets2 };
+}
+function clipSamples(mix, excerpt) {
+  const start = excerpt ? Math.min(mix.left.length, Math.round(excerpt.start * mix.rate)) : 0;
+  const end = excerpt ? Math.min(mix.left.length, Math.round(excerpt.end * mix.rate)) : mix.left.length;
+  return { start, end };
+}
 
 // src/core/beat.ts
 var BEAT_SOUNDS = [
@@ -1837,7 +2309,7 @@ function duetNotes(melody, duet) {
     const up = MAJOR[(degree + 2) % 7] + (degree + 2 >= 7 ? 12 : 0) - MAJOR[degree];
     return m + up;
   };
-  return melody.map((n) => ({ ...n, midi: Math.min(96, Math.max(36, shift(n.midi))) }));
+  return melody.map((n2) => ({ ...n2, midi: Math.min(96, Math.max(36, shift(n2.midi))) }));
 }
 function duetVoice(duet) {
   return (VOICE_PRESETS.find((v) => v.id === duet.voice) ?? VOICE_PRESETS.find((v) => v.id === "baritone")).voice;
@@ -1852,6 +2324,193 @@ function validateDuet(input, validateNotes) {
   if (typeof d.lyrics !== "string" || d.lyrics.length > 2e3) throw new TypeError("song.duet.lyrics must be text up to 2000 characters");
   return { part: d.part, voice: d.voice, notes: validateNotes(d.notes), lyrics: d.lyrics };
 }
+
+// src/core/takes.ts
+var MAX_TAKES = 12;
+function validateTakes(raw, checkNotes) {
+  if (raw === void 0) return [];
+  if (!Array.isArray(raw) || raw.length > MAX_TAKES) throw new TypeError("Expected up to 12 jam takes");
+  const ids = /* @__PURE__ */ new Set();
+  const part = (p) => {
+    if (!p || !Number.isFinite(p.bpm) || p.bpm < 30 || p.bpm > 240 || typeof p.lyrics !== "string" || p.lyrics.length > 8e3 || !["natural", "cartoon", "yodel"].includes(p.style)) throw new TypeError("Invalid jam take part");
+    const notes = checkNotes(p.notes);
+    if (notes.some((n2) => (n2.start + n2.length) * 60 / p.bpm > 360)) throw new RangeError("Take part exceeds six minutes");
+    const directions = validateDirections(p.directions);
+    return {
+      notes,
+      lyrics: p.lyrics,
+      bpm: p.bpm,
+      style: p.style,
+      voice: validatePatch(p.voice),
+      ...p.shape ? { shape: validatePatch(p.shape) } : {},
+      ...directions.length ? { directions } : {}
+    };
+  };
+  return raw.map((t) => {
+    if (!t || typeof t.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(t.id) || ids.has(t.id)) throw new TypeError("Invalid or duplicate jam take ID");
+    ids.add(t.id);
+    const call = part(t.call), reply = part(t.reply);
+    const length = (side) => side.notes.reduce((end, n2) => Math.max(end, n2.start + n2.length), 0) * 60 / side.bpm;
+    if (call.notes.length + reply.notes.length > 2048 || length(call) + length(reply) > 360) throw new RangeError("A take can contain up to 2,048 notes and six minutes of music");
+    return { id: t.id, call, reply };
+  });
+}
+
+// src/core/show.ts
+function planShow(items, lexicon2, voice) {
+  const events = [];
+  const cues = [];
+  const sections = [];
+  let t0 = 0;
+  for (const item of items) {
+    const v = { ...voice, ...item.voice ?? {} };
+    let score;
+    let local = [];
+    let beat = 0;
+    if (item.kind === "say") {
+      const plan = planSpeech(item.text, lexicon2, { voice: v, rate: item.rate ?? 1, expression: item.expression ?? 0.8 });
+      score = plan.score;
+      const byWord = /* @__PURE__ */ new Map();
+      for (const s of plan.segments) {
+        if (s.symbol === "SIL" || s.word < 0) continue;
+        const w = byWord.get(s.word) ?? { start: s.start, vowel: Infinity, end: s.end };
+        w.start = Math.min(w.start, s.start);
+        w.end = Math.max(w.end, s.end);
+        if (isVowel(s.symbol)) w.vowel = Math.min(w.vowel, s.start);
+        byWord.set(s.word, w);
+      }
+      local = [...byWord.entries()].map(([k, w]) => {
+        const word = plan.words[k];
+        const text = word.text + (word.boundary === "question" ? "?" : word.boundary === "exclaim" ? "!" : word.boundary === "period" ? "." : word.boundary === "comma" ? "," : "");
+        return { text, start: w.start, vowel: Number.isFinite(w.vowel) ? w.vowel : w.start, end: w.end, midi: 0 };
+      });
+    } else if (item.shape && !item.lyrics.trim()) {
+      const keyEvents = [];
+      for (const [param, value] of Object.entries({ ...defaultPatch(), ...v, ...item.shape })) keyEvents.push([0, param, value, 0]);
+      beat = 60 / item.bpm;
+      keyEvents.push([0, "gate", 0, 0]);
+      let end = 0;
+      const notes = [...item.notes].sort((a, b) => a.start - b.start);
+      for (const [i, note] of notes.entries()) {
+        const start = note.start * beat;
+        end = Math.min((note.start + note.length) * beat, (notes[i + 1]?.start ?? Infinity) * beat);
+        keyEvents.push([start, "pitch", midiToHz(note.midi), 20], [start, "gate", 1, 12]);
+        if (!notes[i + 1] || end < notes[i + 1].start * beat) keyEvents.push([end, "gate", 0, 40]);
+      }
+      score = compileScore(keyEvents, end + 0.18);
+    } else {
+      const plan = planSong(item.notes, item.lyrics, lexicon2, { bpm: item.bpm, voice: v, style: item.style ?? "cartoon", directions: item.directions });
+      score = plan.score;
+      local = plan.cues;
+      beat = 60 / item.bpm;
+    }
+    for (let i = 0; i < score.events.length; i += 4) {
+      events.push([score.events[i] + t0, PARAM_NAMES[score.events[i + 1]], score.events[i + 2], score.events[i + 3]]);
+    }
+    for (const c of local) cues.push({ ...c, start: c.start + t0, vowel: c.vowel + t0, end: c.end + t0 });
+    sections.push({ kind: item.kind, start: t0, end: t0 + score.length, beat });
+    t0 += score.length + (item.pause ?? 0.15);
+  }
+  return { score: compileScore(events, t0), cues, sections, length: t0 };
+}
+var SWING = 2 / 3;
+var n = (start, length, midi) => ({ start, length, midi });
+var LOUNGE_SET = [
+  { kind: "say", text: "Hello, hello! Is this thing on?", rate: 0.95, expression: 1, pause: 0.35 },
+  { kind: "say", text: "I'm just a tube, with a tongue. Hit it!", rate: 0.82, expression: 1, pause: 0.1 },
+  {
+    kind: "sing",
+    bpm: 150,
+    lyrics: "doo bee doo bee doo wah - shoo bop shoo bop bah!",
+    notes: [
+      n(0, 0.35, 67),
+      n(SWING, 0.3, 70),
+      n(1, 0.35, 67),
+      n(1 + SWING, 0.3, 70),
+      n(2, 0.35, 72),
+      n(2 + SWING, 0.9, 74),
+      n(3 + SWING, 0.3, 69),
+      n(4, 0.35, 65),
+      n(4 + SWING, 0.3, 67),
+      n(5, 0.35, 65),
+      n(5 + SWING, 0.3, 67),
+      n(6, 1.4, 50)
+    ]
+  },
+  {
+    // The verse is slower and straight, with the body part held: the words must land.
+    kind: "sing",
+    bpm: 132,
+    lyrics: "my tongue goes la la la! my lips go boop boop boop! my nose goes hmm hmm! my jaw goes wah wah wah!",
+    notes: [
+      n(0, 0.45, 64),
+      n(0.5, 0.9, 67),
+      n(1.5, 0.45, 65),
+      n(2, 0.4, 72),
+      n(2.5, 0.4, 74),
+      n(3, 0.9, 76),
+      n(4, 0.45, 64),
+      n(4.5, 0.9, 67),
+      n(5.5, 0.45, 65),
+      n(6, 0.4, 60),
+      n(6.5, 0.4, 55),
+      n(7, 0.9, 50),
+      n(8, 0.45, 64),
+      n(8.5, 0.9, 67),
+      n(9.5, 0.45, 65),
+      n(10, 0.8, 71),
+      n(11, 0.9, 67),
+      n(12, 0.45, 64),
+      n(12.5, 0.9, 67),
+      n(13.5, 0.45, 65),
+      n(14, 0.4, 72),
+      n(14.5, 0.4, 70),
+      n(15, 1.4, 67)
+    ],
+    pause: 0.3
+  },
+  { kind: "say", text: "No samples. No auto tune. Just physics!", rate: 0.9, expression: 1, pause: 0.25 },
+  {
+    kind: "sing",
+    bpm: 150,
+    lyrics: "boom tss kh tss boom boom tss kh tss boom tk pff!",
+    notes: [
+      n(0, 0.3, 45),
+      n(0.5, 0.2, 60),
+      n(1, 0.2, 60),
+      n(1.5, 0.2, 60),
+      n(2, 0.3, 45),
+      n(2.5, 0.3, 45),
+      n(3, 0.2, 60),
+      n(3.5, 0.2, 60),
+      n(4, 0.2, 60),
+      n(4.5, 0.3, 45),
+      n(5, 0.2, 60),
+      n(5.5, 0.4, 60)
+    ],
+    pause: 0.2
+  },
+  {
+    kind: "sing",
+    bpm: 150,
+    lyrics: "bee bop bee boop hey! ho! hey! ho! yay - -",
+    notes: [
+      n(0, 0.35, 72),
+      n(SWING, 0.3, 67),
+      n(1, 0.35, 74),
+      n(1 + SWING, 0.3, 67),
+      n(2, 0.6, 76),
+      n(3, 0.6, 55),
+      n(4, 0.6, 76),
+      n(5, 0.6, 50),
+      n(6, 1.5, 72),
+      n(7.5, 1, 76),
+      n(8.5, 1.5, 79)
+    ],
+    pause: 0.45
+  },
+  { kind: "say", text: "Thank you! Thank you! Tip your physicist!", rate: 0.8, expression: 1 }
+];
 
 // src/core/project.ts
 var LIMITS = { notes: 2048, text: 1e3, lyrics: 8e3, seconds: 360, name: 120 };
@@ -1940,7 +2599,7 @@ function newProject(name = "Untitled voice") {
     voice: { ...SIGNATURE },
     shape: { ...VOWEL_PRESETS.find((v) => v.id === "aa").shape },
     speech: { text: DEMO_PHRASE, phonemes: false, rate: 1, expression: 0.6 },
-    song: { bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map((n) => ({ ...n })), loop: false, style: "natural", duet: newDuet() },
+    song: { bpm: 96, lyrics: DEMO_LYRICS, notes: DEMO_NOTES.map((n2) => ({ ...n2 })), loop: false, style: "natural", duet: newDuet() },
     beat: newBeat(),
     sustain: 2
   };
@@ -1953,13 +2612,13 @@ function validateProject(input) {
   if (!input || typeof input !== "object") throw new TypeError("Project must be an object");
   const p = input;
   const base = newProject();
-  const allowed = /* @__PURE__ */ new Set(["version", "name", "mode", "voice", "shape", "speech", "song", "beat", "sustain"]);
+  const allowed = /* @__PURE__ */ new Set(["version", "name", "mode", "voice", "shape", "speech", "song", "beat", "sustain", "takes", "activeTake", "ensemble"]);
   for (const k of Object.keys(p)) if (!allowed.has(k)) throw new TypeError(`Unknown project field "${k}"`);
   if (p.version !== void 0 && p.version !== 2) throw new TypeError("Unsupported project version");
   const name = p.name ?? base.name;
   if (typeof name !== "string" || name.length > LIMITS.name) throw new TypeError(`name must be text up to ${LIMITS.name} characters`);
   const mode2 = p.mode ?? base.mode;
-  if (!["play", "speak", "sing", "beat"].includes(mode2)) throw new TypeError("mode must be play, speak, sing or beat");
+  if (!["play", "speak", "sing", "beat", "ensemble"].includes(mode2)) throw new TypeError("mode must be play, speak, sing, beat or ensemble");
   const speech = { ...base.speech, ...p.speech ?? {} };
   if (typeof speech.text !== "string" || speech.text.length > LIMITS.text) throw new TypeError(`speech.text must be up to ${LIMITS.text} characters`);
   if (typeof speech.phonemes !== "boolean") throw new TypeError("speech.phonemes must be true or false");
@@ -1971,16 +2630,21 @@ function validateProject(input) {
   if (typeof song.loop !== "boolean") throw new TypeError("song.loop must be true or false");
   if (!["natural", "cartoon", "yodel"].includes(song.style)) throw new TypeError("song.style must be natural, cartoon or yodel");
   if (!Array.isArray(song.notes) || song.notes.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
-  const checkNotes = (list) => {
+  const checkNotes = (list, maxStart = 1024) => {
     if (!Array.isArray(list) || list.length > LIMITS.notes) throw new TypeError(`song.notes must be a list of at most ${LIMITS.notes}`);
-    return list.map((n, i) => {
-      if (!n || typeof n !== "object") throw new TypeError(`note ${i} must be an object`);
-      return { start: num(n.start, 0, 1024, `note ${i} start`), length: num(n.length, 0.0625, 64, `note ${i} length`), midi: Math.round(num(n.midi, 36, 96, `note ${i} midi`)) };
+    return list.map((n2, i) => {
+      if (!n2 || typeof n2 !== "object") throw new TypeError(`note ${i} must be an object`);
+      return { start: num(n2.start, 0, maxStart, `note ${i} start`), length: num(n2.length, 0.0625, 64, `note ${i} length`), midi: Math.round(num(n2.midi, 36, 96, `note ${i} midi`)) };
     });
   };
   const notes = checkNotes(song.notes);
+  const ensemble = p.ensemble === void 0 ? void 0 : validateEnsemble(p.ensemble, (list) => checkNotes(list, 1440));
+  if (mode2 === "ensemble" && !ensemble) throw new Error("The clip needs an arrangement.");
+  const takes = validateTakes(p.takes, checkNotes);
+  if (p.activeTake !== void 0 && !takes.some((t) => t.id === p.activeTake)) throw new TypeError("Unknown active take");
+  const directions = validateDirections(song.directions);
   const duet = validateDuet(song.duet, checkNotes);
-  const seconds = notes.reduce((m, n) => Math.max(m, (n.start + n.length) * 60 / song.bpm), 0);
+  const seconds = notes.reduce((m, n2) => Math.max(m, (n2.start + n2.length) * 60 / song.bpm), 0);
   if (seconds > LIMITS.seconds) throw new RangeError(`Song is longer than ${LIMITS.seconds} seconds`);
   return {
     version: 2,
@@ -1989,42 +2653,49 @@ function validateProject(input) {
     voice: { ...SIGNATURE, ...validatePatch(p.voice ?? base.voice, "voice") },
     shape: { ...validatePatch(p.shape ?? base.shape, "shape") },
     speech,
-    song: { bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes, duet },
+    song: { bpm: song.bpm, lyrics: song.lyrics, loop: song.loop, style: song.style, notes, duet, ...directions.length ? { directions } : {} },
+    ...ensemble ? { ensemble } : {},
+    ...takes.length ? { takes } : {},
+    ...p.activeTake ? { activeTake: p.activeTake } : {},
     beat: validateBeat(p.beat),
     sustain: num(p.sustain ?? base.sustain, 0.2, 30, "sustain")
   };
 }
-function songFromScore(score2) {
-  const messages = [...score2.warnings];
-  let bpm = score2.bpm;
+function songFromScore(score, maxStart = 1024) {
+  const messages = [...score.warnings];
+  let bpm = score.bpm;
   let scale = 1;
   while (bpm * scale > 240) scale /= 2;
   while (bpm * scale < 30) scale *= 2;
   bpm = Math.round(bpm * scale * 1e3) / 1e3;
   const beats = LIMITS.seconds * bpm / 60;
-  let notes = score2.notes.map((n) => ({ start: n.start * scale, length: Math.min(64, Math.max(0.0625, n.length * scale)), midi: n.midi }));
-  const kept = notes.filter((n) => n.start + n.length <= Math.min(beats, 1024 + 64) && n.start <= 1024).slice(0, LIMITS.notes);
+  let notes = score.notes.map((n2) => ({ start: n2.start * scale, length: Math.min(64, Math.max(0.0625, n2.length * scale)), midi: n2.midi }));
+  const kept = notes.filter((n2) => n2.start + n2.length <= Math.min(beats, maxStart + 64) && n2.start <= maxStart).slice(0, LIMITS.notes);
   if (kept.length < notes.length) messages.push(`The score is longer than a song can be (${LIMITS.seconds / 60} minutes, ${LIMITS.notes} notes): the first ${kept.length} of ${notes.length} notes were imported.`);
   notes = kept;
-  let lyrics = score2.lyrics;
+  let lyrics = score.lyrics;
   if (lyrics.length > LIMITS.lyrics) lyrics = lyrics.slice(0, lyrics.lastIndexOf(" ", LIMITS.lyrics));
   return { song: { bpm, notes, lyrics }, messages };
 }
 function duetScore(project2, lexicon2) {
+  if (project2.activeTake) return null;
   const duet = project2.song.duet;
   const notes = duetNotes(project2.song.notes, duet);
   if (!notes.length) return null;
   const voice = { ...SIGNATURE, ...duetVoice(duet) };
-  const plan = planSong(notes, duet.part === "custom" && duet.lyrics ? duet.lyrics : project2.song.lyrics, lexicon2, { bpm: project2.song.bpm, voice, style: project2.song.style });
+  const plan = planSong(notes, duet.part === "custom" && duet.lyrics ? duet.lyrics : project2.song.lyrics, lexicon2, { bpm: project2.song.bpm, voice, style: project2.song.style, directions: duet.part === "custom" && duet.lyrics ? void 0 : project2.song.directions });
   return { score: plan.score, voice };
 }
 function projectScore(project2, lexicon2, mode2 = project2.mode) {
+  if (mode2 === "ensemble") throw new Error("Use planEnsemble for a multi-singer arrangement.");
   if (mode2 === "speak") {
     const plan = planSpeech(project2.speech.text, lexicon2, { voice: project2.voice, rate: project2.speech.rate, expression: project2.speech.expression, phonemes: project2.speech.phonemes });
     return { score: plan.score, warnings: plan.warnings };
   }
   if (mode2 === "sing") {
-    const plan = planSong(project2.song.notes, project2.song.lyrics, lexicon2, { bpm: project2.song.bpm, voice: project2.voice, style: project2.song.style });
+    const take = project2.takes?.find((t) => t.id === project2.activeTake);
+    if (take) return { score: planTake(take, lexicon2).score, warnings: [] };
+    const plan = planSong(project2.song.notes, project2.song.lyrics, lexicon2, { bpm: project2.song.bpm, voice: project2.voice, style: project2.song.style, directions: project2.song.directions });
     return { score: plan.score, warnings: plan.warnings };
   }
   if (mode2 === "beat") {
@@ -2033,6 +2704,9 @@ function projectScore(project2, lexicon2, mode2 = project2.mode) {
     return { score: plan.score, warnings: plan.warnings };
   }
   return { score: planSustain(project2.shape, project2.voice, project2.sustain), warnings: [] };
+}
+function planTake(take, lexicon2) {
+  return planShow([take.call, take.reply].map((part) => ({ ...part, kind: "sing", pause: 0 })), lexicon2, {});
 }
 
 // src/core/score-import.ts
@@ -2052,6 +2726,8 @@ var MAX_DURATION = 4096;
 function cleanSyllable(raw) {
   const hangul = raw.normalize("NFC").match(/[\uAC00-\uD7A3]+/)?.[0];
   if (hangul) return { text: hangul, trail: /[!?.,]+$/.exec(raw.trim())?.[0] ?? "" };
+  const russian = raw.normalize("NFC").match(/[А-Яа-яЁё][А-Яа-яЁё\u0301]*/)?.[0];
+  if (russian) return { text: russian, trail: /[!?.,]+$/.exec(raw.trim())?.[0] ?? "" };
   const plain = raw.normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[‘’ʼ]/g, "'");
   const word = plain.split(/[\s_]+/).find((w) => /[A-Za-z]/.test(w));
   if (!word) return null;
@@ -2092,7 +2768,7 @@ function buildLyrics(evs, warnings2) {
   if (split) warnings2.push(`${split} word${split === 1 ? " has" : "s have"} a melisma inside and ${split === 1 ? "was" : "were"} split there.`);
   return tokens.join(" ");
 }
-function finish(input, bpm, parts, part, warnings2) {
+function finish(input, bpm, parts, part, warnings2, preserveStart = false) {
   const round = (x) => Math.round(x * GRID) / GRID;
   let bad = 0;
   const sorted = [];
@@ -2148,7 +2824,7 @@ function finish(input, bpm, parts, part, warnings2) {
         warnings2.push(`${moved} note${moved === 1 ? "" : "s"} outside the singer's range ${moved === 1 ? "was" : "were"} moved by octaves into it.`);
       }
     }
-    if (line[0].start > 4) {
+    if (!preserveStart && line[0].start > 4) {
       const shift = Math.floor(line[0].start);
       for (const e of line) {
         e.start = round(e.start - shift);
@@ -2172,29 +2848,29 @@ function decodeEntities(s) {
 function parseXml(src) {
   const root = { name: "#document", attrs: "", kids: [], text: "" };
   const stack = [root];
-  const n = src.length;
+  const n2 = src.length;
   let i = 0;
   let count = 0;
   const local = (name) => name.slice(name.lastIndexOf(":") + 1);
-  while (i < n) {
+  while (i < n2) {
     const lt = src.indexOf("<", i);
     const top = stack[stack.length - 1];
     if (lt < 0) break;
     if (lt > i && !top.kids.length) top.text += src.slice(i, lt);
     if (src.startsWith("<!--", lt)) {
       const e = src.indexOf("-->", lt + 4);
-      i = e < 0 ? n : e + 3;
+      i = e < 0 ? n2 : e + 3;
     } else if (src.startsWith("<![CDATA[", lt)) {
       const e = src.indexOf("]]>", lt + 9);
-      top.text += src.slice(lt + 9, e < 0 ? n : e).replace(/&/g, "&amp;");
-      i = e < 0 ? n : e + 3;
+      top.text += src.slice(lt + 9, e < 0 ? n2 : e).replace(/&/g, "&amp;");
+      i = e < 0 ? n2 : e + 3;
     } else if (src.startsWith("<?", lt)) {
       const e = src.indexOf("?>", lt + 2);
-      i = e < 0 ? n : e + 2;
+      i = e < 0 ? n2 : e + 2;
     } else if (src.startsWith("<!", lt)) {
       let e = lt + 2;
       let depth = 0;
-      for (; e < n; e++) {
+      for (; e < n2; e++) {
         const c = src.charCodeAt(e);
         if (c === 91) depth++;
         else if (c === 93) depth--;
@@ -2203,18 +2879,18 @@ function parseXml(src) {
       i = e + 1;
     } else if (src.charCodeAt(lt + 1) === 47) {
       const e = src.indexOf(">", lt);
-      const name = local(src.slice(lt + 2, e < 0 ? n : e).trim());
+      const name = local(src.slice(lt + 2, e < 0 ? n2 : e).trim());
       for (let k = stack.length - 1; k > 0; k--) {
         if (stack[k].name === name) {
           stack.length = k;
           break;
         }
       }
-      i = e < 0 ? n : e + 1;
+      i = e < 0 ? n2 : e + 1;
     } else {
       let e = lt + 1;
       let quote = 0;
-      for (; e < n; e++) {
+      for (; e < n2; e++) {
         const c = src.charCodeAt(e);
         if (quote) {
           if (c === quote) quote = 0;
@@ -2316,7 +2992,7 @@ function marksOf2(measure2) {
   return marks;
 }
 function unroll(marks) {
-  const n = marks.length;
+  const n2 = marks.length;
   const ending = [];
   let open = null;
   for (const m of marks) {
@@ -2324,15 +3000,15 @@ function unroll(marks) {
     ending.push(open);
     if (m.endingStop) open = null;
   }
-  const groupMax = new Array(n).fill(0);
-  for (let i2 = 0; i2 < n; ) {
+  const groupMax = new Array(n2).fill(0);
+  for (let i2 = 0; i2 < n2; ) {
     if (!ending[i2]) {
       i2++;
       continue;
     }
     let j = i2;
     let max = 0;
-    for (; j < n && ending[j]; j++) max = Math.max(max, ...ending[j]);
+    for (; j < n2 && ending[j]; j++) max = Math.max(max, ...ending[j]);
     for (let k = i2; k < j; k++) groupMax[k] = max;
     i2 = j;
   }
@@ -2340,7 +3016,7 @@ function unroll(marks) {
   let i = 0;
   let start = 0;
   let pass = 1;
-  while (i < n) {
+  while (i < n2) {
     if (order.length >= MAX_MEASURES) return { order, capped: true };
     const m = marks[i];
     if (m.forward && i !== start) {
@@ -2348,7 +3024,7 @@ function unroll(marks) {
       pass = 1;
     }
     const e = ending[i];
-    const leavesEndings = !!e && (i + 1 >= n || !ending[i + 1]);
+    const leavesEndings = !!e && (i + 1 >= n2 || !ending[i + 1]);
     if (e && !e.includes(pass)) {
       if (leavesEndings) {
         start = i + 1;
@@ -2502,11 +3178,11 @@ function playPart(measures, verse, warnings2) {
 }
 function reduceVoice(raw, warnings2) {
   const voices = /* @__PURE__ */ new Map();
-  for (const n of raw) {
-    let v = voices.get(n.voice);
-    if (!v) voices.set(n.voice, v = { notes: 0, lyrics: 0 });
+  for (const n2 of raw) {
+    let v = voices.get(n2.voice);
+    if (!v) voices.set(n2.voice, v = { notes: 0, lyrics: 0 });
     v.notes++;
-    if (n.lyric) v.lyrics++;
+    if (n2.lyric) v.lyrics++;
   }
   let voice = "";
   let best = { notes: -1, lyrics: -1 };
@@ -2519,28 +3195,28 @@ function reduceVoice(raw, warnings2) {
   if (voices.size > 1) warnings2.push(`The part has ${voices.size} voices; voice ${voice} was kept and the rest dropped.`);
   const single = [];
   let chords = 0;
-  for (const n of raw) {
-    if (n.voice !== voice) continue;
+  for (const n2 of raw) {
+    if (n2.voice !== voice) continue;
     const head = single[single.length - 1];
-    if (n.chord && head && head.start === n.start) {
+    if (n2.chord && head && head.start === n2.start) {
       if (!chords++) warnings2.push("Chords were reduced to their highest note.");
-      if (n.midi > head.midi) single[single.length - 1] = { ...n, lyric: head.lyric ?? n.lyric, chord: false };
-      else head.lyric ??= n.lyric;
-    } else single.push({ ...n, chord: false });
+      if (n2.midi > head.midi) single[single.length - 1] = { ...n2, lyric: head.lyric ?? n2.lyric, chord: false };
+      else head.lyric ??= n2.lyric;
+    } else single.push({ ...n2, chord: false });
   }
   single.sort((a, b) => a.start - b.start);
   const out = [];
   const tied = /* @__PURE__ */ new Map();
-  for (const n of single) {
-    const from = tied.get(n.midi);
-    if (n.tieStop && from && Math.abs(n.start - from.end) < 0.01) {
-      from.end = n.end;
-      if (!n.tieStart) tied.delete(n.midi);
+  for (const n2 of single) {
+    const from = tied.get(n2.midi);
+    if (n2.tieStop && from && Math.abs(n2.start - from.end) < 0.01) {
+      from.end = n2.end;
+      if (!n2.tieStart) tied.delete(n2.midi);
       continue;
     }
-    out.push(n);
-    if (n.tieStart) tied.set(n.midi, n);
-    else tied.delete(n.midi);
+    out.push(n2);
+    if (n2.tieStart) tied.set(n2.midi, n2);
+    else tied.delete(n2.midi);
   }
   return out;
 }
@@ -2577,7 +3253,7 @@ function importMusicXml(xml, opts = {}) {
   if (opts.part !== void 0 && !chosen) warnings2.push(`The score has no part "${opts.part}"; another was chosen.`);
   chosen ??= surveyed.find((p) => Number.isFinite(p.verse) && p.notes > 0) ?? surveyed[0];
   const line = reduceVoice(playPart(chosen.measures, chosen.verse, warnings2), warnings2);
-  return finish(line, bpm, parts, chosen.id, warnings2);
+  return finish(line, bpm, parts, chosen.id, warnings2, opts.preserveStart);
 }
 function decodeBytes(bytes) {
   try {
@@ -2604,8 +3280,8 @@ function readTrack(b, from, to, budget) {
     return v;
   };
   const noteOff = (key) => {
-    const n = open.get(key)?.shift();
-    if (n) n.end = tick;
+    const n2 = open.get(key)?.shift();
+    if (n2) n2.end = tick;
   };
   while (p < to) {
     tick += varlen();
@@ -2642,15 +3318,15 @@ function readTrack(b, from, to, budget) {
       if (kind === 144 && d2 > 0) {
         if (budget.notes <= 0) continue;
         budget.notes--;
-        const n = { tick, end: -1, midi: d1, channel };
-        track.notes.push(n);
+        const n2 = { tick, end: -1, midi: d1, channel };
+        track.notes.push(n2);
         const stack = open.get(key);
-        if (stack) stack.push(n);
-        else open.set(key, [n]);
+        if (stack) stack.push(n2);
+        else open.set(key, [n2]);
       } else if (kind === 128 || kind === 144) noteOff(key);
     }
   }
-  for (const n of track.notes) if (n.end < 0) n.end = tick;
+  for (const n2 of track.notes) if (n2.end < 0) n2.end = tick;
   return track;
 }
 function midiSyllables(events) {
@@ -2718,7 +3394,7 @@ function importMidi(bytes, opts = {}) {
     p = end;
   }
   if (budget.notes <= 0) warnings2.push(`Only the first ${MAX_RAW} notes of the file were read.`);
-  const pitched = tracks.map((t) => t.notes.filter((n) => n.channel !== 9));
+  const pitched = tracks.map((t) => t.notes.filter((n2) => n2.channel !== 9));
   const parts = tracks.map((t, k) => ({ id: String(k), name: t.name || `Track ${k + 1}`, notes: pitched[k].length }));
   const tempos = tracks.flatMap((t) => t.tempos).sort((a, b) => a.tick - b.tick);
   const bpm = timecode || !tempos.length ? 120 : Math.round(tempos[0].bpm * 1e3) / 1e3;
@@ -2737,14 +3413,14 @@ function importMidi(bytes, opts = {}) {
   let notes = pitched[chosen];
   if (!notes.length && tracks[chosen].notes.length) warnings2.push("The chosen track only has percussion; nothing was imported.");
   const channels = /* @__PURE__ */ new Map();
-  for (const n of notes) channels.set(n.channel, (channels.get(n.channel) ?? 0) + 1);
+  for (const n2 of notes) channels.set(n2.channel, (channels.get(n2.channel) ?? 0) + 1);
   if (channels.size > 1) {
     const keep = [...channels].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
-    notes = notes.filter((n) => n.channel === keep);
+    notes = notes.filter((n2) => n2.channel === keep);
     warnings2.push(`The track uses ${channels.size} channels; channel ${keep + 1} was kept and the rest dropped.`);
   }
   notes = [...notes].sort((a, b) => a.tick - b.tick || b.midi - a.midi);
-  const line = notes.filter((n, k) => k === 0 || n.tick !== notes[k - 1].tick);
+  const line = notes.filter((n2, k) => k === 0 || n2.tick !== notes[k - 1].tick);
   const chords = notes.length - line.length;
   if (chords) warnings2.push(`${chords} simultaneous note${chords === 1 ? " was" : "s were"} dropped; the highest of each chord is kept.`);
   let events = lyricEventsOf(tracks[chosen]);
@@ -2758,8 +3434,8 @@ function importMidi(bytes, opts = {}) {
     else unplaced++;
   }
   if (unplaced) warnings2.push(`${unplaced} lyric syllable${unplaced === 1 ? " was" : "s were"} not on a note and ${unplaced === 1 ? "was" : "were"} left out.`);
-  const evs = line.map((n) => ({ start: n.tick / ticksPerBeat, end: n.end / ticksPerBeat, midi: n.midi, lyric: n.lyric }));
-  return finish(evs, bpm, parts, String(chosen), warnings2);
+  const evs = line.map((n2) => ({ start: n2.tick / ticksPerBeat, end: n2.end / ticksPerBeat, midi: n2.midi, lyric: n2.lyric }));
+  return finish(evs, bpm, parts, String(chosen), warnings2, opts.preserveStart);
 }
 function decodeXmlBytes(bytes) {
   let label = "utf-8";
@@ -2855,13 +3531,13 @@ async function readMxl(bytes) {
     const m = /\bfull-path\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(tagText);
     if (m) rootfile = decodeEntities(m[1] ?? m[2]).replace(/^\/+/, "");
   }
-  let score2 = rootfile ? await read(rootfile) : void 0;
-  if (!score2) {
+  let score = rootfile ? await read(rootfile) : void 0;
+  if (!score) {
     const first = entries.find((e) => /\.(musicxml|xml)$/i.test(e.name) && !/^META-INF\//i.test(e.name));
-    if (first) score2 = await read(first.name);
+    if (first) score = await read(first.name);
   }
-  if (!score2) throw new Error("The compressed score (.mxl) has no MusicXML file inside.");
-  return decodeXmlBytes(score2);
+  if (!score) throw new Error("The compressed score (.mxl) has no MusicXML file inside.");
+  return decodeXmlBytes(score);
 }
 async function importScoreFile(name, bytes, opts = {}) {
   if (!(bytes instanceof Uint8Array)) throw new Error("Score import needs the file as bytes.");
@@ -2872,11 +3548,11 @@ async function importScoreFile(name, bytes, opts = {}) {
   if (kind === "midi") {
     const track = opts.part !== void 0 && /^\d+$/.test(opts.part) ? Number(opts.part) : void 0;
     if (opts.part !== void 0 && track === void 0) {
-      const out = importMidi(bytes);
+      const out = importMidi(bytes, { preserveStart: opts.preserveStart });
       out.warnings.unshift(`The file has no track "${opts.part}"; another was chosen.`);
       return out;
     }
-    return importMidi(bytes, { track });
+    return importMidi(bytes, { track, preserveStart: opts.preserveStart });
   }
   if (kind === "mxl") return importMusicXml(await readMxl(bytes), opts);
   if (kind === "xml") return importMusicXml(decodeXmlBytes(bytes), opts);
@@ -2885,13 +3561,13 @@ async function importScoreFile(name, bytes, opts = {}) {
 
 // src/core/wav.ts
 function encodeWav(channels, sampleRate) {
-  const n = channels[0]?.length ?? 0;
+  const n2 = channels[0]?.length ?? 0;
   const ch = channels.length;
-  const bytes = new Uint8Array(44 + n * ch * 2);
+  const bytes = new Uint8Array(44 + n2 * ch * 2);
   const view = new DataView(bytes.buffer);
   const text = (offset, s) => [...s].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
   text(0, "RIFF");
-  view.setUint32(4, 36 + n * ch * 2, true);
+  view.setUint32(4, 36 + n2 * ch * 2, true);
   text(8, "WAVE");
   text(12, "fmt ");
   view.setUint32(16, 16, true);
@@ -2902,9 +3578,9 @@ function encodeWav(channels, sampleRate) {
   view.setUint16(32, ch * 2, true);
   view.setUint16(34, 16, true);
   text(36, "data");
-  view.setUint32(40, n * ch * 2, true);
+  view.setUint32(40, n2 * ch * 2, true);
   let o = 44;
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < n2; i++) {
     for (let c = 0; c < ch; c++) {
       const v = channels[c][i];
       const s = Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
@@ -2962,31 +3638,46 @@ if (args.has("speed")) {
   project = { ...project, speech: { ...project.speech, rate: speed } };
 }
 var mode = args.get("mode") || project.mode;
-if (!["play", "speak", "sing", "beat"].includes(mode)) fail("mode must be play, speak, sing or beat");
+if (!["play", "speak", "sing", "beat", "ensemble"].includes(mode)) fail("mode must be play, speak, sing, beat or ensemble");
 var rate = Number(args.get("rate") || 48e3);
 if (![8e3, 16e3, 22050, 24e3, 32e3, 44100, 48e3, 96e3].includes(rate)) fail("unsupported sample rate");
 var lexicon = decodeLexicon(gunzipSync(readFileSync(join(here, "lexicon.txt.gz"))).toString("utf8"));
 var module = new WebAssembly.Module(readFileSync(join(here, "voice_lab_engine.wasm")));
-var engine = new Engine(module, rate, Number(args.get("seed") || 1));
-var { score, warnings } = projectScore(project, lexicon, mode);
+var seed = Number(args.get("seed") || 1);
 var started = performance.now();
-var [left, right] = renderScore(engine, score);
-var second = mode === "sing" ? duetScore(project, lexicon) : null;
-if (second) {
-  const [l2, r2] = renderScore(new Engine(module, rate, Number(args.get("seed") || 1) + 1), second.score, second.voice);
-  const n = Math.max(left.length, l2.length);
-  const mix = (a, b) => {
-    const out = new Float32Array(n);
-    for (let i = 0; i < n; i++) out[i] = 0.72 * ((a[i] ?? 0) + (b[i] ?? 0));
-    return out;
-  };
-  [left, right] = [mix(left, l2), mix(right, r2)];
+var left;
+var right;
+var resets;
+var warnings = [];
+if (mode === "ensemble") {
+  if (!project.ensemble) fail("The project has no ensemble arrangement");
+  const mix = renderEnsemble(module, planEnsemble(project.ensemble, lexicon), rate, seed);
+  const range = clipSamples(mix, project.ensemble.excerpt);
+  left = mix.left.subarray(range.start, range.end);
+  right = mix.right.subarray(range.start, range.end);
+  resets = mix.resets;
+} else {
+  const engine = new Engine(module, rate, seed);
+  const plan = projectScore(project, lexicon, mode);
+  warnings = plan.warnings;
+  [left, right] = renderScore(engine, plan.score);
+  resets = engine.state()[15];
+  const second = mode === "sing" ? duetScore(project, lexicon) : null;
+  if (second) {
+    const [l2, r2] = renderScore(new Engine(module, rate, seed + 1), second.score, second.voice);
+    const n2 = Math.max(left.length, l2.length);
+    const mix = (a, b) => {
+      const out = new Float32Array(n2);
+      for (let i = 0; i < n2; i++) out[i] = 0.72 * ((a[i] ?? 0) + (b[i] ?? 0));
+      return out;
+    };
+    [left, right] = [mix(left, l2), mix(right, r2)];
+  }
 }
 var elapsed = (performance.now() - started) / 1e3;
 var mono = args.get("channels") === "1";
 writeFileSync(output, encodeWav(mono ? [left] : [left, right], rate));
 var stats = measure(left);
-var state = engine.state();
 process.stdout.write(JSON.stringify({
   ok: true,
   output,
@@ -2997,7 +3688,7 @@ process.stdout.write(JSON.stringify({
   peak: Number(stats.peak.toFixed(4)),
   rms: Number(stats.rms.toFixed(4)),
   renderSeconds: Number(elapsed.toFixed(3)),
-  resets: state[15],
+  resets,
   warnings: [...scoreNotes, ...warnings],
   name: project.name
 }) + "\n");

@@ -32,7 +32,7 @@ function makeBridge(ctx: any, sessionId: string, profile: string): VoiceLabBridg
   const assertScope = () => {
     if (focused() !== sessionId || host.state.focusedSessionProfile.get() !== profile) throw new Error('The focused conversation changed; reopen Voice Lab.');
   };
-  const safeName = (s: string) => s.replace(/[^\w.-]+/g, '-').slice(0, 80) || 'voice';
+  const safeName = (s: string) => s.replace(/[^\p{L}\p{N}_.-]+/gu, '-').slice(0, 140) || 'voice';
   const folder = async () => {
     const files = ctx.files;
     if (!files) return null;
@@ -112,6 +112,12 @@ function makeBridge(ctx: any, sessionId: string, profile: string): VoiceLabBridg
         const live = host.state.focusedSessionId.get();
         if (!live) throw new Error('Open a conversation to jam with Hermes.');
         await host.request!('prompt.submit', {session_id: live, text});
+      },
+      subscribeKeep(listener) {
+        return ctx.onEvent(`plugin.${PLUGIN}.jam.keep`, (event: any) => {
+          const p = event?.payload;
+          if (p?.session_id === sessionId && focused() === sessionId && host.state.focusedSessionProfile.get() === profile && typeof p.turn_id === 'string') listener(p.turn_id);
+        });
       },
       subscribe(listener) {
         return ctx.onEvent(JAM_EVENT, (event: any) => {

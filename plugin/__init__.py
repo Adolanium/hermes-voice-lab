@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import copy
 import json
+import re
+import time
 from pathlib import Path
 from subprocess import TimeoutExpired
 
@@ -42,11 +44,15 @@ def _error(error: Exception) -> str:
 
 def _summary(project: dict) -> dict:
     song = project["song"]
+    takes = project.get("takes", [])
     return {
+        **({"ensemble": project["ensemble"]} if project.get("ensemble") else {}),
+        "active_take": project.get("activeTake"),
+        "takes": [{"id": t["id"], **{k: {f: t[k].get(f) for f in ("lyrics", "bpm", "directions")} for k in ("call", "reply")}} for t in takes],
         "name": project["name"], "mode": project["mode"], "voice": project["voice"], "shape": project["shape"],
         "speech": project["speech"],
         "song": {"bpm": song["bpm"], "lyrics": song["lyrics"], "notes": len(song["notes"]), "loop": song["loop"],
-                 "style": song.get("style", "natural"), "beats": max([n["start"] + n["length"] for n in song["notes"]] or [0])},
+                 "style": song.get("style", "natural"), "directions": song.get("directions", []), "beats": max([n["start"] + n["length"] for n in song["notes"]] or [0])},
     }
 
 
@@ -117,13 +123,47 @@ def _beat_steps(pattern: str) -> tuple[list[str], str | None]:
     return steps[:32], f"The pattern had {len(steps)} steps; it was cut to 32."
 
 
+def _edit_directions(song: dict, edits: list) -> None:
+    current = {(d["word"], d["occurrence"]): d for d in song.get("directions", [])}
+    words = [vb.word_key(w) for w in song["lyrics"].split()]
+    for direction in vb.validate_directions(edits):
+        key = direction["word"], direction["occurrence"]
+        if words.count(key[0]) < key[1]:
+            raise ValueError(f"No occurrence {key[1]} of {key[0]!r} in these lyrics")
+        if len(direction) == 2:
+            current.pop(key, None)
+        else:
+            current[key] = direction
+    song["directions"] = list(current.values())
+
+
+def _keep_turn(session: str, turn_id: str) -> dict:
+    if not isinstance(turn_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", turn_id):
+        raise ValueError("Invalid jam turn ID")
+    project = vb.current_or_new(session)
+    if any(t["id"] == turn_id for t in project.get("takes", [])):
+        return project
+    if len(project.get("takes", [])) >= 12:
+        raise ValueError("All 12 take slots are in use")
+    # The desktop holds unkept exchanges. Wait for its normal durable save before
+    # applying further edits, including when Desktop and agent use different processes.
+    vb._broadcast("jam.keep", {"session_id": session, "turn_id": turn_id})
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        time.sleep(0.1)
+        project = vb.current_or_new(session)
+        if any(t["id"] == turn_id for t in project.get("takes", [])):
+            return project
+    raise ValueError("Could not confirm the take was saved. Open the conversation’s Voice Lab and check its jam exchanges.")
+
+
 def tool_perform(args: dict, **_):
     try:
         session = _session(args)
         project = copy.deepcopy(vb.current_or_new(session))
         mode = args.get("mode")
-        if mode not in ("speak", "sing", "beat"):
-            raise ValueError("mode must be 'speak', 'sing' or 'beat'")
+        if mode not in ("speak", "sing", "beat", "ensemble"):
+            raise ValueError("mode must be 'speak', 'sing', 'beat' or 'ensemble'")
         if mode == "speak":
             text = args.get("text")
             if not isinstance(text, str) or not text.strip():
@@ -133,6 +173,28 @@ def tool_perform(args: dict, **_):
                 project["speech"]["rate"] = vb._number(args["rate"], 0.4, 2.5, "rate")
             if "expression" in args:
                 project["speech"]["expression"] = vb._number(args["expression"], 0, 1, "expression")
+        elif mode == "ensemble":
+            arrangement = project.get("ensemble") or copy.deepcopy(vb.catalog()["defaultEnsemble"])
+            if "bpm" in args:
+                arrangement["bpm"] = args["bpm"]
+            if "title" in args:
+                arrangement["title"] = args["title"]
+            if "singers" in args:
+                singers = []
+                for part in args["singers"]:
+                    s = dict(level=0.8, pan=0, muted=False)
+                    s.update(part)
+                    if "melody" in s:
+                        s["notes"] = vb.parse_melody(s.pop("melody"))
+                    singers.append(s)
+                arrangement["singers"] = singers
+                arrangement.pop("excerpt", None)
+            if "excerpt" in args:
+                if args["excerpt"] is None:
+                    arrangement.pop("excerpt", None)
+                else:
+                    arrangement["excerpt"] = args["excerpt"]
+            project["ensemble"] = vb.validate_ensemble(arrangement)
         elif mode == "beat":
             beat = dict(project.get("beat") or {})
             fitted = None
@@ -144,18 +206,38 @@ def tool_perform(args: dict, **_):
                 beat["loop"] = bool(args["loop"])
             project["beat"] = vb.validate_beat(beat)
         else:
+            if "keep_turn" in args:
+                if args.get("take_id", args["keep_turn"]) != args["keep_turn"]:
+                    raise ValueError("keep_turn and take_id must refer to the same exchange")
+                project = _keep_turn(session, args["keep_turn"])
+            take_id = args.get("keep_turn", args.get("take_id", project.get("activeTake")))
+            take = next((t for t in project.get("takes", []) if t["id"] == take_id), None)
+            if take_id and take_id != "song" and take is None:
+                raise ValueError("Unknown take_id. Read voice_lab_get for saved takes.")
+            side = args.get("take_part", "reply")
+            if side not in ("call", "reply") or ("take_part" in args and not take):
+                raise ValueError("take_part requires a saved take and must be call or reply")
+            if take:
+                if any(k in args for k in ("duet", "second_voice", "second_melody", "loop")):
+                    raise ValueError("Duet and loop controls apply to the main song")
+                project["activeTake"] = take["id"]
+            else:
+                project.pop("activeTake", None)
+            song = take[side] if take else project["song"]
             if args.get("melody"):
-                project["song"]["notes"] = vb.parse_melody(str(args["melody"]))
+                song["notes"] = vb.parse_melody(str(args["melody"]))
             elif args.get("notes") is not None:
-                project["song"]["notes"] = vb.validate_notes(args["notes"])
+                song["notes"] = vb.validate_notes(args["notes"])
             if "lyrics" in args:
-                project["song"]["lyrics"] = str(args["lyrics"])
+                song["lyrics"] = str(args["lyrics"])
+            if "directions" in args:
+                _edit_directions(song, args["directions"])
             if "bpm" in args:
-                project["song"]["bpm"] = vb._number(args["bpm"], 30, 240, "bpm")
+                song["bpm"] = vb._number(args["bpm"], 30, 240, "bpm")
             if "loop" in args:
-                project["song"]["loop"] = bool(args["loop"])
+                song["loop"] = bool(args["loop"])
             if "duet" in args or "second_voice" in args or "second_melody" in args:
-                duet = dict(project["song"].get("duet") or {})
+                duet = dict(song.get("duet") or {})
                 if "duet" in args:
                     duet["part"] = args["duet"]
                 if "second_voice" in args:
@@ -164,17 +246,17 @@ def tool_perform(args: dict, **_):
                     duet["part"] = "custom"
                     duet["notes"] = vb.parse_melody(str(args["second_melody"]))
                     duet["lyrics"] = str(args.get("second_lyrics", ""))
-                project["song"]["duet"] = vb.validate_duet(duet)
+                song["duet"] = vb.validate_duet(duet)
             if "style" in args:
                 if args["style"] not in ("natural", "cartoon", "yodel"):
                     raise ValueError("style must be natural, cartoon or yodel")
-                project["song"]["style"] = args["style"]
-            if not project["song"]["notes"]:
+                song["style"] = args["style"]
+            if not song["notes"]:
                 raise ValueError("A song needs notes (or a melody string like 'C4:1 E4:1 G4:2')")
         project["mode"] = mode
         saved = vb.save_project(session, PROJECT_ID, project, origin="agent")
         result = {"session_id": session, "project": _summary(saved),
-                  "message": f"Loaded the {dict(speak='phrase', sing='song', beat='beat')[mode]} into Voice Lab. The user can press {dict(speak='Speak', sing='Sing', beat='Play')[mode]} to hear it live."}
+                  "message": f"Loaded the {dict(speak='phrase', sing='song', beat='beat', ensemble='arrangement')[mode]} into Voice Lab. The user can press {dict(speak='Speak', sing='Sing', beat='Play', ensemble='Play arrangement')[mode]} to hear it live."}
         if mode == "beat" and fitted:
             result["note"] = fitted
         if args.get("render", True):
@@ -194,6 +276,12 @@ def tool_render(args: dict, **_):
         voice_keys = set(vb.catalog()["voiceParams"])
         for key, value in variation.items():
             (project["voice"] if key in voice_keys else project["shape"])[key] = value
+        if mode == "sing" and project.get("activeTake"):
+            take = next(t for t in project["takes"] if t["id"] == project["activeTake"])
+            for part in (take["call"], take["reply"]):
+                part["voice"].update({k: v for k, v in variation.items() if k in voice_keys})
+                if "shape" in part:
+                    part["shape"].update({k: v for k, v in variation.items() if k not in voice_keys})
         if args.get("name"):
             project["name"] = str(args["name"])[:120]
         rendered = vb.render_project(session, project, mode=mode, label="variation" if variation else "export")
@@ -225,8 +313,12 @@ def tool_jam(args: dict, **_):
             n["midi"] = int(round(vb._number(n["midi"], 36, 96, "note")))
         bpm = vb._number(args.get("bpm", 96), 30, 240, "bpm")
         lyrics = str(args.get("lyrics") or "")[:400]
-        vb._broadcast("jam", {"session_id": session, "notes": notes, "lyrics": lyrics, "bpm": bpm})
-        return _ok(session_id=session, notes=len(notes), beats=beats,
+        turn_id = args.get("turn_id")
+        if turn_id is not None and (not isinstance(turn_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", turn_id)):
+            raise ValueError("Invalid jam turn_id")
+        vb._broadcast("jam", {"session_id": session, "notes": notes, "lyrics": lyrics, "bpm": bpm,
+                              **({"turn_id": turn_id} if turn_id else {})})
+        return _ok(session_id=session, turn_id=turn_id, notes=len(notes), beats=beats,
                    message="She is singing your answer in Voice Lab now. Say at most one short line, or nothing.")
     except ValueError as e:
         return _error(e)
@@ -252,14 +344,31 @@ TOOLS = [
       "render": {"type": "boolean", "description": "Also render a 2-second preview WAV (default false)."}},
      []),
     ("voice_lab_perform",
-     "Make the voice speak a short phrase (English, or Korean in Hangul), sing a melody with lyrics, or beatbox a pattern. The phrase/song is loaded into the Voice Lab view for the user to replay and edit, "
+     "Make the voice speak a short phrase (English, Russian or Korean), sing a melody with lyrics, beatbox a pattern, or arrange up to three independent singers in the clip studio. The phrase/song is loaded into the Voice Lab view for the user to replay and edit, "
      "and (by default) rendered to a WAV attachment. Singing: give `melody` as space-separated NOTE:BEATS tokens (e.g. 'E4:0.5 G4:0.5 A4:1 r:0.5 C5:2', r = rest) "
      "or explicit `notes`, plus `lyrics` (each note takes the next syllable; hyphens split syllables; a lone '-' holds the previous vowel; "
      "a bracketed phoneme group such as [T+S] or [PE] is one syllable sung as written). Beat: `pattern` of 16 or 32 steps (16ths), each one of "
      "kick, snare, hat, open, click, bass, hum, or '.' for a rest, e.g. 'kick . hat . snare . hat . kick kick hat . snare . hat .'.",
      tool_perform,
      {"session_id": SESSION,
-      "mode": {"type": "string", "enum": ["speak", "sing", "beat"]},
+      "mode": {"type": "string", "enum": ["speak", "sing", "beat", "ensemble"]},
+      "title": {"type": "string", "description": "Ensemble arrangement title."},
+      "excerpt": {"type": ["object","null"], "description": "Ensemble clip in seconds, or null for the whole song.",
+                  "properties": {"start":{"type":"number"}, "end":{"type":"number"}}, "required":["start","end"]},
+      "singers": {"type": "array", "minItems": 1, "maxItems": 3, "description": "Replace all arrangement parts. Omit to keep the arrangement or load Night Wire.",
+                  "items": {"type": "object", "required": ["name","voice","lyrics","melody"], "properties": {
+                      "expression":{"type":"string","enum":list(vb.catalog()["expressions"]),"description":"How the eyes and brows respond to sung accents, pitches and held notes."},
+                      "movement":{"type":"string","enum":list(vb.catalog()["movements"]),"description":"How this singer moves to the beat."},
+                      "avatarColor":{"type":"string","enum":list(vb.catalog()["avatarColors"]),"description":"Color of the Nous Girl performing this part."},
+                      "name":{"type":"string"}, "voice":{"type":"string"}, "lyrics":{"type":"string"}, "melody":{"type":"string"},
+                      "level":{"type":"number","minimum":0,"maximum":1}, "pan":{"type":"number","minimum":-1,"maximum":1}, "muted":{"type":"boolean"}}}},
+      "keep_turn": {"type": "string", "description": "Sing: save the matched exchange from the open Voice Lab using the turn_id returned by voice_lab_jam. Optionally direct its words in the same call."},
+      "take_id": {"type": "string", "description": "Sing: edit a saved take by ID or 'song' for the main song. Defaults to the active take or song."},
+      "take_part": {"type": "string", "enum": ["call", "reply"], "description": "Part of a take to edit; defaults to reply."},
+      "directions": {"type": "array", "description": "Sing: replace just the specified words’ directions, preserving others. Give only word/occurrence to undo its direction.",
+                     "items": {"type": "object", "required": ["word"], "additionalProperties": False, "properties": {
+                         "word": {"type": "string"}, "occurrence": {"type": "integer", "minimum": 1, "description": "Defaults to first."},
+                         "slide": {"type": "boolean"}, "swell": {"type": "boolean"}, "vibratoAt": {"type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of the vowel before vibrato starts, e.g. 0.5 for halfway, 1 for straight."}}}},
       "pattern": {"type": "string", "description": "Beat: 16 or 32 space-separated steps: kick, snare, hat, open, click, bass, hum or '.' (rest)."},
       "text": {"type": "string", "description": "Speak: the phrase (max 1000 chars), or ARPABET when phonemes=true (words separated by '/')."},
       "phonemes": {"type": "boolean", "description": "Speak: treat text as ARPABET phonemes."},
@@ -285,9 +394,10 @@ TOOLS = [
      "'🎹 Jam'. Answer like call and response: stay in their key and tempo, one or two bars, take something from their phrase (a rhythm, an "
      "interval, the last note) and answer it, and vary it from turn to turn. `melody` is NOTE:BEATS tokens (e.g. 'E4:0.5 G4:0.5 A4:1 r:0.5 C5:2'); "
      "`lyrics` are optional, one syllable per note (hyphens split syllables), short and playful, replying to their words if they sang any. "
-     "She sings it at once in the open Voice Lab; nothing is saved. Then say at most one short line.",
+     "Echo the turn_id from the jam message so the player can keep the matched exchange. Then say at most one short line.",
      tool_jam,
      {"session_id": SESSION,
+      "turn_id": {"type": "string", "description": "Copy the turn_id from the player’s jam message."},
       "melody": {"type": "string", "description": "The answer as NOTE:BEATS tokens, r = rest. At most 32 notes and 32 beats."},
       "lyrics": {"type": "string", "description": "Optional lyrics, one syllable per note; empty to scat on 'ah'."},
       "bpm": {"type": "number", "description": "Tempo 30–240; use the user's."}},
@@ -296,7 +406,7 @@ TOOLS = [
      "Render this conversation's Voice Lab project (or a variation with parameter overrides that are not saved) to a WAV file attachment.",
      tool_render,
      {"session_id": SESSION,
-      "mode": {"type": "string", "enum": ["play", "speak", "sing", "beat"], "description": "Defaults to the project's current mode."},
+      "mode": {"type": "string", "enum": ["play", "speak", "sing", "beat", "ensemble"], "description": "Defaults to the project's current mode."},
       "variation": {"type": "object", "description": "Temporary parameter overrides for this render only. " + PATCH_HELP, "additionalProperties": {"type": "number"}},
       "name": {"type": "string", "description": "Name used in the file name."}},
      []),

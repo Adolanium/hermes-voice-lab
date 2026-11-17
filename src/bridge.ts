@@ -20,5 +20,6 @@ export interface VoiceLabBridge {
   files?: {save(name: string, text: string): Promise<string | null>; open(): Promise<string | null>};
   notify?(message: string, kind?: 'info' | 'error'): void;
   /** Jam with the agent: send a phrase as a chat turn, and hear its sung answers. */
-  jam?: {send(text: string): Promise<void>; subscribe(listener: (answer: JamAnswer) => void): () => void};
+  jam?: {send(text: string): Promise<void>; subscribe(listener: (answer: JamAnswer) => void): () => void;
+    subscribeKeep?(listener: (turnId: string) => void): () => void};
 }

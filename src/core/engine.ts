@@ -118,8 +118,10 @@ export class Engine {
     return this.f32(this.e.engine_glottal_shape(points), points).slice();
   }
 
+  get scoreCapacity(): number { return this.e.score_capacity(); }
+
   loadScore(score: Score): number {
-    const capacity = this.e.score_capacity();
+    const capacity = this.scoreCapacity;
     const count = Math.min(capacity, score.events.length / 4);
     this.f32(this.e.score_staging(), count * 4).set(score.events.subarray(0, count * 4));
     return this.e.score_load(count, score.length);
@@ -156,6 +158,16 @@ export class Engine {
   }
 }
 
+/** Fill [start, end) without advancing past a partial final block. */
+export function renderInto(engine: Engine, left: Float32Array, right: Float32Array, start: number, end: number) {
+  for (let at = start; at < end;) {
+    const [l, r] = engine.render(Math.min(1024, end - at));
+    left.set(l, at);
+    right.set(r, at);
+    at += l.length;
+  }
+}
+
 /** Render a score offline into stereo buffers. Same code path as live playback. */
 export function renderScore(engine: Engine, score: Score, patch: Patch = {}, tail = 0.6): [Float32Array, Float32Array] {
   engine.jumpAll(patch);
@@ -164,10 +176,6 @@ export function renderScore(engine: Engine, score: Score, patch: Patch = {}, tai
   const total = Math.ceil((score.length + tail) * engine.sampleRate);
   const left = new Float32Array(total);
   const right = new Float32Array(total);
-  for (let at = 0; at < total; at += 1024) {
-    const [l, r] = engine.render(Math.min(1024, total - at));
-    left.set(l, at);
-    right.set(r, at);
-  }
+  renderInto(engine, left, right, 0, total);
   return [left, right];
 }

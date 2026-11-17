@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 import threading
 import uuid
+import unicodedata
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -26,7 +27,7 @@ ROOT = Path(__file__).resolve().parent
 RUNTIME = ROOT / "runtime"
 _LOCK = threading.RLock()
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}")
-MODES = ("play", "speak", "sing", "beat")
+MODES = ("play", "speak", "sing", "beat", "ensemble")
 RENDER_TIMEOUT = 120
 
 
@@ -103,7 +104,7 @@ def parse_melody(melody: str) -> list[dict]:
     return notes
 
 
-def validate_notes(notes: Any) -> list[dict]:
+def validate_notes(notes: Any, max_start: int = 1024) -> list[dict]:
     limits = catalog()["limits"]
     if not isinstance(notes, list) or len(notes) > limits["notes"]:
         raise ValueError(f"notes must be a list of at most {limits['notes']} items")
@@ -115,18 +116,134 @@ def validate_notes(notes: Any) -> list[dict]:
         if midi is None and isinstance(n.get("note"), str):
             midi = note_to_midi(n["note"])
         out.append({
-            "start": _number(n.get("start"), 0, 1024, f"note {i} start"),
+            "start": _number(n.get("start"), 0, max_start, f"note {i} start"),
             "length": _number(n.get("length"), 0.0625, 64, f"note {i} length"),
             "midi": int(round(_number(midi, 36, 96, f"note {i} midi"))),
         })
     return out
 
 
+def word_key(text: str) -> str:
+    return re.sub(r'[-.,!?:;“”"]', '', unicodedata.normalize("NFC", text).lower().removeprefix("[").removesuffix("]"))
+
+
+def validate_directions(items: Any) -> list[dict]:
+    if not isinstance(items, list) or len(items) > 256:
+        raise ValueError("Expected up to 256 word directions")
+    seen, out = set(), []
+    for item in items:
+        if not isinstance(item, dict) or set(item) - {"word", "occurrence", "swell", "slide", "vibratoAt"}:
+            raise ValueError("Invalid word direction")
+        word = item.get("word")
+        occurrence = item.get("occurrence", 1)
+        if (not isinstance(word, str) or not word_key(word) or len(word) > 120 or re.search(r"\s", word)
+                or type(occurrence) is not int or not 1 <= occurrence <= 2048):
+            raise ValueError("A direction needs a lyric word and a positive occurrence")
+        key = (word_key(word), occurrence)
+        if key in seen:
+            raise ValueError("Duplicate word direction")
+        seen.add(key)
+        direction = {"word": key[0], "occurrence": occurrence}
+        for field in ("swell", "slide"):
+            if field in item and type(item[field]) is not bool:
+                raise ValueError(f"{field} must be boolean")
+            if item.get(field):
+                direction[field] = True
+        if "vibratoAt" in item:
+            direction["vibratoAt"] = _number(item["vibratoAt"], 0, 1, "vibratoAt")
+        out.append(direction)
+    return out
+
+
+def validate_take_part(part: Any) -> dict:
+    if not isinstance(part, dict):
+        raise ValueError("Expected a jam take part")
+    notes = validate_notes(part.get("notes"))
+    bpm = _number(part.get("bpm"), 30, 240, "take bpm")
+    lyrics, style = part.get("lyrics"), part.get("style")
+    if not isinstance(lyrics, str) or len(lyrics) > 8000 or style not in ("natural", "cartoon", "yodel"):
+        raise ValueError("Invalid take lyrics or style")
+    if any((n["start"] + n["length"]) * 60 / bpm > 360 for n in notes):
+        raise ValueError("Take part exceeds six minutes")
+    out = dict(notes=notes, lyrics=lyrics, bpm=bpm, style=style, voice=validate_patch(part.get("voice")))
+    if "shape" in part:
+        out["shape"] = validate_patch(part["shape"])
+    directions = validate_directions(part.get("directions", []))
+    if directions:
+        out["directions"] = directions
+    return out
+
+
+def validate_takes(takes: Any) -> list[dict]:
+    if not isinstance(takes, list) or len(takes) > 12:
+        raise ValueError("Expected up to 12 jam takes")
+    out, ids = [], set()
+    for take in takes:
+        if not isinstance(take, dict) or not isinstance(take.get("id"), str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", take["id"]) or take["id"] in ids:
+            raise ValueError("Invalid or duplicate jam take ID")
+        ids.add(take["id"])
+        call, reply = [validate_take_part(take.get(k)) for k in ("call", "reply")]
+        duration = sum(max((n["start"] + n["length"] for n in p["notes"]), default=0) * 60 / p["bpm"] for p in (call, reply))
+        if len(call["notes"]) + len(reply["notes"]) > 2048 or duration > 360:
+            raise ValueError("A take can contain up to 2,048 notes and six minutes of music")
+        out.append(dict(id=take["id"], call=call, reply=reply))
+    return out
+
+
+def validate_ensemble(e: Any) -> dict:
+    if not isinstance(e, dict) or not isinstance(e.get("title"), str) or not 1 <= len(e["title"].strip()) <= 120 or len(e["title"]) > 120:
+        raise ValueError("Give the arrangement a title of 1–120 characters")
+    bpm = _number(e.get("bpm"), 30, 240, "bpm")
+    if not isinstance(e.get("singers"), list) or not 1 <= len(e["singers"]) <= 3:
+        raise ValueError("Choose one to three singers")
+    singers = []
+    voices = {v["id"] for v in catalog()["voicePresets"]}
+    colors = catalog()["avatarColors"]
+    movements = catalog()["movements"]
+    expressions = catalog()["expressions"]
+    for i, s in enumerate(e["singers"]):
+        if not isinstance(s, dict) or not isinstance(s.get("name"), str) or not s["name"].strip() or len(s["name"]) > 40 or s.get("voice") not in voices:
+            raise ValueError("Each singer needs a name and voice preset")
+        if not isinstance(s.get("lyrics"), str) or len(s["lyrics"]) > 8000 or not isinstance(s.get("muted"), bool):
+            raise ValueError("Invalid singer lyrics or mute setting")
+        notes = sorted(validate_notes(s.get("notes"), max_start=1440), key=lambda n: n["start"])
+        end = 0
+        for n in notes:
+            if n["start"] < end - 0.000001:
+                raise ValueError("Each singer can play one note at a time")
+            end = n["start"] + n["length"]
+        if end > bpm * 6:
+            raise ValueError("Parts can last up to six minutes")
+        color = s.get("avatarColor", colors[i])
+        if color not in colors:
+            raise ValueError("Unknown Nous Girl avatar color")
+        movement = s.get("movement", movements[i])
+        if movement not in movements:
+            raise ValueError("Unknown singer movement")
+        expression = s.get("expression", expressions[i])
+        if expression not in expressions:
+            raise ValueError("Unknown singer expression")
+        singers.append(dict(name=s["name"], voice=s["voice"], avatarColor=color, movement=movement, expression=expression, lyrics=s["lyrics"], muted=s["muted"], notes=notes,
+                            level=_number(s.get("level"), 0, 1, "level"), pan=_number(s.get("pan"), -1, 1, "pan")))
+    out = dict(title=e["title"], bpm=bpm, singers=singers)
+    if "excerpt" in e:
+        clip = e["excerpt"]
+        if not isinstance(clip, dict):
+            raise ValueError("Invalid excerpt")
+        start = _number(clip.get("start"), 0, 362, "excerpt start")
+        end = _number(clip.get("end"), 0, 362, "excerpt end")
+        last = max((n["start"] + n["length"] for s in singers for n in s["notes"]), default=0)
+        if end <= start or start >= last * 60 / bpm + 0.65:
+            raise ValueError("Choose an excerpt inside the arrangement")
+        out["excerpt"] = dict(start=start, end=end)
+    return out
+
+
 def validate_project(project: Any) -> dict:
     """Structural validation mirroring src/core/project.ts (the renderer re-validates)."""
-    if not isinstance(project, dict) or len(json.dumps(project, allow_nan=False)) > 300_000:
-        raise ValueError("Project must be an object smaller than 300 KB")
-    allowed = {"version", "name", "mode", "voice", "shape", "speech", "song", "beat", "sustain"}
+    if not isinstance(project, dict) or len(json.dumps(project, allow_nan=False)) > 1_000_000:
+        raise ValueError("Project must be an object smaller than 1 MB")
+    allowed = {"version", "name", "mode", "voice", "shape", "speech", "song", "beat", "sustain", "takes", "activeTake", "ensemble"}
     unknown = set(project) - allowed
     if unknown:
         raise ValueError(f"Unknown project fields: {', '.join(sorted(unknown))}")
@@ -138,7 +255,7 @@ def validate_project(project: Any) -> dict:
         raise ValueError("name must be text up to 120 characters")
     out["mode"] = project.get("mode", base["mode"])
     if out["mode"] not in MODES:
-        raise ValueError("mode must be play, speak, sing or beat")
+        raise ValueError("mode must be play, speak, sing, beat or ensemble")
     out["voice"] = {**base["voice"], **validate_patch(project.get("voice", {}), "voice")}
     out["shape"] = validate_patch(project.get("shape", base["shape"]), "shape")
     speech = {**base["speech"], **(project.get("speech") or {})}
@@ -164,6 +281,18 @@ def validate_project(project: Any) -> dict:
         raise ValueError(f"Song is longer than {limits['seconds']} seconds")
     song["duet"] = validate_duet(song.get("duet", base["song"].get("duet")))
     out["song"] = {k: song[k] for k in ("bpm", "lyrics", "notes", "loop", "style", "duet")}
+    directions = validate_directions(song.get("directions", []))
+    if directions:
+        out["song"]["directions"] = directions
+    takes = validate_takes(project.get("takes", []))
+    if takes:
+        out["takes"] = takes
+    if "activeTake" in project:
+        if not any(t["id"] == project["activeTake"] for t in takes):
+            raise ValueError("Unknown active take")
+        out["activeTake"] = project["activeTake"]
+    if "ensemble" in project or out["mode"] == "ensemble":
+        out["ensemble"] = validate_ensemble(project.get("ensemble"))
     out["beat"] = validate_beat(project.get("beat", base["beat"]))
     out["sustain"] = _number(project.get("sustain", base["sustain"]), 0.2, 30, "sustain")
     out["version"] = 2
@@ -247,7 +376,7 @@ def _diff(old: dict | None, new: dict) -> list[str]:
         return ["project"]
     changed = [k for k in new["voice"] if old.get("voice", {}).get(k) != new["voice"][k]]
     changed += [k for k in new["shape"] if old.get("shape", {}).get(k) != new["shape"][k]]
-    for section in ("speech", "song", "beat", "mode", "name"):
+    for section in ("speech", "song", "beat", "mode", "name", "takes", "activeTake", "ensemble"):
         if old.get(section) != new.get(section):
             changed.append(section)
     return changed
@@ -286,7 +415,7 @@ def render_project(session_id: str | None, project: dict, mode: str | None = Non
     project = validate_project(project)
     mode = mode or project["mode"]
     if mode not in MODES:
-        raise ValueError("mode must be play, speak, sing or beat")
+        raise ValueError("mode must be play, speak, sing, beat or ensemble")
     node = node_binary()
     if not node:
         raise RuntimeError("Node.js 20+ is required on the Hermes host for offline rendering")

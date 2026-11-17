@@ -3,6 +3,7 @@
  * letter-to-sound rule set, and direct ARPABET input.
  */
 import {PHONE_CODES} from './lexicon-codes.mjs';
+import {isRussian, russianPhones} from './russian';
 import {isHangul, koreanPhones} from './korean';
 import {isVowel, PALATALIZABLE, parsePhone, PHONEMES, type Phone} from './phonemes';
 
@@ -70,8 +71,8 @@ export function tokenize(input: string): Token[] {
       return ` ${numberToWords(Number(whole))}${frac ? ` point ${frac.split('').map(d => ONES[Number(d)]).join(' ')}` : ''} `;
     });
   const tokens: Token[] = [];
-  // A word is a run of Latin letters or of Hangul blocks; each script has its own front end.
-  const re = /([A-Za-z]+(?:'[A-Za-z]+)*|[\uAC00-\uD7A3]+)|([,;:—–-]+)|([.]+)|([?]+)|([!]+)/g;
+  // Each script is a separate token so mixed-language lyrics keep their pronunciation.
+  const re = /([A-Za-z]+(?:'[A-Za-z]+)*|[А-Яа-яЁё][А-Яа-яЁё\u0301]*|[\uAC00-\uD7A3]+)|([,;:—–-]+)|([.]+)|([?]+)|([!]+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     if (m[1]) tokens.push({text: m[1].toLowerCase(), boundary: 'word'});
@@ -148,7 +149,7 @@ export interface Word {
   text: string;
   phones: Phone[];
   /** Where the pronunciation came from: the English dictionary, the English fallback rules, phoneme input, or another language's front end. */
-  source: 'dictionary' | 'rules' | 'phonemes' | 'korean';
+  source: 'dictionary' | 'rules' | 'phonemes' | 'korean' | 'russian';
   boundary: Boundary;
 }
 
@@ -162,6 +163,7 @@ function trillWord(word: string): Phone[] | null {
 
 export function phonemize(text: string, lexicon: Lexicon): Word[] {
   return tokenize(text).map((t): Word => {
+    if (isRussian(t.text)) return {text:t.text, phones:russianPhones(t.text), source:'russian', boundary:t.boundary};
     if (isHangul(t.text)) return {text: t.text, phones: koreanPhones(t.text), source: 'korean', boundary: t.boundary};
     const trill = trillWord(t.text);
     if (trill) return {text: t.text, phones: trill, source: 'rules', boundary: t.boundary};

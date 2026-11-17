@@ -3,6 +3,7 @@
  * and sends it to the conversation, and the agent answers with a phrase of its own for her to sing.
  */
 import type {Note} from '../core/planner';
+import {isVowel, type Phone} from '../core/phonemes';
 import {noteName} from '../core/params';
 
 /** Silence after the last key that ends a phrase, in seconds. */
@@ -15,10 +16,33 @@ export const MAX_BEATS = 16;
 export const ANSWER_NOTES = 32;
 export const ANSWER_BEATS = 32;
 
-export interface Phrase {notes: Note[]; words: string[]; bpm: number}
-export interface JamAnswer {notes: Note[]; lyrics: string; bpm: number}
+export interface Phrase {notes: Note[]; words: string[]; lyrics?: string; bpm: number}
+export interface JamAnswer {turnId?: string; notes: Note[]; lyrics: string; bpm: number}
 
-interface Segment {midi: number; on: number; off: number | null; text?: string}
+/** One played syllable, including its original spelling for a complete word. */
+export interface CapturedLyric {token: string; first: boolean; last: boolean; phones: Phone[]}
+interface Segment {midi: number; on: number; off: number | null; text?: string; lyric?: CapturedLyric}
+
+function writtenLyrics(segments: Segment[]): string {
+  if (!segments.some(s => s.text)) return '';
+  const tokens: string[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const {lyric, text} = segments[i];
+    if (!lyric) { tokens.push(text || '-'); continue; }
+    let end = i;
+    while (!segments[end].lyric?.last && end + 1 < segments.length && segments[end + 1].lyric?.token === lyric.token && !segments[end + 1].lyric?.first) end++;
+    if (lyric.first && segments[end].lyric?.last) {
+      tokens.push(lyric.token);
+      i = end;
+    } else {
+      // A take may start or end inside a word. Keep the syllable that was actually sung.
+      const phones = lyric.phones.map(p => p.symbol + (isVowel(p.symbol) ? p.stress : '') +
+        (p.aspirated === undefined ? '' : p.aspirated ? '^' : '=') + (p.nasalized ? '~' : '') + (p.breathy ? '%' : '') + (p.unreleased ? '-' : ''));
+      tokens.push(phones.length ? '[' + phones.join('+') + ']' : '-');
+    }
+  }
+  return tokens.join(' ');
+}
 
 /**
  * Records what the user played as the monophonic line the voice actually sang: the newest held key
@@ -26,8 +50,8 @@ interface Segment {midi: number; on: number; off: number | null; text?: string}
  */
 export class PhraseRecorder {
   private segments: Segment[] = [];
-  private stack: Array<{source: string; midi: number}> = [];
-  private words: string[] = [];
+  private stack: Array<{source: string; midi: number; text?: string; lyric?: CapturedLyric}> = [];
+
 
   get holding() { return this.stack.length > 0; }
   get empty() { return this.segments.length === 0; }
@@ -43,16 +67,21 @@ export class PhraseRecorder {
     this.stack = this.stack.filter(h => h.source !== source);
     if (top?.source !== source) return;
     const next = this.stack.at(-1);
-    if (next) this.sound(next.midi, t);
+    if (next) {
+      this.sound(next.midi, t);
+      if (next.text) this.sang(next.text, next.lyric);
+    }
     else this.close(t);
   }
 
   /** The lyric syllable sung on the newest note, when the keys sing lyrics. */
-  sang(text: string) {
+  sang(text: string, lyric?: CapturedLyric) {
     const last = this.segments.at(-1);
     if (!text || !last) return;
     last.text = text;
-    this.words.push(text);
+    last.lyric = lyric;
+    const held = this.stack.at(-1);
+    if (held) Object.assign(held, {text, lyric});
   }
 
   /** Release everything (blur, Stop) without losing the notes. */
@@ -64,13 +93,14 @@ export class PhraseRecorder {
   clear() {
     this.segments = [];
     this.stack = [];
-    this.words = [];
   }
 
   /** The phrase so far, written on the grid at `bpm`, then cleared. Null when nothing was played. */
   take(bpm: number, now: number): Phrase | null {
     this.close(now);
-    const phrase = this.segments.length ? {notes: quantize(this.segments, bpm), words: this.words.slice(), bpm} : null;
+    const notes = quantize(this.segments, bpm);
+    const kept = this.segments.slice(0, notes.length);
+    const phrase = notes.length ? {notes, words: kept.flatMap(s => s.text ? [s.text] : []), lyrics: writtenLyrics(kept), bpm} : null;
     this.clear();
     return phrase;
   }
@@ -124,9 +154,9 @@ export function melodyText(notes: Note[]): string {
 }
 
 /** The chat message that hands the phrase to the agent. */
-export function jamMessage(phrase: Phrase): string {
+export function jamMessage(phrase: Phrase, turnId?: string): string {
   const sung = phrase.words.length ? `, singing “${phrase.words.join(' ')}”` : '';
-  return `🎹 Jam · I played ${melodyText(phrase.notes)} at ${Math.round(phrase.bpm)} bpm${sung}. Your turn.`;
+  return `🎹 Jam · I played ${melodyText(phrase.notes)} at ${Math.round(phrase.bpm)} bpm${sung}. Your turn.${turnId ? ` turn_id=${turnId}` : ''}`;
 }
 
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -134,7 +164,7 @@ const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFi
 /** A jam event's answer, checked; null when it is malformed or empty. */
 export function readAnswer(payload: unknown): JamAnswer | null {
   if (!payload || typeof payload !== 'object') return null;
-  const p = payload as {notes?: unknown; lyrics?: unknown; bpm?: unknown};
+  const p = payload as {notes?: unknown; lyrics?: unknown; bpm?: unknown; turn_id?: unknown};
   if (!Array.isArray(p.notes)) return null;
   const notes: Note[] = [];
   for (const n of p.notes.slice(0, ANSWER_NOTES)) {
@@ -145,5 +175,6 @@ export function readAnswer(payload: unknown): JamAnswer | null {
   }
   if (!notes.length) return null;
   const bpm = finite(p.bpm) ? Math.min(240, Math.max(30, p.bpm)) : 96;
-  return {notes, lyrics: typeof p.lyrics === 'string' ? p.lyrics.slice(0, 400) : '', bpm};
+  if (p.turn_id !== undefined && (typeof p.turn_id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(p.turn_id))) return null;
+  return {...(typeof p.turn_id === 'string' ? {turnId: p.turn_id} : {}), notes, lyrics: typeof p.lyrics === 'string' ? p.lyrics.slice(0, 400) : '', bpm};
 }

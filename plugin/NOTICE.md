@@ -50,6 +50,8 @@ The plugin's `runtime/lexicon.txt.gz` (built from `assets/lexicon.txt.gz` in the
 
 The portrait (`src/ui/art/nousGirlArt.ts`) is a vector tracing of a side-profile Nous Girl illustration with headphones, supplied by the project owner as the character reference. It was mirrored to face the controls and traced to paths with potrace-style curve fitting. The jaw, mouth, cutaway, airway and handles are original rig layers drawn on top of it. The project owner provided the illustration for this use; its original author and license were not documented with it. Anyone redistributing the plugin should confirm they may use the illustration.
 
+The front-facing Clip Studio portrait (`src/ui/art/nous-girl-front.webp`) uses the supplied side profile as its character reference. The plugin animates the eyes, eyebrows, mouth and jaw during playback.
+
 The character belongs to Nous Research (official assets `assets/nous-girl-black.svg` and `assets/nous-girl-white.svg` in https://github.com/NousResearch/hermes-agent, inspected at revision `ee6db222660c84e4ba2cf158108f0e6fed9afe34`). Voice Lab is unofficial: its synthetic voice is a fictional character voice, not an official Nous voice, and nothing here implies endorsement or grants trademark rights.
 
 The hermes-agent MIT notice, for the character reference:
@@ -61,6 +63,10 @@ The hermes-agent MIT notice, for the character reference:
 > The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 >
 > THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Clip Studio scenery
+
+The night-train broadcast booth was created for Clip Studio. The stage renderer adds animated rain and reflections.
 
 ## Scientific background
 

@@ -2,6 +2,8 @@
 import {writeFileSync} from 'node:fs';
 import {PARAMS, VOICE_PARAMS, SHAPE_PARAMS} from '../core/params';
 import {VOICE_PRESETS, VOWEL_PRESETS} from '../core/presets';
+import {EXPRESSIONS} from '../core/face-expression';
+import {AVATAR_COLORS, MOVEMENTS, nightWire} from '../core/ensemble';
 import {LIMITS, newProject} from '../core/project';
 import {PHONEMES} from '../core/phonemes';
 import {BEAT_PRESETS, BEAT_SOUNDS} from '../core/beat';
@@ -16,6 +18,10 @@ const catalog = {
   beatSounds: BEAT_SOUNDS.map(s => ({id: s.id, label: s.label, help: s.help})),
   beatPresets: BEAT_PRESETS,
   limits: LIMITS,
+  avatarColors: AVATAR_COLORS,
+  movements: MOVEMENTS,
+  expressions: EXPRESSIONS,
+  defaultEnsemble: nightWire(),
   defaultProject: newProject('Voice study'),
 };
 writeFileSync(process.argv[2], JSON.stringify(catalog, null, 1) + '\n');

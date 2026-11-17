@@ -54,6 +54,8 @@ function cleanSyllable(raw: string): {text: string; trail: string} | null {
   // Hangul is kept as written: the Korean front end reads it, one block per note.
   const hangul = raw.normalize('NFC').match(/[\uAC00-\uD7A3]+/)?.[0];
   if (hangul) return {text: hangul, trail: /[!?.,]+$/.exec(raw.trim())?.[0] ?? ''};
+  const russian = raw.normalize('NFC').match(/[А-Яа-яЁё][А-Яа-яЁё\u0301]*/)?.[0];
+  if (russian) return {text:russian, trail:/[!?.,]+$/.exec(raw.trim())?.[0] ?? ''};
   const plain = raw
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
@@ -106,7 +108,7 @@ function buildLyrics(evs: Ev[], warnings: string[]): string {
 }
 
 /** Sort, make monophonic, fit the pitch range and the length limits, and build the result. */
-function finish(input: Ev[], bpm: number, parts: ImportedScore['parts'], part: string, warnings: string[]): ImportedScore {
+function finish(input: Ev[], bpm: number, parts: ImportedScore['parts'], part: string, warnings: string[], preserveStart = false): ImportedScore {
   const round = (x: number) => Math.round(x * GRID) / GRID;
   let bad = 0;
   const sorted: Ev[] = [];
@@ -167,7 +169,7 @@ function finish(input: Ev[], bpm: number, parts: ImportedScore['parts'], part: s
         warnings.push(`${moved} note${moved === 1 ? '' : 's'} outside the singer's range ${moved === 1 ? 'was' : 'were'} moved by octaves into it.`);
       }
     }
-    if (line[0].start > 4) {
+    if (!preserveStart && line[0].start > 4) {
       const shift = Math.floor(line[0].start);
       for (const e of line) {
         e.start = round(e.start - shift);
@@ -634,7 +636,7 @@ function reduceVoice(raw: XmlNote[], warnings: string[]): Ev[] {
   return out;
 }
 
-export function importMusicXml(xml: string, opts: {part?: string} = {}): ImportedScore {
+export function importMusicXml(xml: string, opts: {part?: string; preserveStart?: boolean} = {}): ImportedScore {
   if (typeof xml !== 'string') throw new Error('MusicXML import needs the file as text.');
   if (xml.length > MAX_BYTES) throw new Error('The score is too large to import (over 20 MB).');
   if (!/<(?:[\w.-]+:)?score-(?:partwise|timewise)[\s>/]/.test(xml)) {
@@ -671,7 +673,7 @@ export function importMusicXml(xml: string, opts: {part?: string} = {}): Importe
   chosen ??= surveyed.find(p => Number.isFinite(p.verse) && p.notes > 0) ?? surveyed[0];
 
   const line = reduceVoice(playPart(chosen.measures, chosen.verse, warnings), warnings);
-  return finish(line, bpm, parts, chosen.id, warnings);
+  return finish(line, bpm, parts, chosen.id, warnings, opts.preserveStart);
 }
 
 // ---- Standard MIDI File -------------------------------------------------------------------------
@@ -810,7 +812,7 @@ function lyricEventsOf(track: MidiTrack): MidiText[] {
   return texts.filter(t => t.tick > 0).length >= 2 ? texts : [];
 }
 
-export function importMidi(bytes: Uint8Array, opts: {track?: number} = {}): ImportedScore {
+export function importMidi(bytes: Uint8Array, opts: {track?: number; preserveStart?: boolean} = {}): ImportedScore {
   if (!(bytes instanceof Uint8Array)) throw new Error('MIDI import needs the file as bytes.');
   if (bytes.length > MAX_BYTES) throw new Error('The MIDI file is too large to import (over 20 MB).');
   const tag = (at: number) => String.fromCharCode(bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]);
@@ -898,7 +900,7 @@ export function importMidi(bytes: Uint8Array, opts: {track?: number} = {}): Impo
   if (unplaced) warnings.push(`${unplaced} lyric syllable${unplaced === 1 ? ' was' : 's were'} not on a note and ${unplaced === 1 ? 'was' : 'were'} left out.`);
 
   const evs: Ev[] = line.map(n => ({start: n.tick / ticksPerBeat, end: n.end / ticksPerBeat, midi: n.midi, lyric: n.lyric}));
-  return finish(evs, bpm, parts, String(chosen), warnings);
+  return finish(evs, bpm, parts, String(chosen), warnings, opts.preserveStart);
 }
 
 // ---- Files: .musicxml / .xml, .mxl (zip), .mid / .midi ------------------------------------------
@@ -1011,7 +1013,7 @@ async function readMxl(bytes: Uint8Array): Promise<string> {
 }
 
 /** Import a score file by its extension (and, failing that, by what its first bytes say). */
-export async function importScoreFile(name: string, bytes: Uint8Array, opts: {part?: string} = {}): Promise<ImportedScore> {
+export async function importScoreFile(name: string, bytes: Uint8Array, opts: {part?: string; preserveStart?: boolean} = {}): Promise<ImportedScore> {
   if (!(bytes instanceof Uint8Array)) throw new Error('Score import needs the file as bytes.');
   if (bytes.length > MAX_BYTES) throw new Error('The file is too large to import (over 20 MB).');
   const ext = /\.([A-Za-z0-9]+)$/.exec(name)?.[1].toLowerCase() ?? '';
@@ -1027,11 +1029,11 @@ export async function importScoreFile(name: string, bytes: Uint8Array, opts: {pa
   if (kind === 'midi') {
     const track = opts.part !== undefined && /^\d+$/.test(opts.part) ? Number(opts.part) : undefined;
     if (opts.part !== undefined && track === undefined) {
-      const out = importMidi(bytes);
+      const out = importMidi(bytes, {preserveStart: opts.preserveStart});
       out.warnings.unshift(`The file has no track "${opts.part}"; another was chosen.`);
       return out;
     }
-    return importMidi(bytes, {track});
+    return importMidi(bytes, {track, preserveStart: opts.preserveStart});
   }
   if (kind === 'mxl') return importMusicXml(await readMxl(bytes), opts);
   if (kind === 'xml') return importMusicXml(decodeXmlBytes(bytes), opts);

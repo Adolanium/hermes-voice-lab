@@ -278,3 +278,19 @@ Current transcripts of the 10 sentences (base.en):
 | Alto | 176 | 3.8 | 28.3 | 14.5 |
 
 Measured on the airway engine. The glottal flow now comes out of the interaction of an area-driven glottis with the tract, so H1–H2 and tilt follow the vowel and the preset. Pitch and tract length set the perceived size independently of these source measures.
+
+## Sung word endings and directed takes
+
+On 20 short development phrases, Whisper `small.en` recovered 11 final words from the v0.5.0 renderer and 12 with the revised sung /d/. On a separate 20-line set fixed before scoring the chosen change, it recovered 13 and 14. Of seven held-out words ending in /d/, Whisper recognized four at baseline and five with the change. The notes span C4 to E5 at phrase end. The decoder used greedy English transcription with a fixed synthesis seed. These small differences need listener confirmation.
+
+The planner leaves 22 ms of breath during a released phrase-final sung /d/ and reduces fold adduction as the tongue opens. Trials extending /t/ releases or changing the relative closure lengths lost words elsewhere. Unreleased stops retain their existing gesture. The keyboard’s sung key release uses the same /d/ treatment.
+
+Generate a self-contained blind listening session locally. Each renderer must have its matching WASM and lexicon beside it.
+
+```bash
+python3 scripts/listen-sung-endings.py /path/to/v0.5.0/plugin/runtime/render.mjs plugin/runtime/render.mjs .preview/diction/listen.html
+```
+
+Listeners transcribe one randomly assigned version of each line at matched level. After transcription, they compare pairs in randomized order and save a JSON response. Phrase indices follow `LINES` in the script. Build 0 is the first renderer argument.
+
+The take regression tests cover older projects, repeated lyric words, held syllables, two-part playback, Python validation, agent edits and rendering across one-second export boundaries. A browser integration check delivered two jam replies in reverse order and duplicated one, then kept, reopened and edited the first exchange. Its browser and CLI WAV files matched byte for byte at 48 kHz.

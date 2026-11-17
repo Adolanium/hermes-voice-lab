@@ -1,5 +1,6 @@
 /** Mode console: Play / Speak / Sing. */
 import React from 'react';
+import type {PartName} from '../core/takes';
 import type {Patch} from '../core/params';
 import type {Plan, SongPlan} from '../core/planner';
 import type {Mode, Project} from '../core/project';
@@ -29,6 +30,11 @@ interface Props {
   running: boolean;
   speechPlan: Plan | null;
   songPlan: SongPlan | null;
+  partName: PartName;
+  onPart: (part: PartName) => void;
+  onTake: (id: string) => void;
+  onRemoveTake: () => void;
+  songPosition: number;
   onSpeech: (s: Partial<Project['speech']>) => void;
   onSong: (s: Partial<Project['song']>) => void;
   onPlay: (m: Mode) => void;
@@ -74,8 +80,8 @@ export function PlaySpeakSingTabs(p: Props) {
           playing={p.scorePlaying} step={p.scorePlaying ? p.beatStep : -1} ready={p.ready} />
       )}
       {p.mode === 'sing' && (
-        <SingPanel project={p.project} plan={p.songPlan} onChange={p.onSong} onSing={() => p.onPlay('sing')} onStop={p.onStop}
-          playing={p.scorePlaying} position={p.position} ready={p.ready} onPreviewNote={p.onPreviewNote}
+        <SingPanel key={(p.project.activeTake ?? 'song') + p.partName} project={p.project} partName={p.partName} onPart={p.onPart} onTake={p.onTake} onRemoveTake={p.onRemoveTake} plan={p.songPlan} onChange={p.onSong} onSing={() => p.onPlay('sing')} onStop={p.onStop}
+          playing={p.scorePlaying} position={p.songPosition} ready={p.ready} onPreviewNote={p.onPreviewNote}
           liveSing={p.liveSing} onLiveSing={p.onLiveSing} nextSyllable={p.nextSyllable} onLiveRestart={p.onLiveRestart} />
       )}
     </section>
